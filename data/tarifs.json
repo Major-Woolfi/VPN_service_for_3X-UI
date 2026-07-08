@@ -3,23 +3,44 @@
     {
       "code": "NL",
       "flag": "🇳🇱",
-      "name": "Нидерланды",
+      "name": "Netherlands",
       "label": "🇳🇱 NL",
-      "price_per_day_rub": 3
+      "price_per_day_rub": 0.5
     },
     {
       "code": "FI",
       "flag": "🇫🇮",
-      "name": "Финляндия",
+      "name": "Finland",
       "label": "🇫🇮 FI",
-      "price_per_day_rub": 3
+      "price_per_day_rub": 0.5
     },
     {
-      "code": "SE",
-      "flag": "🇸🇪",
-      "name": "Швеция",
-      "label": "🇸🇪 SE",
-      "price_per_day_rub": 3
+      "code": "FI_WL",
+      "flag": "🇫🇮 📄",
+      "name": "Finland WhiteList",
+      "label": "🇫🇮 📄 FI WL",
+      "price_per_day_rub": 1
+    },
+    {
+      "code": "CH",
+      "flag": "🇨🇭",
+      "name": "Switzerland",
+      "label": "🇨🇭 CH",
+      "price_per_day_rub": 0.5
+    },
+    {
+      "code": "CH_WL",
+      "flag": "🇨🇭 📄",
+      "name": "Switzerland WhiteList",
+      "label": "🇨🇭 📄 CH WL",
+      "price_per_day_rub": 1
+    },
+    {
+      "code": "FR",
+      "flag": "🇫🇷",
+      "name": "France",
+      "label": "🇫🇷 FR",
+      "price_per_day_rub": 0
     }
   ],
   "plans": [
@@ -30,51 +51,51 @@
       "ip_limit": 1,
       "traffic_gb": 10,
       "duration_days": 3,
-      "servers": [ "NL", "FI", "SE" ],
+      "servers": [ "NL", "FI", "FI_WL", "CH", "CH_WL", "FR" ],
       "active": true,
       "sort": 1
     },
     {
-      "id": "minimal",
-      "name": "Минимальный",
+      "id": "simple",
+      "name": "Simple",
       "price_rub": 50,
       "ip_limit": 2,
-      "traffic_gb": 30,
+      "traffic_gb": 100,
       "duration_days": 30,
-      "servers": [ "NL" ],
+      "servers": [ "NL", "FI", "FR" ],
       "active": true,
       "sort": 2
     },
     {
-      "id": "basic",
-      "name": "Базовый",
+      "id": "medium",
+      "name": "Medium",
       "price_rub": 100,
       "ip_limit": 4,
-      "traffic_gb": 128,
+      "traffic_gb": 300,
       "duration_days": 30,
-      "servers": [ "NL", "FI" ],
+      "servers": [ "NL", "FI", "CH", "FR" ],
       "active": true,
       "sort": 3
     },
     {
-      "id": "standart",
-      "name": "Стандарт",
+      "id": "mediumwl",
+      "name": "Medium WhiteList",
       "price_rub": 200,
       "ip_limit": 7,
-      "traffic_gb": 256,
+      "traffic_gb": 50,
       "duration_days": 30,
-      "servers": [ "NL", "FI", "SE" ],
+      "servers": [ "NL", "FI", "FI_WL", "CH", "CH_WL", "FR" ],
       "active": true,
       "sort": 4
     },
     {
-      "id": "premium",
-      "name": "Премиум",
+      "id": "premiumwl",
+      "name": "Premium WhiteList",
       "price_rub": 500,
       "ip_limit": 10,
-      "traffic_gb": 1024,
+      "traffic_gb": 150,
       "duration_days": 30,
-      "servers": [ "NL", "FI", "SE" ],
+      "servers": [ "NL", "FI", "FI_WL", "CH", "CH_WL", "FR" ],
       "active": true,
       "sort": 5
     }
