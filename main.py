@@ -769,7 +769,7 @@ def generate_ref_code() -> str:
 
 
 def build_base_email(user_id: int) -> str:
-    return f"user_{user_id}@VPN.com"
+    return f"user_{user_id}@vpn.com"
 
 
 def normalize_sub_id(raw: Any) -> str:
@@ -1406,6 +1406,8 @@ class Database:
         "language": "TEXT",
         "expiry_alert_sent": "INTEGER",
         "cleanup_notification_sent": "INTEGER",
+        "expiry_sub_datatime": "TEXT",
+        "extra_sub_gb": "INTEGER",
     }
 
     def __init__(self, db_path: str):
@@ -1476,7 +1478,9 @@ class Database:
                         trust_score INTEGER DEFAULT 0,
                         language TEXT DEFAULT '',
                         expiry_alert_sent INTEGER DEFAULT 0,
-                        cleanup_notification_sent INTEGER DEFAULT 0
+                        cleanup_notification_sent INTEGER DEFAULT 0,
+                        expiry_sub_datatime TEXT DEFAULT '',
+                        extra_sub_gb INTEGER DEFAULT 0
                     )
                 """)
                 await self._migrate_users_table()
@@ -1515,8 +1519,8 @@ class Database:
             logger.info(f"Добавлена колонка users.{column}")
 
     @log_error
-    async def add_user(self, user_id: int) -> bool:
-        if is_admin_user(user_id):
+    async def add_user(self, user_id: int, *, force: bool = False) -> bool:
+        if not force and is_admin_user(user_id):
             return False
         if not self.conn:
             return False
@@ -1571,10 +1575,10 @@ class Database:
             return None
 
     @log_error
-    async def update_user(self, user_id: int, **kwargs) -> bool:
+    async def update_user(self, user_id: int, *, force: bool = False, **kwargs) -> bool:
         if not self.conn or not kwargs:
             return False
-        if is_admin_user(user_id):
+        if not force and is_admin_user(user_id):
             logger.warning(f"Попытка обновления пользователя-админа {user_id}")
             return False
         if not validate_user_id(user_id):
@@ -1583,7 +1587,7 @@ class Database:
 
         allowed = set(self.USER_COLUMN_DEFS.keys())
         values_by_column = {k: v for k, v in kwargs.items() if k in allowed}
-        invalid = sorted(set(kwargs) - allowed)
+        invalid = sorted(set(kwargs) - allowed - {"force"})
         if invalid:
             logger.warning(f"Игнорируются неизвестные поля users: {', '.join(invalid)}")
         if not values_by_column:
@@ -1702,10 +1706,12 @@ class Database:
         traffic_gb: int,
         plan_servers: Optional[List[str]] = None,
         subscription_id: Optional[str] = None,
+        expiry_sub_datatime: str = "",
     ) -> bool:
-        await self.add_user(user_id)
+        await self.add_user(user_id, force=True)
         return await self.update_user(
             user_id=user_id,
+            force=True,
             plan_text=plan_text,
             plan_servers=(
                 json.dumps(normalize_servers(plan_servers), ensure_ascii=False)
@@ -1717,20 +1723,28 @@ class Database:
             vpn_url=vpn_url,
             traffic_gb=traffic_gb,
             expiry_alert_sent=0,
+            cleanup_notification_sent=0,
             has_subscription=1,
+            expiry_sub_datatime=expiry_sub_datatime,
         )
 
     @log_error
     async def remove_subscription(self, user_id: int) -> bool:
-        await self.add_user(user_id)
+        await self.add_user(user_id, force=True)
         return await self.update_user(
             user_id=user_id,
+            force=True,
             plan_text="",
             plan_servers="",
+            subscription_id="",
             ip_limit=0,
             vpn_url="",
             traffic_gb=0,
             expiry_alert_sent=0,
+            cleanup_notification_sent=0,
+            has_subscription=0,
+            expiry_sub_datatime="",
+            extra_sub_gb=0,
         )
 
     @log_error
@@ -1739,6 +1753,20 @@ class Database:
             return False
         await self.add_user(user_id)
         return await self.update_user(user_id, expiry_alert_sent=1 if sent else 0)
+
+    @log_error
+    async def add_extra_traffic(self, user_id: int, extra_gb: int) -> bool:
+        """Add additional traffic GB to user's active subscription."""
+        if extra_gb <= 0:
+            return False
+        await self.add_user(user_id, force=True)
+        user = await self.get_user(user_id)
+        if not user:
+            return False
+        current_extra = to_int(user.get("extra_sub_gb"), 0)
+        return await self.update_user(
+            user_id, force=True, extra_sub_gb=current_extra + int(extra_gb)
+        )
 
     @log_error
     async def get_user_language(self, user_id: int) -> str:
@@ -2517,8 +2545,25 @@ class PanelAPI:
         ok, clients = await self.find_clients_full_by_email_safe(base_email)
         if not ok:
             return False
+
+        # Fallback: если list-based поиск не нашёл клиентов, пробуем прямой
+        # lookup по email — панель может не вернуть клиента в общем списке,
+        # но он существует (вызывает "Duplicate email" при создании).
+        if not clients:
+            direct = await self.get_client_by_email(base_email)
+            if direct:
+                # get_client_by_email может вернуть объект без поля email;
+                # добавляем его, т.к. запросили по base_email
+                if not direct.get("email"):
+                    direct["email"] = base_email
+                clients = [direct]
+                logger.info(
+                    f"delete_client: клиент найден через прямой lookup: {direct.get('email')}"
+                )
+
         if not clients:
             return True
+
         success = True
         seen: Set[str] = set()
         for client in clients:
@@ -2526,7 +2571,7 @@ class PanelAPI:
             if not email or email in seen:
                 continue
             seen.add(email)
-            url = f"{self.apibase}/panel/api/clients/del/{self._quote_path(email)}"
+            url = f"{self.apibase}/panel/api/clients/del/{self._quote_path(email)}?keepTraffic=0"
             try:
                 status, data, _ = await self._request_json_with_reauth(
                     "POST", url, headers=self._headers()
@@ -2691,6 +2736,35 @@ class PanelAPI:
         self, base_email: str
     ) -> Tuple[bool, List[Dict[str, Any]]]:
         return await self.find_clients_by_base_email_safe(base_email)
+
+    async def add_client_traffic(self, base_email: str, add_gb: int) -> bool:
+        """Add additional traffic (GB) to client(s) via bulkAdjust addBytes."""
+        if add_gb <= 0:
+            return False
+        emails = await self._collect_unique_client_emails(base_email)
+        if not emails:
+            logger.warning(
+                f"add_client_traffic: нет email для начисления трафика {base_email}"
+            )
+            return False
+        add_bytes = int(add_gb * BYTES_IN_GB)
+        url = f"{self.apibase}/panel/api/clients/bulkAdjust"
+        payload: Dict[str, Any] = {"emails": emails, "addBytes": add_bytes}
+        status, data, _ = await self._request_json_with_reauth(
+            "POST", url, headers=self._headers(), json=payload
+        )
+        if status in (200, 201) and data.get("success"):
+            obj = data.get("obj") or {}
+            adjusted = to_int(obj.get("adjusted", 0), 0) if isinstance(obj, dict) else 0
+            logger.info(
+                f"add_client_traffic: начислено {add_gb} ГБ для {adjusted} клиентов"
+            )
+            return adjusted > 0 or data.get("success")
+        logger.error(
+            f"add_client_traffic: ошибка bulkAdjust для {emails}: "
+            f"status={status}, msg={data.get('msg')}"
+        )
+        return False
 
     @staticmethod
     def _is_base_email(email: str, base_email: str) -> bool:
@@ -2877,6 +2951,11 @@ class CustomTariffState(StatesGroup):
 class DeleteSubscriptionState(StatesGroup):
     waiting_for_user_id = State()
     waiting_for_confirm = State()
+
+
+class AddTrafficState(StatesGroup):
+    waiting_for_user_id = State()
+    waiting_for_gb = State()
 
 
 # === Глобальные объекты ===
@@ -3176,7 +3255,9 @@ def build_tariffs_text(
         price = plan.get("price_rub", 0)
         duration = int(plan.get("duration_days", 30))
         if price == 0:
-            price_line = translate(lang, "texts.price_free_for_days", days=duration)
+            price_line = translate(
+                lang, "texts.price_free_for_days", days=format_duration(duration, lang)
+            )
         elif duration == 30:
             price_line = translate(lang, "texts.price_monthly", price=price)
         else:
@@ -3221,7 +3302,9 @@ def build_fixed_tariffs_text(
         price = plan.get("price_rub", 0)
         duration = int(plan.get("duration_days", 30))
         if price == 0:
-            price_line = translate(lang, "texts.price_free_for_days", days=duration)
+            price_line = translate(
+                lang, "texts.price_free_for_days", days=format_duration(duration, lang)
+            )
         elif duration == 30:
             price_line = translate(lang, "texts.price_monthly", price=price)
         else:
@@ -3269,7 +3352,9 @@ def build_buy_text(
         price = plan.get("price_rub", 0)
         duration = int(plan.get("duration_days", 30))
         if price == 0:
-            price_line = translate(lang, "texts.price_free_for_days", days=duration)
+            price_line = translate(
+                lang, "texts.price_free_for_days", days=format_duration(duration, lang)
+            )
         elif duration == 30:
             price_line = translate(lang, "texts.price_monthly", price=price)
         else:
@@ -3691,12 +3776,37 @@ async def get_subscription_state(user_id: int) -> Dict[str, Any]:
     expiry_times = [to_int(c.get("expiryTime"), 0) for c in clients]
     positive = [x for x in expiry_times if x > 0]
     max_expiry = max(positive) if positive else 0
+
+    # Fallback: если панель не дала expiryTime, используем expiry_sub_datatime из БД
+    if max_expiry <= 0:
+        expiry_str = str(user.get("expiry_sub_datatime") or "").strip()
+        if expiry_str:
+            try:
+                expiry_dt = datetime.fromisoformat(expiry_str)
+                max_expiry = int(expiry_dt.timestamp() * 1000)
+            except Exception:
+                pass
+
+    # Если всё ещё 0 — подписка бессрочная или данные некорректны
+    # В нашей системе все подписки имеют срок, поэтому если max_expiry == 0,
+    # считаем, что данные панели некорректны и используем stored из БД
+    if max_expiry <= 0:
+        expiry_str = str(user.get("expiry_sub_datatime") or "").strip()
+        if expiry_str:
+            try:
+                expiry_dt = datetime.fromisoformat(expiry_str)
+                max_expiry = int(expiry_dt.timestamp() * 1000)
+            except Exception:
+                pass
+
     used_bytes = sum(
         max(0, to_int(c.get("up"), 0)) + max(0, to_int(c.get("down"), 0))
         for c in clients
     )
     traffic_gb = max(0.0, to_float(user.get("traffic_gb"), 0.0))
-    traffic_bytes = int(traffic_gb * BYTES_IN_GB)
+    extra_gb = max(0, to_int(user.get("extra_sub_gb"), 0))
+    total_traffic_gb = traffic_gb + extra_gb
+    traffic_bytes = int(total_traffic_gb * BYTES_IN_GB)
     traffic_exhausted = traffic_bytes > 0 and used_bytes >= traffic_bytes
     expired = bool(max_expiry and max_expiry <= now_ms)
     status = (
@@ -3712,7 +3822,7 @@ async def get_subscription_state(user_id: int) -> Dict[str, Any]:
         "max_expiry": max_expiry,
         "used_bytes": used_bytes,
         "used_gb": used_bytes / BYTES_IN_GB,
-        "traffic_gb": traffic_gb,
+        "traffic_gb": total_traffic_gb,
         "traffic_bytes": traffic_bytes,
     }
 
@@ -3735,9 +3845,58 @@ async def cleanup_subscription(
         logger.warning(f"cleanup_subscription: некорректный user_id {user_id}")
         return result
 
-    if is_admin_user(user_id):
-        logger.info(f"cleanup_subscription: пропуск админа {user_id}")
+    trust_before: Optional[int] = None
+    trust_after: Optional[int] = None
+    trust_delta = 0
+
+    # Штраф за исчерпание трафика (только для обычных пользователей)
+    if not is_admin_user(user_id) and reason == "traffic_exhausted":
+        trust_before = await db.get_trust_score(user_id)
+        changed, before, after, delta = await apply_trust_score_delta(
+            user_id, -TRUST_SCORE_PENALTY_TRAFFIC_EXHAUSTED
+        )
+        trust_after = after
+        trust_delta = delta
+
+    # Удаляем клиента с панели
+    base_email = build_base_email(user_id)
+    try:
+        deleted = await panel.delete_client(base_email)
+        if deleted:
+            logger.info(f"🗑 Клиент {user_id} удалён с панели (reason={reason})")
+        else:
+            logger.warning(
+                f"⚠️ Не удалось удалить клиента {user_id} с панели (reason={reason})"
+            )
+    except Exception as e:
+        logger.error(f"cleanup_subscription: ошибка удаления с панели {user_id}: {e}")
+
+    # Очищаем все графы подписки в БД (включая has_subscription,
+    # subscription_id, expiry_sub_datatime, extra_sub_gb, cleanup_notification_sent)
+    await db.remove_subscription(user_id)
+    logger.info(f"🗑 Подписка {user_id} очищена из БД (reason={reason})")
+
+    # Уведомляем пользователя
+    if notify_user_about_cleanup and not is_admin_user(user_id):
+        try:
+            user_lang = await get_user_language(user_id)
+            cleanup_text = build_subscription_cleanup_message(
+                reason,
+                trust_before=trust_before,
+                trust_after=trust_after,
+                trust_delta=trust_delta,
+                lang=user_lang,
+            )
+            await notify_user(
+                user_id, cleanup_text, reply_markup=support_keyboard(include_main=True)
+            )
+        except Exception as e:
+            logger.error(f"cleanup_subscription: ошибка уведомления {user_id}: {e}")
+
     result["success"] = True
+    result["trust_before"] = trust_before
+    result["trust_after"] = trust_after
+    result["trust_delta"] = trust_delta
     return result
 
 
@@ -3749,7 +3908,9 @@ async def ensure_subscription_state(
 ) -> Dict[str, Any]:
     state = await get_subscription_state(user_id)
     status = state.get("status")
-    if status in ("expired", "traffic_exhausted", "missing_on_panel"):
+    # missing_on_panel НЕ очищается здесь — нормализатор восстанавливает
+    # такие подписки. Очищаем только истёкшие и исчерпавшие трафик.
+    if status in ("expired", "traffic_exhausted"):
         cleanup_result = await cleanup_subscription(
             user_id,
             status,
@@ -3868,6 +4029,41 @@ async def create_subscription(
         tg_id=user_id,
         inbound_ids=inbound_ids,
     )
+
+    # Fallback при "Duplicate email": клиент мог остаться на панели,
+    # но не находиться через list-based поиск. Пробуем прямой lookup
+    # и принудительное удаление, затем создаём заново.
+    if not client:
+        logger.warning(
+            f"create_subscription: повторная попытка для user {user_id} (Duplicate email?)"
+        )
+        direct = await panel.get_client_by_email(base_email)
+        if direct:
+            direct_email = direct.get("email") or base_email
+            del_url = (
+                f"{panel.apibase}/panel/api/clients/del/"
+                f"{panel._quote_path(direct_email)}?keepTraffic=0"
+            )
+            try:
+                await panel._request_json_with_reauth(
+                    "POST", del_url, headers=panel._headers()
+                )
+                logger.info(f"create_subscription: принудительно удалён {direct_email}")
+            except Exception as e:
+                logger.error(
+                    f"create_subscription: ошибка принудительного удаления: {e}"
+                )
+        await asyncio.sleep(1)
+        client = await panel.create_client(
+            email=base_email,
+            limit_ip=int(plan.get("ip_limit", 0)),
+            total_gb=int(plan.get("traffic_gb", 0)),
+            days=days,
+            servers=plan_servers,
+            tg_id=user_id,
+            inbound_ids=inbound_ids,
+        )
+
     if not client:
         logger.error(
             f"create_subscription: не удалось создать клиента для user {user_id}"
@@ -3884,6 +4080,10 @@ async def create_subscription(
     # Извлекаем subscription_id из plan.id для последующей нормализации
     plan_id_for_db = plan.get("id", "")
 
+    # Вычисляем datetime окончания подписки для хранения в БД
+    expiry_dt = datetime.now() + timedelta(days=days)
+    expiry_sub_datatime = expiry_dt.isoformat()
+
     await db.set_subscription(
         user_id,
         plan_text=plan_name,
@@ -3892,10 +4092,8 @@ async def create_subscription(
         vpn_url=sub_id,
         plan_servers=plan_servers,
         subscription_id=plan_id_for_db,
+        expiry_sub_datatime=expiry_sub_datatime,
     )
-
-    # Сбрасываем флаг уведомления об удалении
-    await db.update_user(user_id, cleanup_notification_sent=0)
 
     if pending > 0:
         await db.clear_bonus_days_pending(user_id)
@@ -4048,6 +4246,12 @@ async def renew_subscription(
     # Извлекаем subscription_id из plan.id для последующей нормализации
     plan_id_for_db = plan.get("id", "")
 
+    # Вычисляем новый datetime окончания подписки
+    max_expiry_dt = (
+        datetime.fromtimestamp(max_expiry / 1000) if max_expiry > 0 else datetime.now()
+    )
+    expiry_sub_datatime = (max_expiry_dt + timedelta(days=days)).isoformat()
+
     await db.set_subscription(
         user_id,
         plan_text=plan_name,
@@ -4056,9 +4260,8 @@ async def renew_subscription(
         vpn_url=vpn_url,
         plan_servers=plan_servers,
         subscription_id=plan_id_for_db,
+        expiry_sub_datatime=expiry_sub_datatime,
     )
-    # Сбрасываем флаг уведомления об удалении
-    await db.update_user(user_id, cleanup_notification_sent=0)
     if pending > 0:
         await db.clear_bonus_days_pending(user_id)
     if earn_trust:
@@ -4091,21 +4294,33 @@ async def notify_expiring_subscription(
     if days is None:
         days = Config.EXPIRY_ALERT_DAYS
 
-    if state.get("status") != "active" or not is_expiring_soon(state, days):
+    user_data = await db.get_user(user_id)
+    if not user_data:
+        return False
+
+    # Сначала получаем max_expiry с fallback на БД
+    max_expiry = to_int(state.get("max_expiry"), 0)
+    if max_expiry <= 0:
+        expiry_str = str(user_data.get("expiry_sub_datatime") or "").strip()
+        if expiry_str:
+            try:
+                expiry_dt = datetime.fromisoformat(expiry_str)
+                max_expiry = int(expiry_dt.timestamp() * 1000)
+            except Exception:
+                pass
+    if max_expiry <= 0:
+        return False
+
+    # Проверяем истечение с правильным max_expiry
+    if state.get("status") != "active" or not is_expiring_soon(
+        {"max_expiry": max_expiry}, days
+    ):
         return False
 
     if not await should_send_expiry_alert(user_id):
         return False
 
-    user_data = await db.get_user(user_id)
-    if not user_data:
-        return False
-
     lang = await get_user_language(user_id)
-    max_expiry = to_int(state.get("max_expiry"), 0)
-    if max_expiry <= 0:
-        return False
-
     days_left = max(
         1, math.ceil((max_expiry - int(time.time() * 1000)) / (86400 * 1000))
     )
@@ -5854,6 +6069,59 @@ async def cmd_show_yoomoney_payment(event: CallbackQuery, **kwargs):
     await smart_answer(event, text, reply_markup=kb(keyboard), delete_origin=True)
 
 
+@router.callback_query(F.data.startswith("pay_p2p:"))
+async def cmd_show_p2p_payment(event: CallbackQuery, **kwargs):
+    parts = event.data.split(":")  # type: ignore[union-attr]
+    plan_id = parts[1]
+    try:
+        uid = int(parts[2])
+    except ValueError:
+        await event.answer(
+            translate(DEFAULT_LANGUAGE, "texts.invalid_user_identifier"),
+            show_alert=True,
+        )
+        return
+    if uid != (get_event_user_id(event) or 0):
+        await event.answer(
+            translate(DEFAULT_LANGUAGE, "texts.wrong_user_error"), show_alert=True
+        )
+        return
+
+    lang = await get_user_language(uid)
+
+    plan, error = get_purchasable_catalog_plan(plan_id)
+    if not plan:
+        await event.answer(error, show_alert=True)
+        return
+    price = to_float(plan.get("price_rub", 0), 0.0)
+    trust = await db.get_trust_score(uid)
+    final_price, _ = apply_trust_discount(price, trust)
+    final_price_int = int(round(final_price))
+
+    text = translate(
+        lang,
+        "texts.p2p_payment_details",
+        plan_name=plan.get("name", plan_id),
+        amount=final_price_int,
+        payment_card=Config.PAYMENT_CARD_NUMBER,
+    )
+    keyboard = [
+        [
+            {
+                "text": translate(lang, "buttons.confirm_payment"),
+                "callback_data": f"confirm_payment:p2p:{plan_id}:{uid}",
+            }
+        ],
+        [
+            {
+                "text": translate(lang, "buttons.cancel"),
+                "callback_data": "cancel",
+            }
+        ],
+    ]
+    await smart_answer(event, text, reply_markup=kb(keyboard), delete_origin=True)
+
+
 @router.callback_query(
     CustomTariffState.waiting_for_confirm, F.data.startswith("custom:pay_p2p:")
 )
@@ -6069,6 +6337,8 @@ async def cmd_mysub(event: CallbackQuery, **kwargs):
     servers = get_user_plan_servers(user_data)
     ip_limit = to_int(user_data.get("ip_limit"), 0)
     traffic_gb = max(0.0, to_float(user_data.get("traffic_gb"), 0.0))
+    extra_gb = max(0, to_int(user_data.get("extra_sub_gb"), 0))
+    total_traffic_gb = traffic_gb + extra_gb
     sub_url = build_subscription_url(user_data.get("vpn_url"))
     json_sub_url = build_json_subscription_url(user_data.get("vpn_url"))
     trust = to_int(user_data.get("trust_score"), 0)
@@ -6077,13 +6347,22 @@ async def cmd_mysub(event: CallbackQuery, **kwargs):
     if status == "active":
         used_gb = to_float(state.get("used_gb"), 0.0)
         max_expiry = to_int(state.get("max_expiry"), 0)
-        if traffic_gb > 0:
-            remaining = max(0.0, traffic_gb - used_gb)
+        # Fallback: если панель не дала expiryTime, используем БД
+        if max_expiry <= 0:
+            expiry_str = str(user_data.get("expiry_sub_datatime") or "").strip()
+            if expiry_str:
+                try:
+                    expiry_dt = datetime.fromisoformat(expiry_str)
+                    max_expiry = int(expiry_dt.timestamp() * 1000)
+                except Exception:
+                    pass
+        if total_traffic_gb > 0:
+            remaining = max(0.0, total_traffic_gb - used_gb)
             traffic_line = translate(
                 lang,
                 "texts.subscription_traffic_remaining",
                 remaining_gb=f"{remaining:.1f}",
-                total_gb=f"{traffic_gb:.0f}",
+                total_gb=f"{total_traffic_gb:.0f}",
             )
         else:
             traffic_line = translate(lang, "texts.subscription_traffic_unlimited")
@@ -6112,7 +6391,7 @@ async def cmd_mysub(event: CallbackQuery, **kwargs):
             "texts.subscription_inactive_details",
             plan_text=plan_text,
             ip_limit=ip_limit,
-            traffic=format_traffic(traffic_gb, lang),
+            traffic=format_traffic(total_traffic_gb, lang),
             servers=format_servers(servers),
             trust_score=trust,
             discount_percent=disc,
@@ -6767,6 +7046,12 @@ async def cmd_debug_menu(event: CallbackQuery, **kwargs):
             ],
             [
                 {
+                    "text": translate(DEFAULT_LANGUAGE, "buttons.add_traffic"),
+                    "callback_data": "debug_add_traffic",
+                }
+            ],
+            [
+                {
                     "text": translate(DEFAULT_LANGUAGE, "buttons.main"),
                     "callback_data": "start",
                 }
@@ -7235,6 +7520,117 @@ async def process_delete_sub_confirm(event: Message, state: FSMContext, **kwargs
     )
 
 
+# === Функция начисления доп. трафика (debug) ===
+@router.callback_query(F.data == "debug_add_traffic")
+async def cmd_add_traffic_start(event: CallbackQuery, state: FSMContext, **kwargs):
+    if not await ensure_admin_access(event):
+        return
+    await smart_answer(
+        event,
+        translate(DEFAULT_LANGUAGE, "texts.add_traffic_user_prompt"),
+        reply_markup=cancel_only_keyboard(),
+        delete_origin=True,
+    )
+    await state.set_state(AddTrafficState.waiting_for_user_id)
+
+
+@router.message(AddTrafficState.waiting_for_user_id)
+async def process_add_traffic_user_id(event: Message, state: FSMContext, **kwargs):
+    val = (event.text or "").strip()
+    if val.lower() in ("отмена", "cancel", "/cancel"):
+        await state.clear()
+        await cmd_start(event, state)
+        return
+    if not val.isdigit():
+        await event.answer(translate(DEFAULT_LANGUAGE, "texts.invalid_user_id_number"))
+        return
+    uid = int(val)
+    if is_admin_user(uid):
+        await event.answer(
+            translate(DEFAULT_LANGUAGE, "texts.add_traffic_admin_not_allowed")
+        )
+        return
+    user = await db.get_user(uid)
+    if not user or not normalize_sub_id(user.get("vpn_url")):
+        await event.answer(
+            translate(
+                DEFAULT_LANGUAGE, "texts.add_traffic_no_subscription", user_id=uid
+            )
+        )
+        return
+    await state.update_data(traffic_user_id=uid)
+    await state.set_state(AddTrafficState.waiting_for_gb)
+    await event.answer(
+        translate(DEFAULT_LANGUAGE, "texts.add_traffic_gb_prompt", user_id=uid),
+        reply_markup=cancel_only_keyboard(),
+    )
+
+
+@router.message(AddTrafficState.waiting_for_gb)
+async def process_add_traffic_gb(event: Message, state: FSMContext, **kwargs):
+    val = (event.text or "").strip()
+    if val.lower() in ("отмена", "cancel", "/cancel"):
+        await state.clear()
+        await cmd_start(event, state)
+        return
+    if not val.isdigit():
+        await event.answer(translate(DEFAULT_LANGUAGE, "texts.add_traffic_gb_invalid"))
+        return
+    gb = int(val)
+    if gb <= 0:
+        await event.answer(translate(DEFAULT_LANGUAGE, "texts.add_traffic_gb_positive"))
+        return
+    data = await state.get_data()
+    uid: int = int(data.get("traffic_user_id", 0))
+    await state.clear()
+
+    if uid <= 0:
+        await smart_answer(
+            event,
+            translate(DEFAULT_LANGUAGE, "texts.add_traffic_fail", user_id=uid),
+            reply_markup=main_menu_keyboard(),
+            delete_origin=True,
+        )
+        return
+
+    # Начисляем в БД
+    db_ok = await db.add_extra_traffic(uid, gb)
+    if not db_ok:
+        await smart_answer(
+            event,
+            translate(DEFAULT_LANGUAGE, "texts.add_traffic_fail", user_id=uid),
+            reply_markup=main_menu_keyboard(),
+            delete_origin=True,
+        )
+        return
+
+    # Начисляем на панель
+    base_email = build_base_email(uid)
+    panel_ok = await panel.add_client_traffic(base_email, gb)
+
+    # Уведомляем пользователя
+    user_lang = await get_user_language(uid)
+    try:
+        await notify_user(
+            uid,
+            translate(user_lang, "texts.add_traffic_notification", gb=gb),
+        )
+    except Exception:
+        pass
+
+    if panel_ok:
+        text = translate(
+            DEFAULT_LANGUAGE, "texts.add_traffic_success", user_id=uid, gb=gb
+        )
+    else:
+        text = translate(
+            DEFAULT_LANGUAGE, "texts.add_traffic_partial", user_id=uid, gb=gb
+        )
+    await smart_answer(
+        event, text, reply_markup=main_menu_keyboard(), delete_origin=True
+    )
+
+
 # === Фоновая задача нормализации ===
 async def normalize_all_subscriptions_with_retry(
     max_iterations: int = 5, delay_between_iterations: int = 2
@@ -7352,10 +7748,52 @@ async def normalize_all_subscriptions_with_retry(
                 else:
                     # План не найден — используем stored данные
                     stored_servers = parse_stored_servers(user.get("plan_servers"))
+                    stored_ip = to_int(user.get("ip_limit"), 0)
+                    stored_gb = to_float(user.get("traffic_gb"), 0.0)
                     logger.info(
                         f"  ⚠️ План не найден по subscription_id='{subscription_id}', "
-                        f"используем stored данные: {stored_servers}"
+                        f"используем stored данные: servers={stored_servers}, ip={stored_ip}, gb={stored_gb}"
                     )
+
+                    # Если expiry_sub_datatime нет — вычисляем now + 30 дней
+                    stored_expiry = str(user.get("expiry_sub_datatime") or "").strip()
+                    if not stored_expiry:
+                        default_expiry = (
+                            datetime.now() + timedelta(days=30)
+                        ).isoformat()
+                        logger.info(
+                            f"  🕐 Нет expiry_sub_datatime для {uid}, устанавливаем default: {default_expiry}"
+                        )
+                        await db.update_user(uid, expiry_sub_datatime=default_expiry)
+                        stored_expiry = default_expiry
+                        iter_changes += 1
+
+                    # Обновляем stored данные в БД (если план не найден)
+                    update_fields = {}
+                    stored_servers_json = (
+                        json.dumps(stored_servers, ensure_ascii=False)
+                        if stored_servers
+                        else ""
+                    )
+                    if (
+                        stored_servers_json
+                        and user.get("plan_servers") != stored_servers_json
+                    ):
+                        update_fields["plan_servers"] = stored_servers_json
+                    if stored_ip != to_int(user.get("ip_limit"), 0):
+                        update_fields["ip_limit"] = stored_ip
+                    if stored_gb != to_float(user.get("traffic_gb"), 0.0):
+                        update_fields["traffic_gb"] = stored_gb
+
+                    if update_fields:
+                        await db.update_user(uid, **update_fields)
+                        report["subscriptions_updated"] += 1
+                        iter_changes += 1
+                        logger.info(
+                            f"  🔄 Обновлены stored данные для {uid}: {update_fields}"
+                        )
+
+                    plan_servers = stored_servers
 
                 # === Шаг 3: Нормализуем на сервере ===
                 target_inbound_ids: List[int] = []
@@ -7475,12 +7913,16 @@ async def normalize_all_subscriptions_with_retry(
                             plan_ip = curr_ip
                             plan_gb = curr_gb
 
-                        if curr_ip != plan_ip or abs(curr_gb - plan_gb) > 0.1:
+                        # Учитываем extra_sub_gb в общем трафике
+                        extra_gb = to_int((fresh_user or user).get("extra_sub_gb"), 0)
+                        total_gb = plan_gb + extra_gb
+
+                        if curr_ip != plan_ip or abs(curr_gb - total_gb) > 0.1:
                             logger.info(
-                                f"  🔄 Обновление настроек на сервере: IP {curr_ip}->{plan_ip}, GB {curr_gb}->{plan_gb}"
+                                f"  🔄 Обновление настроек на сервере: IP {curr_ip}->{plan_ip}, GB {curr_gb}->{total_gb}"
                             )
                             client["limitIp"] = plan_ip
-                            client["totalGB"] = int(plan_gb * BYTES_IN_GB)
+                            client["totalGB"] = int(total_gb * BYTES_IN_GB)
                             payload = panel._client_payload_for_update(client)
                             upd_url = f"{panel.apibase}/panel/api/clients/update/{panel._quote_path(email)}"
                             status, data, _ = await panel._request_json_with_reauth(
@@ -7498,6 +7940,25 @@ async def normalize_all_subscriptions_with_retry(
                         else:
                             logger.info(
                                 f"  ✅ Настройки уже нормализованы: IP={curr_ip}, GB={curr_gb}"
+                            )
+
+                # === Шаг 4: Обновляем expiry_sub_datatime из данных панели ===
+                clients = await panel.find_clients_full_by_email(base_email)
+                if clients:
+                    expiry_times = [to_int(c.get("expiryTime"), 0) for c in clients]
+                    max_expiry = max((x for x in expiry_times if x > 0), default=0)
+                    if max_expiry > 0:
+                        expiry_iso = datetime.fromtimestamp(
+                            max_expiry / 1000
+                        ).isoformat()
+                        stored_expiry = str(
+                            user.get("expiry_sub_datatime") or ""
+                        ).strip()
+                        if stored_expiry != expiry_iso:
+                            await db.update_user(uid, expiry_sub_datatime=expiry_iso)
+                            logger.info(
+                                f"  🕐 Обновлён expiry_sub_datatime для {uid}: "
+                                f"{stored_expiry or 'пусто'} -> {expiry_iso}"
                             )
 
                 state = await get_subscription_state(uid)
@@ -7537,18 +7998,35 @@ async def normalize_all_subscriptions_with_retry(
                         plan_servers = get_user_plan_servers(user)
                         restore_ip = to_int(user.get("ip_limit"), 1)
                         restore_gb = to_float(user.get("traffic_gb"), 10.0)
+                        restore_days = 30
                     else:
                         plan_servers = get_plan_servers(plan)
                         restore_ip = to_int(plan.get("ip_limit"), 1)
                         restore_gb = to_float(plan.get("traffic_gb"), 10.0)
+                        restore_days = to_int(plan.get("duration_days"), 30)
+
+                    # Учитываем extra_sub_gb при восстановлении трафика
+                    extra_gb = to_int(user.get("extra_sub_gb"), 0)
+                    restore_gb_total = restore_gb + extra_gb
+
+                    # Пытаемся вычислить оставшиеся дни из expiry_sub_datatime
+                    expiry_str = str(user.get("expiry_sub_datatime") or "").strip()
+                    if expiry_str:
+                        try:
+                            expiry_dt = datetime.fromisoformat(expiry_str)
+                            remaining = (expiry_dt - datetime.now()).days
+                            if remaining > 0:
+                                restore_days = remaining
+                        except Exception:
+                            pass
 
                     inbound_ids = await panel.get_matching_inbound_ids(plan_servers)
                     if inbound_ids:
                         client = await panel.create_client(
                             email=build_base_email(uid),
                             limit_ip=restore_ip,
-                            total_gb=restore_gb,
-                            days=30,
+                            total_gb=restore_gb_total,
+                            days=restore_days,
                             servers=plan_servers,
                             tg_id=uid,
                             inbound_ids=inbound_ids,
@@ -7606,7 +8084,6 @@ async def normalize_all_subscriptions_with_retry(
                     )
 
             await db.remove_subscription(admin_id)
-            await db.update_user(admin_id, has_subscription=0)
             admins_removed += 1
             logger.info(f"🗑 Удалена подписка админа {admin_id} из БД")
         except Exception as e:
@@ -7750,6 +8227,7 @@ class SSLUpdateTask:
                     "x-ui",
                     "20",
                     "6",
+                    "y",
                     "y",
                     "",
                     "80",
