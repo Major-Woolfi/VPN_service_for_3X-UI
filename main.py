@@ -4359,6 +4359,10 @@ async def notify_expiring_subscription(
 
 
 async def reward_referrer(referrer_id: int, bonus_days: int) -> None:
+    logger.info(
+        f"🤝 Начисление реферального бонуса: реферер {referrer_id}, "
+        f"бонус {bonus_days} дней"
+    )
     lang = await get_user_language(referrer_id)
     ref_user = await db.get_user(referrer_id)
     if not ref_user:
@@ -4369,6 +4373,10 @@ async def reward_referrer(referrer_id: int, bonus_days: int) -> None:
     has_active = await is_active_subscription(referrer_id)
     if has_active:
         if await panel.extend_client_expiry(base_email, total):
+            logger.info(
+                f"🤝 Реферальный бонус начислен: {referrer_id}, "
+                f"+{total} дней к подписке"
+            )
             if pending > 0:
                 await db.clear_bonus_days_pending(referrer_id)
             await notify_user(
@@ -4708,17 +4716,19 @@ async def cmd_start(
             try:
                 await db.add_user(user_id)
                 await db.ensure_ref_code(user_id)
+                logger.info(f"👤 Новый пользователь зарегистрирован: ID {user_id}")
 
                 if ref_code:
                     ref_user = await db.get_user_by_ref_code(ref_code)
                     if ref_user and ref_user.get("user_id") != user_id:
                         await db.set_ref_by(user_id, ref_user.get("user_id"))
                         logger.info(
-                            f"Пользователь {user_id} приглашен рефералом {ref_user.get('user_id')}"
+                            f"🤝 Пользователь {user_id} приглашен рефералом {ref_user.get('user_id')} (code: {ref_code})"
                         )
 
                 lang = await db.get_user_language(user_id)
                 if not lang:
+                    logger.info(f"🌍 Запрос выбора языка для user {user_id}")
                     await prompt_language_selection(event)
                     return
             except Exception as e:
@@ -4728,6 +4738,7 @@ async def cmd_start(
                 )
                 return
         else:
+            logger.info(f"👑 Админ вошел в бот: ID {user_id}")
             lang = DEFAULT_LANGUAGE
 
         total = await db.get_total_users()
@@ -4803,6 +4814,9 @@ async def cmd_set_language(event: CallbackQuery, state: FSMContext, **kwargs):
         return
     await db.add_user(user_id)
     await db.set_user_language(user_id, lang)
+    logger.info(
+        f"🌍 Пользователь {user_id} выбрал язык: {get_language_display_name(lang)}"
+    )
     await event.answer(
         translate(
             lang, "texts.language_selected", language=get_language_display_name(lang)
@@ -5849,6 +5863,10 @@ async def cmd_test_plan(event: CallbackQuery, **kwargs):
         earn_trust=False,
     )
     if vpn_url:
+        logger.info(
+            f"🧪 Тестовая подписка создана: user {user_id}, "
+            f"план {plan.get('name', plan_id)}"
+        )
         user_lang = await get_user_language(user_id)
         text = translate(
             user_lang,
@@ -5915,6 +5933,7 @@ async def cmd_trial_plan(event: CallbackQuery, **kwargs):
         earn_trust=False,
     )
     if vpn_url:
+        logger.info(f"🎁 Пробная подписка создана: user {user_id}, план {plan_id}")
         await db.mark_trial_used(user_id)
         user_lang = await get_user_language(user_id)
         text = translate(
@@ -6238,6 +6257,7 @@ async def cmd_confirm_payment(event: CallbackQuery, **kwargs):
     }
     added = await json_db.add_pending_for_user(uid, payment_data)
     if not added:
+        logger.warning(f"⚠️ Повторная заявка на оплату от user {uid} (план: {plan_id})")
         await smart_answer(
             event,
             translate(lang, "texts.payment_request_already_exists"),
@@ -6245,6 +6265,10 @@ async def cmd_confirm_payment(event: CallbackQuery, **kwargs):
             delete_origin=True,
         )
         return
+    logger.info(
+        f"💳 Заявка на оплату создана: user {uid}, план {plan_id}, "
+        f"сумма {amount}₽, метод {method}"
+    )
     await smart_answer(
         event,
         translate(lang, "texts.payment_request_received"),
@@ -6527,6 +6551,8 @@ async def cmd_pay_await_accept(event: CallbackQuery, **kwargs):
     if not await ensure_admin_access(event):
         return
     payment_id = event.data.split(":", 1)[1]
+    admin_id = get_event_user_id(event) or 0
+    logger.info(f"👑 Админ {admin_id} начал подтверждение платежа {payment_id}")
     payment = await claim_pending_payment_or_alert(event, payment_id, "accept")
     if not payment:
         return
@@ -6640,6 +6666,14 @@ async def cmd_pay_await_accept(event: CallbackQuery, **kwargs):
             if not fresh.get("ref_rewarded"):
                 await reward_referrer(ref_by, Config.REF_BONUS_DAYS)
                 await db.mark_ref_rewarded(uid)
+                logger.info(
+                    f"🤝 Реферальный бонус начислен: реферер {ref_by}, "
+                    f"реферал {uid}, бонус {Config.REF_BONUS_DAYS} дней"
+                )
+        logger.info(
+            f"✅ Платеж {payment_id} подтвержден админом {admin_id}: "
+            f"user {uid}, план {plan_name}, сумма {paid_amount}₽"
+        )
         await event.answer(
             translate(
                 DEFAULT_LANGUAGE, "texts.payment_accept_alert", payment_id=payment_id
@@ -6674,6 +6708,8 @@ async def cmd_pay_await_reject(event: CallbackQuery, **kwargs):
     if not await ensure_admin_access(event):
         return
     payment_id = event.data.split(":", 1)[1]
+    admin_id = get_event_user_id(event) or 0
+    logger.info(f"👑 Админ {admin_id} начал отклонение платежа {payment_id}")
     payment = await claim_pending_payment_or_alert(event, payment_id, "reject")
     if not payment:
         return
@@ -6719,6 +6755,7 @@ async def cmd_pay_await_reject(event: CallbackQuery, **kwargs):
     await append_payment_decision_label(
         event.message, translate(DEFAULT_LANGUAGE, "texts.payment_decision_rejected")
     )
+    logger.info(f"❌ Платеж {payment_id} отклонен админом {admin_id}: user {uid}")
 
 
 # === Админ-команды ===
@@ -6768,8 +6805,13 @@ async def process_ban_reason(event: Message, state: FSMContext, **kwargs):
     uid = data.get("user_id_to_ban")
     reason = val
     success = await db.ban_user(uid, reason)
+    admin_id = get_event_user_id(event) or 0
     await state.clear()
     if success:
+        logger.info(
+            f"🚫 Пользователь забанен: ID {uid}, причина: {reason}, "
+            f"админ: {admin_id}"
+        )
         await cleanup_subscription(
             uid, f"banned: {reason}", notify_user_about_cleanup=False
         )
@@ -6786,6 +6828,7 @@ async def process_ban_reason(event: Message, state: FSMContext, **kwargs):
         except Exception:
             pass
     else:
+        logger.warning(f"⚠️ Не удалось забанить пользователя {uid}, админ: {admin_id}")
         text = translate(DEFAULT_LANGUAGE, "texts.user_ban_error", user_id=uid)
     keyboard = kb(
         [
@@ -6849,8 +6892,13 @@ async def process_unban_reason(event: Message, state: FSMContext, **kwargs):
     uid = data.get("user_id_to_unban")
     reason = val
     success = await db.unban_user(uid)
+    admin_id = get_event_user_id(event) or 0
     await state.clear()
     if success:
+        logger.info(
+            f"🔓 Пользователь разбанен: ID {uid}, причина: {reason}, "
+            f"админ: {admin_id}"
+        )
         text = translate(
             DEFAULT_LANGUAGE, "texts.user_unbanned", user_id=uid, reason=reason
         )
@@ -6863,6 +6911,7 @@ async def process_unban_reason(event: Message, state: FSMContext, **kwargs):
         except Exception:
             pass
     else:
+        logger.warning(f"⚠️ Не удалось разбанить пользователя {uid}, админ: {admin_id}")
         text = translate(DEFAULT_LANGUAGE, "texts.user_unban_error", user_id=uid)
     await smart_answer(
         event, text, reply_markup=main_menu_keyboard(), delete_origin=True
@@ -6950,6 +6999,11 @@ async def process_broadcast_message(event: Message, state: FSMContext, **kwargs)
         await state.clear()
         return
     await state.clear()
+    admin_id = get_event_user_id(event) or 0
+    logger.info(
+        f"📢 Админ {admin_id} начал рассылку: тип {broadcast_type}, "
+        f"получателей {len(user_ids)}"
+    )
     sent = 0
     failed = 0
     for uid in user_ids:
@@ -6975,6 +7029,10 @@ async def process_broadcast_message(event: Message, state: FSMContext, **kwargs)
     )
     await smart_answer(
         event, text, reply_markup=main_menu_keyboard(), delete_origin=True
+    )
+    logger.info(
+        f"📢 Рассылка завершена админом {admin_id}: "
+        f"отправлено {sent}, ошибок {failed}"
     )
 
 
@@ -7354,6 +7412,11 @@ async def process_trust_amount(event: Message, state: FSMContext, **kwargs):
     result = await db.add_trust_score(uid, delta)
     final = await db.get_trust_score(uid)
     actual_delta = final - current
+    admin_id = get_event_user_id(event) or 0
+    logger.info(
+        f"🏷️ Trust Score изменен: user {uid}, {action} {abs(actual_delta)}, "
+        f"{current} -> {final}, админ: {admin_id}"
+    )
     await state.clear()
     if result:
         action_text = translate(
@@ -7369,7 +7432,6 @@ async def process_trust_amount(event: Message, state: FSMContext, **kwargs):
             discount=calculate_discount_percent(final),
             action_text=action_text,
         )
-        admin_id = get_event_user_id(event) or 0
         admin_username = (event.from_user.username or "").strip()
         admin_identity = f"ID <code>{admin_id}</code>" + (
             f", username <code>@{admin_username}</code>" if admin_username else ""
