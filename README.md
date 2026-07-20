@@ -1,27 +1,44 @@
-# VPN Bot for 3X‑UI — Telegram-бот для управления VPN-подписками
+# VPN Bot for 3X‑UI
 
-**VPN Bot for 3X‑UI** — полнофункциональный Telegram-бот для продажи и управления VPN-подписками с глубокой интеграцией в панель 3X‑UI.
+## Telegram-бот для управления VPN-подписками
 
-Это не просто бот — это целая экосистема для бизнеса VPN: от приёма платежей до автоматического создания клиентов и обновления SSL-сертификатов.
+[![Stars](https://img.shields.io/github/stars/Major-Woolfi/VPN_bot_for_3X-UI?style=social)](https://github.com/Major-Woolfi/VPN_bot_for_3X-UI/stargazers)
+[![Issues](https://img.shields.io/github/issues/Major-Woolfi/VPN_bot_for_3X-UI)](https://github.com/Major-Woolfi/VPN_bot_for_3X-UI/issues)
+[![License](https://img.shields.io/github/license/Major-Woolfi/VPN_bot_for_3X-UI)](LICENSE)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](.github/CONTRIBUTING.md)
 
-[![Status](https://img.shields.io/badge/Status-Active-brightgreen.svg)]()
+[🐛 Сообщить о баге](https://github.com/Major-Woolfi/VPN_bot_for_3X-UI/issues/new) •
+[💡 Предложить идею](https://github.com/Major-Woolfi/VPN_bot_for_3X-UI/discussions)
 
-## 🎯 Цели проекта
+---
 
-- Предоставить готовое решение для продажи VPN-подписок через Telegram
-- Реализовать автоматическую интеграцию с 3X‑UI панелью
-- Создать систему лояльности (Trust Score) и кастомных тарифов
-- Обеспечить монолитную архитектуру для простого деплоя
+## 📝 Описание
 
-## 📁 Архитектура
+Полнофункциональный Telegram-бот для продажи и управления VPN-подписками с глубокой интеграцией в панель 3X‑UI. Экосистема для бизнеса VPN: от приёма платежей до автоматического создания клиентов и обновления SSL-сертификатов.
+
+### ✨ Ключевые возможности
+
+- 💳 **Продажа подписок** — тарифы с гибкой формулой цены
+- 🔗 **Интеграция с 3X‑UI** — автоматическое создание клиентов
+- 🎁 **Реферальная система** — бонусные дни по рефералам
+- 🏷️ **Trust Score** — система лояльности со скидками до 50%
+- 🌍 **Мультиязычность** — 7 языков (ru, en, de, pl, ja, zh, be)
+- 🔄 **Автообновление SSL** — через SSH каждые 5 дней
+- 📊 **Статистика** — пользователи, активные VPN, платежи
+
+---
+
+## 🏗️ Архитектура проекта
 
 ```plaintext
-├── main.py                  # Монолит бота (весь код в одном файле)
-├── requirements.txt         # Зависимости Python
-├── Dockerfile               # Docker-образ для деплоя
-├── deploy_bot.sh            # Скрипт автоматического деплоя
-├── api_doc.md               # Документация по API 3X-UI
-├── langs/                   # Файлы локализации (JSON)
+VPN_bot_for_3X-UI/
+├── main.py                  # Монолит бота
+├── requirements.txt         # Зависимости
+├── Dockerfile               # Docker-образ
+├── deploy_bot.sh            # Скрипт деплоя
+├── api_doc.json             # Документация по API
+├── .env.example             # Пример конфигурации
+├── langs/                   # Локализация (JSON)
 │   ├── be.json              # Беларуская
 │   ├── de.json              # Deutsch
 │   ├── en.json              # English
@@ -30,114 +47,54 @@
 │   ├── ru.json              # Русский
 │   └── zh.json              # 中文
 ├── data/                    # Данные бота
-│   └── tarifs.json          # Фиксированные тарифы и локации
-├── .env.example             # Пример конфигурации
-├── LICENSE                  # MIT License
-└── README.md                # Документация по установке и использованию
-```
-
-## 📋 Быстрый старт
-
-### Локальный запуск
-
-```bash
-# Установка зависимостей
-pip install -r requirements.txt
-
-# Настройка
-cp .env.example .env
-# Отредактируйте .env
-
-# Запуск
-python main.py
-```
-
-### Docker
-
-```bash
-# Сборка и запуск
-docker build -t vpn_bot .
-docker run -d --name vpn_bot --restart always -v "$(pwd)":/app vpn_bot
-```
-
-### Деплой на сервер
-
-```bash
-cd VPN_bot_for_3X-UI/
-./deploy_bot.sh
-```
-
-## ✨ Возможности
-
-### 👤 Для пользователей
-
-- 📖 Просмотр тарифов и кастомных подписок (гибкая формула цены)
-- 💳 Покупка подписки с ручным переводом и подтверждением админом
-- 📊 Просмотр статуса: остаток трафика, IP-лимиты, срок действия
-- 🔗 Получение `sub URL` для импорта в клиенты (V2RayN, Sing-box, Nekoray)
-- 🎁 Пробный период (`trial`) для новых аккаунтов
-- 🤝 Реферальная система с бонусными днями
-- 🏷️ Скидки до **50%** по системе Trust Score
-
-### 👑 Для администраторов
-
-- 📈 Статистика: пользователи, активные VPN, заблокированные
-- 💰 Модерация платежей с защитой от race-condition
-- 🧪 Создание тестовых подписок без оплаты
-- 🔨 Блокировка/разблокировка пользователей
-- 📢 Массовые рассылки (всем или только подписчикам)
-- 🛠️ Инструменты отладки: изменение Trust Score, нормализация
-
-### 🤖 Для системы
-
-- 🔄 Автопроверка истёкших подписок (каждый час)
-- 🧹 Очистка старых платежей (раз в 3 дня)
-- 🔒 Обновление SSL-сертификатов через SSH (каждые 5 дней)
-
-## 🛠️ Стек технологий
-
-| Компонент | Технологии |
-|-----------|------------|
-| Язык | Python 3.13.9 |
-| Telegram Bot API | aiogram 3.29.0 |
-| REST API клиент | aiohttp 3.14.1 |
-| Асинхронная БД | aiosqlite 0.22.1 |
-| Файловые операции | aiofiles 25.1.0 |
-| SSH управление | paramiko 5.0.0 |
-| Конфигурация | python-dotenv 1.2.2 |
-| Контейнеризация | Docker (python:3.13.9-slim) |
-
-## 💳 Логика оплаты и Trust Score
-
-1. Пользователь выбирает тариф → бот показывает реквизиты
-2. После перевода нажимает «Подтвердить оплату» → заявка в `await_payments.json`
-3. Админ проверяет и нажимает `✅ Подтвердить` или `❌ Отклонить`
-4. При подтверждении: создаётся клиент в 3X‑UI, начисляются очки Trust Score
-5. **Trust Score** (0–100) даёт скидку до **50%** на следующие покупки
-
-## 📌 Ограничения и примечания
-
-- Платежи не автоматизированы (проверка вручную)
-- FSM хранится в памяти (`MemoryStorage`)
-- Архитектура монолитная (`main.py`) для простоты деплоя
-- Для стабильной работы рекомендуется использовать `PANEL_TOKEN`
-
-## 📞 Контакты
-
-- **GitHub**: [@Major-Woolfi](https://github.com/major-woolfi)
-
-## 📄 Лицензия
-
-```
-MIT License
-Copyright (c) 2026 Major-Woolfi
-Разрешено: использование, модификация, распространение
-Подробности: LICENSE
+│   └── tarifs.json
+├── logs/                    # Логи
+├── LICENSE
+└── README.md
 ```
 
 ---
 
-**VPN Bot for 3X‑UI — твой VPN-бизнес в Telegram.**
+## 🛠️ Технологический стек
 
-⭐ Поставь звезду  
-🐛 Вопросы — пиши в Issues
+| Категория           | Технологии                           |
+|---------------------|--------------------------------------|
+| **Backend**         | Python 3.13.9                        |
+| **Telegram API**    | aiogram 3.29.0                       |
+| **HTTP-клиент**     | aiohttp 3.14.1                       |
+| **База данных**     | aiosqlite 0.22.1 (асинхронный SQLite)|
+| **Файлы**           | aiofiles 25.1.0                      |
+| **SSH**             | paramiko 5.0.0                       |
+| **Контейнеризация** | Docker (python:3.13.9-slim)          |
+
+---
+
+## 🤝 Контрибьюция
+
+Приветствуем любые вклад в проект! Перед созданием PR обязательно прочитай:
+
+- 📋 [CONTRIBUTING](https://github.com/Major-Woolfi/.github/tree/main/workflows/CONTRIBUTING.md) — правила участия
+- 💬 [CODE_OF_CONDUCT](https://github.com/Major-Woolfi/.github/tree/main/workflows/CODE_OF_CONDUCT.md) — кодекс поведения
+- 🐛 [ISSUE_TEMPLATE](https://github.com/Major-Woolfi/.github/tree/main/workflows/ISSUE_TEMPLATE/) — шаблоны багов и фич
+- 🔀 [PULL_REQUEST_TEMPLATE](https://github.com/Major-Woolfi/.github/tree/main/workflows/PULL_REQUEST_TEMPLATE.md) — требования к PR
+
+---
+
+## 👥 Авторы и благодарности
+
+Спасибо всем замечательным людям, которые делают этот проект возможным:
+
+<a href="https://github.com/Major-Woolfi/VPN_bot_for_3X-UI/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=Major-Woolfi/VPN_bot_for_3X-UI" />
+</a>
+
+---
+
+## 📄 Лицензия
+
+Этот проект распространяется под лицензией **MIT**. Подробности в файле [LICENSE](LICENSE).
+
+---
+
+**⭐ Поставь звезду, если проект понравился!**
+**[📧 Контакты](https://Major_Woolfi.t.me)**
