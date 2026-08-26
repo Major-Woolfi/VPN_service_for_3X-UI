@@ -3349,7 +3349,7 @@ def build_buy_text(
                 duration=duration,
             )
         servers = get_plan_servers(plan)
-        servers_text = f" — {format_servers(servers)}" if servers else ""
+        servers_text = f" - {format_servers(servers)}" if servers else ""
         text += translate(
             lang,
             "texts.buy_plan_option",
@@ -4153,7 +4153,7 @@ async def renew_subscription(
             if adjusted > 0:
                 bulk_ok = True
                 logger.info(
-                    f"renew_subscription: bulkAdjust OK — продлено {adjusted}, "
+                    f"renew_subscription: bulkAdjust OK - продлено {adjusted}, "
                     f"пропущено {len(skipped)}: {skipped}"
                 )
             else:
@@ -7665,7 +7665,7 @@ async def normalize_all_subscriptions_with_retry(
                     base_plan_name = plan_text.split(" (", 1)[0].strip()
                     plan = get_by_name(base_plan_name) if base_plan_name else None
 
-                # === Шаг 2: Если план найден — обновляем данные в БД ===
+                # === Шаг 2: Если план найден - обновляем данные в БД ===
                 if plan:
                     plan_servers = get_plan_servers(plan)
                     plan_ip = to_int(plan.get("ip_limit"), 0)

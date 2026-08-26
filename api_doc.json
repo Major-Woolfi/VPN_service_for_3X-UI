@@ -1898,7 +1898,7 @@
             "type": "boolean"
           },
           "guid": {
-            "description": "Guid is the remote panel's stable self-identifier (its panelGuid),\nlearned from each heartbeat. It is the globally stable node identity used\nto attribute online clients/inbounds to the physical node across a chain\nof nodes (#4983); panel-local autoincrement ids don't survive a hop.\nObserved-state only — never user-edited.",
+            "description": "Guid is the remote panel's stable self-identifier (its panelGuid),\nlearned from each heartbeat. It is the globally stable node identity used\nto attribute online clients/inbounds to the physical node across a chain\nof nodes (#4983); panel-local autoincrement ids don't survive a hop.\nObserved-state only - never user-edited.",
             "type": "string"
           },
           "id": {
@@ -1962,7 +1962,7 @@
             "type": "string"
           },
           "parentGuid": {
-            "description": "ParentGuid + Transitive are set only when a node is surfaced as part of a\nnode tree (#4983): direct nodes carry the master panel's own GUID, a\ntransitive sub-node carries its parent node's GUID. Transitive nodes are\nread-only projections (Id == 0, not persisted) — never edited or deployed.",
+            "description": "ParentGuid + Transitive are set only when a node is surfaced as part of a\nnode tree (#4983): direct nodes carry the master panel's own GUID, a\ntransitive sub-node carries its parent node's GUID. Transitive nodes are\nread-only projections (Id == 0, not persisted) - never edited or deployed.",
             "type": "string"
           },
           "pinnedCertSha256": {
@@ -2193,7 +2193,7 @@
   "info": {
     "title": "3X-UI Panel API",
     "version": "3.x",
-    "description": "Programmatic interface to a 3X-UI panel. Authenticate either by logging in (cookie) or with an API token from Settings → Security → API Token (Bearer). All endpoints under /panel/api/* honour both modes — an API token is a full-admin credential, so treat it like the panel password."
+    "description": "Programmatic interface to a 3X-UI panel. Authenticate either by logging in (cookie) or with an API token from Settings → Security → API Token (Bearer). All endpoints under /panel/api/* honour both modes - an API token is a full-admin credential, so treat it like the panel password."
   },
   "openapi": "3.0.3",
   "paths": {
@@ -2329,7 +2329,7 @@
         "tags": [
           "Authentication"
         ],
-        "summary": "Mint a CSRF token for the current session. The SPA replays it in the X-CSRF-Token header on unsafe requests. Bearer-token callers can skip this — the middleware short-circuits CSRF for authenticated API requests.",
+        "summary": "Mint a CSRF token for the current session. The SPA replays it in the X-CSRF-Token header on unsafe requests. Bearer-token callers can skip this - the middleware short-circuits CSRF for authenticated API requests.",
         "operationId": "get_csrf_token",
         "responses": {
           "200": {
@@ -2365,7 +2365,7 @@
         "tags": [
           "Authentication"
         ],
-        "summary": "Returns whether 2FA is enabled on the panel — used by the login page to decide whether to show the OTP field.",
+        "summary": "Returns whether 2FA is enabled on the panel - used by the login page to decide whether to show the OTP field.",
         "operationId": "post_getTwoFactorEnable",
         "responses": {
           "200": {
@@ -2532,7 +2532,7 @@
         "tags": [
           "Inbounds"
         ],
-        "summary": "Lightweight picker projection of the authenticated user’s inbounds. Returns id, remark, tag, protocol, port, a server-computed tlsFlowCapable flag (true for VLESS on TCP with tls or reality, or on XHTTP with VLESS encryption / vlessenc enabled), and ssMethod (the Shadowsocks cipher, empty for non-Shadowsocks inbounds — used by the client UI to generate a valid Shadowsocks 2022 PSK). Use this for dropdowns and attach pickers — it skips settings, streamSettings, and clientStats so the payload stays small even on panels with thousands of clients.",
+        "summary": "Lightweight picker projection of the authenticated user’s inbounds. Returns id, remark, tag, protocol, port, a server-computed tlsFlowCapable flag (true for VLESS on TCP with tls or reality, or on XHTTP with VLESS encryption / vlessenc enabled), and ssMethod (the Shadowsocks cipher, empty for non-Shadowsocks inbounds - used by the client UI to generate a valid Shadowsocks 2022 PSK). Use this for dropdowns and attach pickers - it skips settings, streamSettings, and clientStats so the payload stays small even on panels with thousands of clients.",
         "operationId": "get_panel_api_inbounds_options",
         "responses": {
           "200": {
@@ -2823,7 +2823,7 @@
         "tags": [
           "Inbounds"
         ],
-        "summary": "Replace an inbound’s configuration. Body shape mirrors /add. Heavy on inbounds with thousands of clients — prefer /setEnable for enable-only flips.",
+        "summary": "Replace an inbound’s configuration. Body shape mirrors /add. Heavy on inbounds with thousands of clients - prefer /setEnable for enable-only flips.",
         "operationId": "post_panel_api_inbounds_update_id",
         "parameters": [
           {
@@ -3014,7 +3014,7 @@
         "tags": [
           "Inbounds"
         ],
-        "summary": "Reset upload + download counters on every inbound. Destructive — accounting history is lost.",
+        "summary": "Reset upload + download counters on every inbound. Destructive - accounting history is lost.",
         "operationId": "post_panel_api_inbounds_resetAllTraffics",
         "responses": {
           "200": {
@@ -3078,7 +3078,7 @@
         "tags": [
           "Inbounds"
         ],
-        "summary": "Receive a master panel's aggregated per-client usage, keyed by the master's GUID. Stored in a side table used only for the UI display overlay and local quota enforcement — never folded into the local counters that masters poll, so delta accounting stays intact. Called panel-to-panel by the node traffic sync job.",
+        "summary": "Receive a master panel's aggregated per-client usage, keyed by the master's GUID. Stored in a side table used only for the UI display overlay and local quota enforcement - never folded into the local counters that masters poll, so delta accounting stays intact. Called panel-to-panel by the node traffic sync job.",
         "operationId": "post_panel_api_inbounds_pushClientTraffics",
         "requestBody": {
           "required": true,
@@ -3366,7 +3366,7 @@
         "tags": [
           "Server"
         ],
-        "summary": "Legacy: aggregated CPU history. Use /history/cpu/:bucket instead — same data with a uniform {t, v} shape.",
+        "summary": "Legacy: aggregated CPU history. Use /history/cpu/:bucket instead - same data with a uniform {t, v} shape.",
         "operationId": "get_panel_api_server_cpuHistory_bucket",
         "parameters": [
           {
@@ -3474,7 +3474,7 @@
         "tags": [
           "Server"
         ],
-        "summary": "Xray runtime metrics state — whether the xray config has a `metrics` block, which expvar keys are flowing, and the current snapshot values for each. Returns an empty state when metrics are not configured.",
+        "summary": "Xray runtime metrics state - whether the xray config has a `metrics` block, which expvar keys are flowing, and the current snapshot values for each. Returns an empty state when metrics are not configured.",
         "operationId": "get_panel_api_server_xrayMetricsState",
         "responses": {
           "200": {
@@ -3558,7 +3558,7 @@
         "tags": [
           "Server"
         ],
-        "summary": "Latest snapshot from the Xray observatory — per-outbound latency, health status, and last-probe time. Only populated when the Xray config has an observatory configured.",
+        "summary": "Latest snapshot from the Xray observatory - per-outbound latency, health status, and last-probe time. Only populated when the Xray config has an observatory configured.",
         "operationId": "get_panel_api_server_xrayObservatory",
         "responses": {
           "200": {
@@ -5053,7 +5053,7 @@
         "tags": [
           "Clients"
         ],
-        "summary": "Update an existing client by email. Changes propagate to every attached inbound. Body is the JSON client payload — supply the full set of fields you want to keep (the server replaces the row, it does not patch).",
+        "summary": "Update an existing client by email. Changes propagate to every attached inbound. Body is the JSON client payload - supply the full set of fields you want to keep (the server replaces the row, it does not patch).",
         "operationId": "post_panel_api_clients_update_email",
         "parameters": [
           {
@@ -5472,7 +5472,7 @@
         "tags": [
           "Clients"
         ],
-        "summary": "Return every client as a {client, inboundIds} array — the same shape /bulkCreate and /import accept — so the payload round-trips straight back through /import. Clients with no inbound attachment are included with an empty inboundIds list. The UI shows this in a CodeMirror viewer (copy / download); programmatic callers get the array in obj.",
+        "summary": "Return every client as a {client, inboundIds} array - the same shape /bulkCreate and /import accept - so the payload round-trips straight back through /import. Clients with no inbound attachment are included with an empty inboundIds list. The UI shows this in a CodeMirror viewer (copy / download); programmatic callers get the array in obj.",
         "operationId": "get_panel_api_clients_export",
         "responses": {
           "200": {
@@ -5520,7 +5520,7 @@
         "tags": [
           "Clients"
         ],
-        "summary": "Import clients from a JSON body { \"data\": \"\u003Cjson\u003E\" }, where data is a string-encoded array produced by /export ([{client, inboundIds}]). Items with inboundIds are created and attached to those inbounds; items with an empty inboundIds list are restored as unattached client records. Existing emails are never overwritten — they are returned in skipped. Triggers a single Xray restart at the end if any target inbound was running.",
+        "summary": "Import clients from a JSON body { \"data\": \"\u003Cjson\u003E\" }, where data is a string-encoded array produced by /export ([{client, inboundIds}]). Items with inboundIds are created and attached to those inbounds; items with an empty inboundIds list are restored as unattached client records. Existing emails are never overwritten - they are returned in skipped. Triggers a single Xray restart at the end if any target inbound was running.",
         "operationId": "post_panel_api_clients_import",
         "requestBody": {
           "required": true,
@@ -5577,7 +5577,7 @@
         "tags": [
           "Clients"
         ],
-        "summary": "Shift expiry and/or traffic quota for many clients in one call. addDays/addBytes may be negative. Clients with unlimited expiry (expiryTime=0) or unlimited traffic (totalGB=0) are skipped for the corresponding field — bulk extend never converts unlimited to limited. The optional flow directive sets the XTLS flow on every client: \"none\" clears it, \"xtls-rprx-vision\"/\"xtls-rprx-vision-udp443\" set it where the inbound supports it (omit or \"\" to leave it unchanged). Returns the adjusted count and per-email skip reasons.",
+        "summary": "Shift expiry and/or traffic quota for many clients in one call. addDays/addBytes may be negative. Clients with unlimited expiry (expiryTime=0) or unlimited traffic (totalGB=0) are skipped for the corresponding field - bulk extend never converts unlimited to limited. The optional flow directive sets the XTLS flow on every client: \"none\" clears it, \"xtls-rprx-vision\"/\"xtls-rprx-vision-udp443\" set it where the inbound supports it (omit or \"\" to leave it unchanged). Returns the adjusted count and per-email skip reasons.",
         "operationId": "post_panel_api_clients_bulkAdjust",
         "requestBody": {
           "required": true,
@@ -5640,7 +5640,7 @@
         "tags": [
           "Clients"
         ],
-        "summary": "Enable many clients in one call. Emails are grouped by inbound and applied with a single read-modify-write per inbound; the running Xray (local or remote node) is updated to add each user. Note that enabling a client whose quota is exhausted or whose expiry has passed only flips the flag — the traffic loop will disable it again on the next tick. Returns the changed count and per-email skip reasons.",
+        "summary": "Enable many clients in one call. Emails are grouped by inbound and applied with a single read-modify-write per inbound; the running Xray (local or remote node) is updated to add each user. Note that enabling a client whose quota is exhausted or whose expiry has passed only flips the flag - the traffic loop will disable it again on the next tick. Returns the changed count and per-email skip reasons.",
         "operationId": "post_panel_api_clients_bulkEnable",
         "requestBody": {
           "required": true,
@@ -5760,7 +5760,7 @@
         "tags": [
           "Clients"
         ],
-        "summary": "Delete many clients in one call. The server processes the list sequentially so each delete sees the committed state of the previous one — avoids the race the per-email fan-out had on the panel side. Pass keepTraffic=true to retain the xray_client_traffic rows after deletion.",
+        "summary": "Delete many clients in one call. The server processes the list sequentially so each delete sees the committed state of the previous one - avoids the race the per-email fan-out had on the panel side. Pass keepTraffic=true to retain the xray_client_traffic rows after deletion.",
         "operationId": "post_panel_api_clients_bulkDel",
         "requestBody": {
           "required": true,
@@ -5821,7 +5821,7 @@
         "tags": [
           "Clients"
         ],
-        "summary": "Create many clients in one call. Body is a JSON array of {client, inboundIds} payloads — the same shape /add accepts. Items are processed sequentially; per-email skip reasons are returned for items that fail (e.g., duplicate email). Triggers a single Xray restart at the end if any inbound was running.",
+        "summary": "Create many clients in one call. Body is a JSON array of {client, inboundIds} payloads - the same shape /add accepts. Items are processed sequentially; per-email skip reasons are returned for items that fail (e.g., duplicate email). Triggers a single Xray restart at the end if any inbound was running.",
         "operationId": "post_panel_api_clients_bulkCreate",
         "requestBody": {
           "required": true,
@@ -5950,7 +5950,7 @@
         "tags": [
           "Clients"
         ],
-        "summary": "Clear the group label on many clients in one call. Inverse of /groups/bulkAdd. Clients themselves are kept — only the group label is cleared from clients.group_name and from each owning inbound's settings JSON. Groups become empty if all their members are removed.",
+        "summary": "Clear the group label on many clients in one call. Inverse of /groups/bulkAdd. Clients themselves are kept - only the group label is cleared from clients.group_name and from each owning inbound's settings JSON. Groups become empty if all their members are removed.",
         "operationId": "post_panel_api_clients_groups_bulkRemove",
         "requestBody": {
           "required": true,
@@ -6066,7 +6066,7 @@
         "tags": [
           "Clients"
         ],
-        "summary": "Mirror of bulkAttach: detach many existing clients from many inbounds in one call. For each email, intersects the client's current inbounds with the requested set and detaches from those only; (email, inbound) pairs where the client is not currently attached are silently no-ops. Emails not attached to any of the requested inbounds are reported under skipped. Client records are kept even if they become orphaned — use bulkDel for full removal. Returns per-email detached/skipped/errors lists and triggers a single Xray restart if any target inbound was running.",
+        "summary": "Mirror of bulkAttach: detach many existing clients from many inbounds in one call. For each email, intersects the client's current inbounds with the requested set and detaches from those only; (email, inbound) pairs where the client is not currently attached are silently no-ops. Emails not attached to any of the requested inbounds are reported under skipped. Client records are kept even if they become orphaned - use bulkDel for full removal. Returns per-email detached/skipped/errors lists and triggers a single Xray restart if any target inbound was running.",
         "operationId": "post_panel_api_clients_bulkDetach",
         "requestBody": {
           "required": true,
@@ -6379,7 +6379,7 @@
         "tags": [
           "Clients"
         ],
-        "summary": "Remove a group. Deletes the client_groups row and clears the group label from every matching client (both clients.group_name and the inbound settings JSON). The clients themselves are NOT deleted — use /bulkDel after filtering by group for that. Returns the count of clients whose label was cleared.",
+        "summary": "Remove a group. Deletes the client_groups row and clears the group label from every matching client (both clients.group_name and the inbound settings JSON). The clients themselves are NOT deleted - use /bulkDel after filtering by group for that. Returns the count of clients whose label was cleared.",
         "operationId": "post_panel_api_clients_groups_delete",
         "requestBody": {
           "required": true,
@@ -6884,7 +6884,7 @@
         "tags": [
           "Clients"
         ],
-        "summary": "Return every protocol URL (vless://, vmess://, trojan://, ss://, hysteria://, hy2://) for clients matching the subscription ID. Same result set as /sub/\u003CsubId\u003E, but as a JSON array — no base64. When an inbound has streamSettings.externalProxy set, one URL is emitted per external proxy. Empty array when the subId has no enabled clients.",
+        "summary": "Return every protocol URL (vless://, vmess://, trojan://, ss://, hysteria://, hy2://) for clients matching the subscription ID. Same result set as /sub/\u003CsubId\u003E, but as a JSON array - no base64. When an inbound has streamSettings.externalProxy set, one URL is emitted per external proxy. Empty array when the subId has no enabled clients.",
         "operationId": "get_panel_api_clients_subLinks_subId",
         "parameters": [
           {
@@ -6934,7 +6934,7 @@
         "tags": [
           "Clients"
         ],
-        "summary": "Return every URL for one client across all attached inbounds — the same strings the Copy URL button copies in the panel UI. Supported protocols: vmess, vless, trojan, shadowsocks, hysteria. If streamSettings.externalProxy is set, returns one URL per external proxy. Protocols without a URL form (socks, http, mixed, wireguard, dokodemo, tunnel) contribute nothing.",
+        "summary": "Return every URL for one client across all attached inbounds - the same strings the Copy URL button copies in the panel UI. Supported protocols: vmess, vless, trojan, shadowsocks, hysteria. If streamSettings.externalProxy is set, returns one URL per external proxy. Protocols without a URL form (socks, http, mixed, wireguard, dokodemo, tunnel) contribute nothing.",
         "operationId": "get_panel_api_clients_links_email",
         "parameters": [
           {
@@ -7742,7 +7742,7 @@
         "tags": [
           "Nodes"
         ],
-        "summary": "Aggregated metric history for a node — same shape as /server/history, scoped to one node.",
+        "summary": "Aggregated metric history for a node - same shape as /server/history, scoped to one node.",
         "operationId": "get_panel_api_nodes_history_id_metric_bucket",
         "parameters": [
           {
@@ -8910,7 +8910,7 @@
         "tags": [
           "API Tokens"
         ],
-        "summary": "List every API token, enabled or not. The token value is never returned — only metadata.",
+        "summary": "List every API token, enabled or not. The token value is never returned - only metadata.",
         "operationId": "get_panel_api_setting_apiTokens",
         "responses": {
           "200": {
@@ -8953,7 +8953,7 @@
         "tags": [
           "API Tokens"
         ],
-        "summary": "Mint a new API token. Name must be unique and 1-64 characters; the token string is server-generated and returned only in this response — it is stored hashed and cannot be retrieved later.",
+        "summary": "Mint a new API token. Name must be unique and 1-64 characters; the token string is server-generated and returned only in this response - it is stored hashed and cannot be retrieved later.",
         "operationId": "post_panel_api_setting_apiTokens_create",
         "requestBody": {
           "required": true,
@@ -9329,7 +9329,7 @@
             "name": "action",
             "in": "path",
             "required": true,
-            "description": "data — return Warp stats (quota, remaining). del — delete Warp data. config — return current Warp config. reg — register a new Warp endpoint (sends privateKey, publicKey). license — set a Warp+ license key (sends license).",
+            "description": "data - return Warp stats (quota, remaining). del - delete Warp data. config - return current Warp config. reg - register a new Warp endpoint (sends privateKey, publicKey). license - set a Warp+ license key (sends license).",
             "schema": {
               "type": "string"
             }
@@ -9372,7 +9372,7 @@
             "name": "action",
             "in": "path",
             "required": true,
-            "description": "countries — list available countries. servers — list servers in a country (sends countryId). reg — get NordVPN credentials (sends token). setKey — store NordVPN API key (sends key). data — return current NordVPN connection data. del — delete NordVPN data.",
+            "description": "countries - list available countries. servers - list servers in a country (sends countryId). reg - get NordVPN credentials (sends token). setKey - store NordVPN API key (sends key). data - return current NordVPN connection data. del - delete NordVPN data.",
             "schema": {
               "type": "string"
             }
@@ -10155,7 +10155,7 @@
         "tags": [
           "WebSocket"
         ],
-        "summary": "Server health snapshot pushed every 2 seconds. Contains CPU, memory, swap, disk, network IO, load, and Xray state — same shape as \u003Ccode\u003EGET /panel/api/server/status\u003C/code\u003E.",
+        "summary": "Server health snapshot pushed every 2 seconds. Contains CPU, memory, swap, disk, network IO, load, and Xray state - same shape as \u003Ccode\u003EGET /panel/api/server/status\u003C/code\u003E.",
         "operationId": "ws_type_status",
         "responses": {
           "200": {
@@ -10355,7 +10355,7 @@
     },
     {
       "name": "API Tokens",
-      "description": "Manage Bearer tokens used for programmatic auth (bots, central panels acting on this node, CI). Each token has a unique name and an enabled flag — disable to revoke without deleting, delete to revoke permanently. Tokens are stored as SHA-256 hashes and the plaintext is returned only once, in the create response — it cannot be retrieved afterwards, so copy it then. Send one as \u003Ccode\u003EAuthorization: Bearer &lt;token&gt;\u003C/code\u003E on any /panel/api/* request — the token is a full-admin credential."
+      "description": "Manage Bearer tokens used for programmatic auth (bots, central panels acting on this node, CI). Each token has a unique name and an enabled flag - disable to revoke without deleting, delete to revoke permanently. Tokens are stored as SHA-256 hashes and the plaintext is returned only once, in the create response - it cannot be retrieved afterwards, so copy it then. Send one as \u003Ccode\u003EAuthorization: Bearer &lt;token&gt;\u003C/code\u003E on any /panel/api/* request - the token is a full-admin credential."
     },
     {
       "name": "Xray Settings",

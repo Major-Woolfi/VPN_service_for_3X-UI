@@ -39,7 +39,7 @@
 
 ### Идея и концепция
 
-**VPN_bot_for_3X-UI** — это проект, созданный для решения конкретной задачи: автоматизация, упрощение и удешивление VPN-бизнеса.
+**VPN_bot_for_3X-UI** - это проект, созданный для решения конкретной задачи: автоматизация, упрощение и удешивление VPN-бизнеса.
 
 Основная идея проекта родилась из необходимости иметь бота для собственного VPN-проекта. Проект воплощает подход автоматизации, упрощения, ускорения и удешивления рутинных задач, что позволяет добится максимально комфортной и быстрой работы.
 
@@ -203,10 +203,10 @@ echo "✅ Deployed! Logs: docker logs -f  vpn_bot_for_3x-ui "
 
 Приветствуем любые вклад в проект! Перед созданием PR обязательно прочитай:
 
-- 📋 [CONTRIBUTING](https://github.com/Major-Woolfi/.github/blob/main/community/CONTRIBUTING.md) — правила участия
-- 💬 [CODE OF CONDUCT](https://github.com/Major-Woolfi/.github/blob/main/community/CODE_OF_CONDUCT.md) — кодекс поведения
-- 🐛 [ISSUE TEMPLATE](https://github.com/Major-Woolfi/.github/tree/main/community/ISSUES.md) — шаблоны багов и фич
-- 🔀 [PULL REQUEST TEMPLATE](https://github.com/Major-Woolfi/.github/blob/main/community/PULL_REQUEST_TEMPLATE.md) — требования к PR
+- 📋 [CONTRIBUTING](https://github.com/Major-Woolfi/.github/blob/main/community/CONTRIBUTING.md) - правила участия
+- 💬 [CODE OF CONDUCT](https://github.com/Major-Woolfi/.github/blob/main/community/CODE_OF_CONDUCT.md) - кодекс поведения
+- 🐛 [ISSUE TEMPLATE](https://github.com/Major-Woolfi/.github/tree/main/community/ISSUES.md) - шаблоны багов и фич
+- 🔀 [PULL REQUEST TEMPLATE](https://github.com/Major-Woolfi/.github/blob/main/community/PULL_REQUEST_TEMPLATE.md) - требования к PR
 
 Все общие правила хранятся в [репозитории `.github`](https://github.com/Major-Woolfi/.github) в папке `community`.
 
