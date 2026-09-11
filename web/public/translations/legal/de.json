@@ -1,0 +1,195 @@
+{
+  "offer": {
+    "effectiveDate": "07.09.2026",
+    "sections": [
+      {
+        "content": "Dieses öffentliche Angebot definiert die Bedingungen für die Erbringung von VPN‑Diensten durch {vpnName}. Durch die Nutzung des Dienstes stimmen Sie den Nutzungsbedingungen zu und akzeptieren dieses Angebot.",
+        "title": "Öffentliches Angebot zur Erbringung von VPN‑Diensten"
+      },
+      {
+        "content": "1.1. Der Anbieter ({vpnName}) gewährt Zugang zum VPN‑Netzwerk gemäß dem ausgewählten Tarif.\n1.2. Der Nutzer bezahlt den Dienst und befolgt die Regeln des Dienstes.\n1.3. Die Dienstleistung umfasst:\n- Bereitstellung einer Abonnement‑URL zum Abrufen von Konfigurationsdateien für die Verbindung\n- Zugang zu den ausgewählten Standorten\n- Technischen Support\n- Aktualisierung der Konfigurationen bei Bedarf",
+        "title": "1. Gegenstand des Angebots"
+      },
+      {
+        "content": "2.1. Der Vertrag kommt durch Annahme des Angebots zustande:\n- Auswahl eines Tarifs im Telegram‑Bot oder auf der Website\n- Bezahlung der Dienstleistung\n- Bestätigung der Zahlung\n\n2.2. Die Annahme des Angebots gilt als erfolgt, wenn der Nutzer die Dienstleistung bezahlt.\n2.3. Der Vertrag gilt ab dem Zeitpunkt der Zahlungsbestätigung als geschlossen.",
+        "title": "2. Vertragsschluss"
+      },
+      {
+        "content": "3.1. Die Kosten und die Laufzeit der Dienstleistung werden im Telegram‑Bot und auf der Website bei der Tarifauswahl angegeben.\n3.2. Die Zahlung erfolgt mit verfügbaren Methoden:\n- YooMoney (Schnellzahlung)\n- P2P‑Kartenüberweisung\n- Andere im Bot oder auf der Website angegebene Methoden\n\n3.3. Derzeit werden Zahlungen manuell bearbeitet.\n3.4. Nach der Überweisung wird empfohlen, den Support innerhalb von 5–10 Minuten mit dem Beleg zu kontaktieren, um die Bearbeitung zu beschleunigen.",
+        "title": "3. Kosten und Zahlung"
+      },
+      {
+        "content": "4.1. Der Vertrag gilt bis zum Ende des bezahlten Zeitraums.\n4.2. Der Nutzer kann den Vertrag verlängern, indem er einen neuen Tarif bestellt oder den alten verlängert.\n4.3. Der Vertrag kann gekündigt werden:\n- Auf Initiative des Nutzers\n- Auf Initiative des Anbieters bei Verstoß gegen die Bedingungen (ohne Rückerstattung)\n- Durch Vereinbarung der Parteien",
+        "title": "4. Vertragslaufzeit"
+      },
+      {
+        "content": "5.1. Der Anbieter ist berechtigt:\n- Den Zugang bei Verstoß gegen die Bedingungen auszusetzen\n- Die technischen Parameter des Dienstes zu ändern\n- Wartungsarbeiten durchzuführen\n- Den Dienst bei Missbrauch zu verweigern\n\n5.2. Der Anbieter verpflichtet sich:\n- Die Verfügbarkeit des Dienstes zu gewährleisten\n- Technischen Support zu bieten\n- Die Vertraulichkeit der Daten zu wahren\n- Anfragen zeitnah zu beantworten",
+        "title": "5. Rechte und Pflichten des Anbieters"
+      },
+      {
+        "content": "6.1. Der Nutzer ist berechtigt:\n- Den Dienst gemäß dem Tarif zu nutzen\n- Technischen Support zu erhalten\n- Das Abonnement zu verlängern\n- Informationen über seine Daten anzufragen\n\n6.2. Der Nutzer verpflichtet sich:\n- Den Zugang nicht an Dritte weiterzugeben\n- Die Nutzungsbedingungen nicht zu verletzen\n- Die Dienstleistung rechtzeitig zu bezahlen",
+        "title": "6. Rechte und Pflichten des Nutzers"
+      },
+      {
+        "content": "7.1. Der Anbieter haftet nicht für:\n- Vorübergehende Nichtverfügbarkeit des Dienstes aus technischen Gründen\n- Handlungen Dritter (Anbieter, Regulierungsbehörden)\n- Indirekte Schäden der Nutzer\n\n7.2. Der Anbieter kann den Zugang aussetzen bei:\n- Verstoß gegen die Nutzungsbedingungen\n- Missbrauch des Tarifs\n- Versuch des unbefugten Zugriffs\n- Verstoß gegen den Abschnitt zum Schutz des Projektteams",
+        "title": "7. Haftungsbeschränkungen"
+      },
+      {
+        "content": "8.1. Rückerstattungen werden in Ausnahmefällen nach Entscheidung der Verwaltung oder des Supports gewährt.\n8.2. Rückerstattungen erfolgen nicht bei:\n- Verstoß des Nutzers gegen die Dienstbedingungen\n- Ablauf des Abonnements\n- Freiwilligem Verzicht auf den Dienst\n\n8.3. Rückerstattungsanfragen sind an den Telegram‑Support zu richten.\n8.4. Die Entscheidung wird unter Berücksichtigung der tatsächlichen Erbringung der Dienstleistung getroffen.",
+        "title": "8. Rückerstattung"
+      },
+      {
+        "content": "9.1. Die Parteien werden von der Haftung befreit, wenn höhere Gewalt eintritt:\n- Naturkatastrophen\n- Kriegshandlungen\n- Entscheidungen staatlicher Stellen\n- Großflächige technische Ausfälle\n- Handlungen Dritter (Angriffe, Blockaden)\n\n9.2. Die Erfüllungsfrist verlängert sich um den Zeitraum der höheren Gewalt.",
+        "title": "9. Höhere Gewalt"
+      },
+      {
+        "content": "10.1. {vpnName} behält sich das Recht vor, dieses Angebot einseitig zu ändern.\n10.2. Die neue Fassung tritt mit der Veröffentlichung auf der Website oder im Telegram‑Bot in Kraft.\n10.3. Die weitere Nutzung des Dienstes nach Änderungen gilt als Zustimmung zur neuen Fassung.",
+        "title": "10. Änderung des Angebots"
+      },
+      {
+        "content": "11.1. Alle Streitigkeiten und Meinungsverschiedenheiten werden durch Verhandlungen über den Telegram‑Support beigelegt.\n11.2. Wenn keine Einigung erzielt wird, wird der Streit der Verwaltung vorgelegt.\n11.3. Der Nutzer stimmt der außergerichtlichen Streitbeilegung zu.",
+        "title": "11. Streitbeilegung"
+      },
+      {
+        "content": "12.1. Sollte eine Bestimmung des Angebots unwirksam sein, berührt dies nicht die Gültigkeit der übrigen Bestimmungen.\n12.2. {vpnName} haftet nicht für die Nichtverfügbarkeit des Dienstes in bestimmten Regionen.\n12.3. Die Überschriften der Abschnitte dienen nur der Übersichtlichkeit und beeinflussen nicht die Auslegung des Angebots.",
+        "title": "12. Schlussbestimmungen"
+      },
+      {
+        "content": "13.1. Bei Fragen wenden Sie sich bitte über den Bot an den Telegram‑Support.\n13.2. Antwortzeit: in der Regel innerhalb von 2 Stunden.\n13.3. Das Projektteam ist stets bereit, bei technischen und organisatorischen Fragen zu helfen.",
+        "title": "13. Kontaktdaten"
+      }
+    ],
+    "subtitle": "{vpnName} – Dienstleistungsbedingungen",
+    "title": "Öffentliches Angebot"
+  },
+  "privacy": {
+    "effectiveDate": "07.09.2026",
+    "sections": [
+      {
+        "content": "Diese Richtlinie beschreibt, welche technischen Daten {vpnName} beim Betrieb der Website, des Bots und des VPN‑Dienstes verarbeitet. Durch die Nutzung des Dienstes stimmen Sie dieser Richtlinie zu.",
+        "title": "Datenschutzrichtlinie des VPN‑Dienstes {vpnName}"
+      },
+      {
+        "content": "1.1. {vpnName} respektiert die Privatsphäre der Nutzer und gewährleistet den Schutz personenbezogener Daten.\n1.2. Diese Richtlinie wurde nach den Grundsätzen der Datenminimierung entwickelt.\n1.3. Wir erheben nur die Daten, die für den Betrieb des Dienstes erforderlich sind.",
+        "title": "1. Allgemeine Bestimmungen"
+      },
+      {
+        "content": "2.1. Für den Betrieb des Dienstes können verarbeitet werden:\n- Telegram‑ID und Benutzername des Nutzers\n- Informationen zum ausgewählten Tarif und technischer Status des Abonnements\n- Zahlungsdaten (nur zur Zahlungsbestätigung, nicht gespeichert)\n- Technische Verbindungsinformationen\n\n2.2. Wir erheben NICHT:\n- Passdaten\n- Telefonnummern (außer im Rahmen des Partnerprogramms)\n- E‑Mail‑Adressen (außer im Zahlungsbereich)\n- Andere nicht in Punkt 2.1 aufgeführte Informationen",
+        "title": "2. Welche Daten werden verarbeitet"
+      },
+      {
+        "content": "3.1. {vpnName} hält eine strikte No‑Logs‑Richtlinie ein:\n- Kein Verlauf besuchter Websites\n- Keine Analyse von Traffic‑Inhalten\n- Keine Speicherung von Verbindungsprotokollen\n- Keine Verfolgung der Nutzeraktivität im Netzwerk\n\n3.2. Für das Abonnement können nur aggregierte Kennzahlen verarbeitet werden:\n- Gesamtvolumen des genutzten Traffics\n- Gültigkeitsdauer des Abonnements\n- Verbindungsstatus (aktiv/inaktiv)",
+        "title": "3. No‑Logs‑Richtlinie"
+      },
+      {
+        "content": "4.1. Die erhobenen Daten werden ausschließlich zu folgenden Zwecken verwendet:\n- Registrierung und Authentifizierung von Nutzern\n- Ausstellung und Verwaltung von VPN‑Abonnements\n- Technischer Support für Nutzer\n- Verhinderung von Missbrauch und Betrug\n- Abwicklung von Zahlungsvorgängen\n- Benachrichtigung über Wartungsarbeiten und Dienständerungen",
+        "title": "4. Zwecke der Datenverarbeitung"
+      },
+      {
+        "content": "5.1. Die Daten werden für die für den Dienst erforderliche begrenzte Zeit gespeichert:\n- Aktive Abonnements: für die gesamte Laufzeit\n- Inaktive Abonnements: bis zu 3 Tage nach Ablauf\n- Zahlungsdaten: nicht gespeichert, nur zur Bestätigung verwendet\n\n5.2. Nach Ablauf der Aufbewahrungsfrist werden die Daten automatisch gelöscht.",
+        "title": "5. Datenspeicherung"
+      },
+      {
+        "content": "6.1. {vpnName} wendet technische und organisatorische Sicherheitsmaßnahmen an:\n- Verschlüsselung der Daten bei der Übertragung (TLS/SSL)\n- Sichere Speicherung in Datenbanken\n- Eingeschränkter Datenzugriff\n- Regelmäßige Backups\n\n6.2. Zugriff auf die Daten haben nur autorisierte Mitglieder des Projektteams.",
+        "title": "6. Datenschutz"
+      },
+      {
+        "content": "7.1. Wir geben personenbezogene Daten nicht an Dritte weiter, außer an:\n- Zahlungssysteme (nur die für die Zahlungsabwicklung erforderlichen Daten)\n\n7.2. Wir verkaufen oder übergeben Daten nicht für Marketing‑ oder andere Zwecke.",
+        "title": "7. Weitergabe von Daten an Dritte"
+      },
+      {
+        "content": "8.1. Der Nutzer hat das Recht:\n- Auskunft über die Verarbeitung seiner Daten zu erhalten\n- Unrichtige Daten zu berichtigen\n- Die Löschung seiner Daten zu verlangen\n- Die Einwilligung zur Datenverarbeitung zu widerrufen\n- Eine Kopie seiner Daten in einem maschinenlesbaren Format zu erhalten\n\n8.2. Zur Ausübung dieser Rechte wenden Sie sich bitte an den Telegram‑Support.",
+        "title": "8. Rechte des Nutzers"
+      },
+      {
+        "content": "9.1. Die Weboberfläche kann Cookies verwenden für:\n- Authentifizierung von Nutzern\n- Speicherung von Theme‑Einstellungen\n\n9.2. Der Nutzer kann Cookies in den Browser‑Einstellungen deaktivieren.",
+        "title": "9. Cookies und ähnliche Technologien"
+      },
+      {
+        "content": "10.1. {vpnName} behält sich das Recht vor, die Datenschutzrichtlinie zu ändern.\n10.2. Die neue Fassung tritt mit der Veröffentlichung auf der Website in Kraft.\n10.3. Bei wesentlichen Änderungen können die Nutzer persönlich benachrichtigt werden.",
+        "title": "10. Änderungen der Richtlinie"
+      },
+      {
+        "content": "11.1. Bei Fragen zur Verarbeitung personenbezogener Daten wenden Sie sich bitte über den Bot an den Telegram‑Support.\n11.2. Wir beantworten Anfragen innerhalb von 2 Tagen.",
+        "title": "11. Kontakte"
+      }
+    ],
+    "subtitle": "{vpnName} – Verarbeitung von Nutzerdaten",
+    "title": "Datenschutzrichtlinie"
+  },
+  "tos": {
+    "effectiveDate": "07.09.2026",
+    "sections": [
+      {
+        "content": "Diese Bedingungen regeln den Zugang zu und die Nutzung des {vpnName}-VPN-Dienstes. Mit der Nutzung des Dienstes akzeptieren Sie diese Bedingungen und das öffentliche Angebot vollständig.",
+        "title": "Nutzungsbedingungen des {vpnName}-VPN-Dienstes"
+      },
+      {
+        "content": "1.1. Der Dienst wird vom Projektteam über einen Telegram‑Bot und eine Weboberfläche bereitgestellt.\n1.2. Die Nutzung des Dienstes stellt die vollständige und vorbehaltlose Zustimmung zur aktuellen Fassung der Bedingungen dar.\n1.3. {vpnName} bietet VPN‑Netzwerkzugang auf Abonnementbasis.\n1.4. Der Dienst ist ein Open‑Source‑Projekt, was die Gültigkeit dieser Bedingungen nicht berührt.\n1.5. Der Dienst verwendet modernste Technologien: VLESS- und Shadowsocks‑Protokolle, XHTTP‑Transport, REALITY‑Plugin, XRay‑Kern.",
+        "title": "1. Allgemeine Bestimmungen"
+      },
+      {
+        "content": "2.1. Für die Nutzung des Dienstes ist eine Registrierung über Telegram erforderlich.\n2.2. Der Nutzer verpflichtet sich, korrekte Informationen anzugeben.\n2.3. Der Nutzer ist für die Sicherheit des Zugangs zu seinem Konto verantwortlich.\n2.4. Die Registrierung mehrerer Konten zur Umgehung von Beschränkungen oder zum Erlangen unberechtigter Vorteile ist verboten.\n2.5. Die Verwaltung kann das Konto bei Verdacht auf betrügerische Aktivitäten sperren.",
+        "title": "2. Registrierung und Konto"
+      },
+      {
+        "content": "3.1. Der Nutzer verpflichtet sich:\n- Konfigurationsdateien und Zugänge nicht an Dritte weiterzugeben\n- Nicht zu versuchen, den Schutz des Dienstes zu hacken, zu modifizieren oder zu umgehen\n- Die Ressourcen des Dienstes nicht zu missbrauchen\n- Die Rechte anderer Nutzer nicht zu verletzen\n- Die Bedingungen des gewählten Tarifs einzuhalten\n- Den Dienst nicht zur automatisierten Datenerhebung zu nutzen",
+        "title": "3. Pflichten des Nutzers"
+      },
+      {
+        "content": "4.1. Strengstens verboten sind:\n- Verbreitung von kostenpflichtigen Konfigurationen kostenlos oder unter Umgehung der Zahlung\n- Reverse Engineering, Dekompilierung oder Analyse des Dienstcodes\n- Nutzung von Bots, Skripten oder automatisierten Systemen zur Interaktion mit dem Dienst\n- Versuche unbefugten Zugriffs auf die Projektinfrastruktur\n- Belastungstests ohne schriftliche Zustimmung der Verwaltung\n- Missbrauch von Testzeiträumen und Empfehlungsprogrammen",
+        "title": "4. Verbotene Handlungen"
+      },
+      {
+        "content": "5.1. Strengstens verboten sind:\n- Das Sammeln, Suchen oder Verbreiten von persönlichen Informationen über Mitglieder des Projektteams (echte Namen, Wohnorte, Kontakte, soziale Netzwerke, Fotos)\n- Doxing (Offenlegung persönlicher Informationen) von Projektteilnehmern\n- Versuche der Deanonymisierung des Projektteams\n- Psychischer, physischer oder rechtlicher Druck auf Teammitglieder\n- Drohungen, Erpressung oder Einschüchterung von Projektbeteiligten\n- Veröffentlichung von Aufrufen gegen das Projektteam\n- Stalking von Teammitgliedern in jeglicher Form\n\n5.2. Ein Verstoß gegen diesen Abschnitt führt zu:\n- Sofortiger und dauerhafter Sperrung des Kontos ohne Rückerstattung\n- Weitergabe der Informationen an Strafverfolgungsbehörden\n- Recht des Projektteams, gerichtliche Schritte zum Schutz seiner Rechte einzuleiten\n\n5.3. Das Projektteam behält sich das Recht auf Anonymität und Privatsphäre vor.",
+        "title": "5. Schutz von Informationen über das Projektteam"
+      },
+      {
+        "content": "6.1. Trotz der Open‑Source‑MIT‑Lizenz ist es verboten:\n- Den Namen {vpnName}, Logos und Marken ohne Erlaubnis zu verwenden\n- Abgeleitete Projekte mit dem Ziel des direkten Wettbewerbs zu erstellen\n- Die Infrastruktur und Entwicklungen des Projekts ohne Zustimmung kommerziell zu nutzen\n\n6.2. Alle vom Dienst generierten Konfigurationsdateien sind geistiges Eigentum des Projekts und werden den Nutzern nur zur persönlichen Nutzung zur Verfügung gestellt.",
+        "title": "6. Geistiges Eigentum"
+      },
+      {
+        "content": "7.1. {vpnName} hält die No‑Logs‑Richtlinie ein:\n- Kein Verlauf besuchter Websites\n- Keine Analyse von Traffic‑Inhalten\n- Keine Verbindungsprotokolle\n\n7.2. Für den Betrieb des Dienstes werden verarbeitet:\n- Telegram‑ID des Nutzers\n- Daten zum Tarif und zur Abonnementlaufzeit\n- Aggregierte Traffic‑Volumenindikatoren\n- Zahlungsdaten (nur zur Zahlungsüberprüfung)\n\n7.3. Ausführliche Informationen finden Sie in der Datenschutzrichtlinie.",
+        "title": "7. Vertraulichkeit und Datenverarbeitung"
+      },
+      {
+        "content": "8.1. Der Dienst verwendet:\n- Protokolle: VLESS und Shadowsocks\n- Transport: XHTTP\n- Verschlüsselungs‑Plugin: REALITY\n- Kern: XRay (aktuelle Version)\n\n8.2. {vpnName} behält sich das Recht vor:\n- Die verwendeten Protokolle und Technologien zu ändern\n- Bei Bedarf auf alternative Lösungen umzusteigen\n- Wartungsarbeiten mit vorheriger Ankündigung im Telegram‑Kanal und/oder Bot durchzuführen",
+        "title": "8. Technische Eigenschaften des Dienstes"
+      },
+      {
+        "content": "9.1. Die Zahlung erfolgt gemäß dem gewählten Tarif und der Zahlungsmethode.\n9.2. Derzeit werden Zahlungen manuell bearbeitet.\n9.3. Rückerstattungen werden in Ausnahmefällen nach Entscheidung der Verwaltung oder des Supports gewährt.\n9.4. Bei Verstoß gegen die Dienstbedingungen erfolgt keine Rückerstattung.\n9.5. Rückerstattungsanfragen sind an den Telegram‑Support zu richten.",
+        "title": "9. Zahlung und Rückerstattung"
+      },
+      {
+        "content": "10.1. {vpnName} haftet nicht für:\n- Vorübergehende Nichtverfügbarkeit des Dienstes aus technischen Gründen\n- Handlungen Dritter (Anbieter, Regulierungsbehörden)\n- Indirekte Schäden der Nutzer\n- Nutzung des Dienstes zu illegalen Zwecken durch den Nutzer\n\n10.2. Der Nutzer trägt die volle Verantwortung für:\n- Sein Handeln bei der Nutzung des Dienstes\n- Die Folgen der Nutzung der VPN‑Verbindung\n\n10.3. Der Dienst wird „wie besehen“ (as is) ohne Garantie einer Verfügbarkeit von mehr als 98 % bereitgestellt.",
+        "title": "10. Haftung der Parteien"
+      },
+      {
+        "content": "11.1. Die Verwaltung kann den Zugang des Nutzers zum Dienst ohne vorherige Ankündigung aussetzen oder beenden in Fällen von:\n- Verstoß gegen diese Bedingungen\n- Verdacht auf betrügerische Aktivitäten\n- Verstoß gegen Abschnitt 5 (Schutz von Informationen über das Team)\n- Missbrauch von Dienstressourcen\n- Technischer Notwendigkeit\n\n11.2. Bei Sperrung wegen Verstoßes gegen die Bedingungen werden die Mittel nicht erstattet.\n11.3. Der Nutzer kann die Sperrung über den Support anfechten.",
+        "title": "11. Aussetzung und Beendigung des Zugangs"
+      },
+      {
+        "content": "12.1. {vpnName} behält sich das Recht vor, diese Bedingungen einseitig zu ändern.\n12.2. Die neue Fassung tritt mit der Veröffentlichung auf der Website in Kraft.\n12.3. Die weitere Nutzung des Dienstes nach Änderungen gilt als Zustimmung zur neuen Fassung.\n12.4. Bei wesentlichen Änderungen können die Nutzer persönlich benachrichtigt werden.",
+        "title": "12. Änderung der Bedingungen"
+      },
+      {
+        "content": "13.1. Die Parteien werden von der Haftung befreit, wenn höhere Gewalt eintritt:\n- Naturkatastrophen\n- Kriegshandlungen\n- Entscheidungen staatlicher Stellen\n- Großflächige technische Ausfälle\n- Handlungen Dritter (Angriffe, Blockaden)\n\n13.2. Die Erfüllungsfrist verlängert sich um den Zeitraum der höheren Gewalt.",
+        "title": "13. Höhere Gewalt"
+      },
+      {
+        "content": "14.1. Alle Streitigkeiten und Meinungsverschiedenheiten werden durch Verhandlungen über den Telegram‑Support beigelegt.\n14.2. Wenn keine Einigung erzielt wird, wird der Streit der Verwaltung vorgelegt.\n14.3. Der Nutzer stimmt der außergerichtlichen Streitbeilegung zu.",
+        "title": "14. Streitbeilegung"
+      },
+      {
+        "content": "15.1. Sollte eine Bestimmung der Bedingungen unwirksam sein, berührt dies nicht die Gültigkeit der übrigen Bestimmungen.\n15.2. {vpnName} haftet nicht für die Nichtverfügbarkeit des Dienstes in bestimmten Regionen.\n15.3. Der Nutzer darf seine Rechte und Pflichten aus den Bedingungen nicht auf Dritte übertragen.\n15.4. Die Überschriften der Abschnitte dienen nur der Übersichtlichkeit und beeinflussen nicht die Auslegung der Bedingungen.",
+        "title": "15. Schlussbestimmungen"
+      },
+      {
+        "content": "16.1. Bei Fragen wenden Sie sich bitte über den Bot oder die Website an den Telegram‑Support.\n16.2. Antwortzeit: in der Regel innerhalb von 1 Stunde.\n16.3. Um die Zahlungsabwicklung zu beschleunigen, wird empfohlen, den Support innerhalb von 5–10 Minuten nach der Zahlung mit dem Beleg (optional) zu kontaktieren.\n16.4. Das Projektteam ist stets bereit, bei technischen und individuellen Fragen zu helfen.",
+        "title": "16. Kontakte"
+      }
+    ],
+    "subtitle": "{vpnName} – Nutzungsregeln",
+    "title": "Nutzungsbedingungen"
+  }
+}

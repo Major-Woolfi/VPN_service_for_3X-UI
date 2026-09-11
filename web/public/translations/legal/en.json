@@ -1,0 +1,195 @@
+{
+  "offer": {
+    "effectiveDate": "07.09.2026",
+    "sections": [
+      {
+        "content": "This public offer defines the terms and conditions for the provision of VPN services by {vpnName}. By using the service, you agree to the terms of use and accept this offer.",
+        "title": "Public Offer for the Provision of VPN Services"
+      },
+      {
+        "content": "1.1. The Provider ({vpnName}) provides access to the VPN network in accordance with the selected tariff.\n1.2. The User pays for the service and complies with the service rules.\n1.3. The service includes:\n- Provision of a subscription URL to obtain configuration files for connection\n- Access to selected locations\n- Technical support\n- Configuration updates when necessary",
+        "title": "1. Subject of the Offer"
+      },
+      {
+        "content": "2.1. The contract is concluded by accepting the offer:\n- Selecting a tariff in the Telegram bot or on the website\n- Paying for the service\n- Confirming payment\n\n2.2. Acceptance of the offer is deemed to be the user's actions to pay for the service.\n2.3. The contract is deemed concluded from the moment payment is confirmed.",
+        "title": "2. Procedure for Concluding the Contract"
+      },
+      {
+        "content": "3.1. The cost and duration of the service are indicated in the Telegram bot and on the website when selecting a tariff.\n3.2. Payment is made using available methods:\n- YooMoney (Quick payment)\n- P2P card transfer\n- Other methods specified in the bot or on the website\n\n3.3. Currently, payments are processed manually.\n3.4. After the transfer, to speed up processing, it is recommended to contact support within 5–10 minutes with the receipt attached.",
+        "title": "3. Cost and Payment"
+      },
+      {
+        "content": "4.1. The contract is valid until the end of the paid period.\n4.2. The user may extend the contract by ordering a new tariff or extending the old one.\n4.3. The contract may be terminated:\n- At the user's initiative\n- At the provider's initiative in case of breach of conditions (without refund)\n- By agreement of the parties",
+        "title": "4. Term of the Contract"
+      },
+      {
+        "content": "5.1. The Provider has the right to:\n- Suspend access in case of violation of terms\n- Change the technical parameters of the service\n- Carry out maintenance work\n- Refuse service in case of abuse\n\n5.2. The Provider undertakes to:\n- Ensure service availability\n- Provide technical support\n- Maintain data confidentiality\n- Respond to inquiries in a timely manner",
+        "title": "5. Rights and Obligations of the Provider"
+      },
+      {
+        "content": "6.1. The User has the right to:\n- Use the service in accordance with the tariff\n- Receive technical support\n- Renew the subscription\n- Request information about their data\n\n6.2. The User undertakes to:\n- Not transfer access to third parties\n- Not violate the terms of use\n- Pay for the service in a timely manner",
+        "title": "6. Rights and Obligations of the User"
+      },
+      {
+        "content": "7.1. The Provider is not liable for:\n- Temporary unavailability of the service for technical reasons\n- Actions of third parties (providers, regulators)\n- Indirect losses of users\n\n7.2. The Provider may suspend access in case of:\n- Violation of terms of use\n- Abuse of the tariff\n- Attempting unauthorised access\n- Violation of the section on protection of the project team",
+        "title": "7. Limitations and Liability"
+      },
+      {
+        "content": "8.1. Refunds are made in exceptional cases by decision of the administration or support.\n8.2. Refunds are not made in case of:\n- Violation of service terms by the user\n- Expiration of subscription\n- Voluntary refusal of service\n\n8.3. Refund requests are sent to Telegram support.\n8.4. The decision is made taking into account the actual provision of the service.",
+        "title": "8. Refund"
+      },
+      {
+        "content": "9.1. The parties are released from liability in the event of force majeure:\n- Natural disasters\n- Military actions\n- Decisions of government bodies\n- Large‑scale technical failures\n- Actions of third parties (attacks, blockings)\n\n9.2. The term of performance of obligations is extended for the duration of force majeure.",
+        "title": "9. Force Majeure"
+      },
+      {
+        "content": "10.1. {vpnName} reserves the right to amend this offer unilaterally.\n10.2. The new version comes into force from the moment of publication on the website or in the Telegram bot.\n10.3. Continued use of the service after changes implies acceptance of the new version.",
+        "title": "10. Amendment of the Offer"
+      },
+      {
+        "content": "11.1. All disputes and disagreements shall be resolved through negotiations via Telegram support.\n11.2. If agreement cannot be reached, the dispute shall be referred to the administration.\n11.3. The user agrees to the pre‑trial settlement of disputes.",
+        "title": "11. Dispute Resolution"
+      },
+      {
+        "content": "12.1. If any provision of the offer is held invalid, this does not affect the validity of the remaining provisions.\n12.2. {vpnName} is not liable for the unavailability of the service in certain regions.\n12.3. Section headings are for convenience only and do not affect the interpretation of the offer.",
+        "title": "12. Final Provisions"
+      },
+      {
+        "content": "13.1. For all questions, contact Telegram support via the bot.\n13.2. Response time: usually within 2 hours.\n13.3. The project team is always ready to help with technical and organisational matters.",
+        "title": "13. Details and Contacts"
+      }
+    ],
+    "subtitle": "{vpnName} – terms of service",
+    "title": "Public Offer"
+  },
+  "privacy": {
+    "effectiveDate": "07.09.2026",
+    "sections": [
+      {
+        "content": "This policy describes what technical data {vpnName} processes when operating the website, bot, and VPN service. By using the service, you agree to this policy.",
+        "title": "Privacy Policy of {vpnName} VPN Service"
+      },
+      {
+        "content": "1.1. {vpnName} respects user privacy and ensures the protection of personal data.\n1.2. This policy is developed in accordance with the principles of data minimisation.\n1.3. We collect only the data necessary for the functioning of the service.",
+        "title": "1. General Provisions"
+      },
+      {
+        "content": "2.1. The service may process:\n- User's Telegram ID and username\n- Selected tariff and technical subscription status\n- Payment data (only for payment confirmation, not stored)\n- Technical connection information\n\n2.2. We do NOT collect:\n- Passport data\n- Phone numbers (except as specified in the partnership section)\n- Email addresses (except as specified in the payment section)\n- Other information not listed in clause 2.1",
+        "title": "2. What Data Is Processed"
+      },
+      {
+        "content": "3.1. {vpnName} adheres to a strict No‑Logs policy:\n- No history of visited websites is kept\n- No analysis of traffic content\n- No connection logs are saved\n- No user activity is tracked\n\n3.2. For subscription operation, only aggregated metrics may be processed:\n- Total traffic used\n- Subscription validity period\n- Connection status (active/inactive)",
+        "title": "3. No‑Logs Policy"
+      },
+      {
+        "content": "4.1. Collected data is used solely for:\n- User registration and authentication\n- Issuing and managing VPN subscriptions\n- Technical support for users\n- Preventing abuse and fraud\n- Processing payment transactions\n- Notifying about maintenance and service changes",
+        "title": "4. Purposes of Data Processing"
+      },
+      {
+        "content": "5.1. Data is stored for the limited time necessary for the service:\n- Active subscriptions: for the entire term\n- Inactive subscriptions: up to 3 days after expiration\n- Payment data: not stored, used only for confirmation\n\n5.2. After the retention period, data is automatically deleted.",
+        "title": "5. Data Storage"
+      },
+      {
+        "content": "6.1. {vpnName} applies technical and organisational security measures:\n- Data encryption during transmission (TLS/SSL)\n- Secure storage in databases\n- Restricted access to data\n- Regular backups\n\n6.2. Only authorised project team members have access to data.",
+        "title": "6. Data Protection"
+      },
+      {
+        "content": "7.1. We do not transfer personal data to third parties, except:\n- Payment systems (only data necessary for payment processing)\n\n7.2. We do not sell or transfer data for marketing or other purposes.",
+        "title": "7. Transfer of Data to Third Parties"
+      },
+      {
+        "content": "8.1. The user has the right to:\n- Obtain information about the processing of their data\n- Correct inaccurate data\n- Request deletion of their data\n- Withdraw consent for data processing\n- Receive a copy of their data in a machine‑readable format\n\n8.2. To exercise your rights, contact Telegram support.",
+        "title": "8. User Rights"
+      },
+      {
+        "content": "9.1. The web interface may use cookies for:\n- User authentication\n- Saving theme settings\n\n9.2. The user may disable cookies in browser settings.",
+        "title": "9. Cookies and Similar Technologies"
+      },
+      {
+        "content": "10.1. {vpnName} reserves the right to amend the privacy policy.\n10.2. The new version comes into force from the moment of publication on the website.\n10.3. Users may be notified personally in case of significant changes.",
+        "title": "10. Policy Changes"
+      },
+      {
+        "content": "11.1. For questions regarding personal data processing, contact Telegram support via the bot.\n11.2. We respond to requests within 2 days.",
+        "title": "11. Contacts"
+      }
+    ],
+    "subtitle": "{vpnName} – user data processing",
+    "title": "Privacy Policy"
+  },
+  "tos": {
+    "effectiveDate": "07.09.2026",
+    "sections": [
+      {
+        "content": "These terms govern access to and use of the {vpnName} VPN service. By using the service, you accept these terms and the public offer in full.",
+        "title": "Terms of Use of the {vpnName} VPN Service"
+      },
+      {
+        "content": "1.1. The service is provided by the project team through a Telegram bot and web interface.\n1.2. Use of the service constitutes full and unconditional acceptance of the current version of the terms.\n1.3. {vpnName} provides VPN network access services on a subscription basis.\n1.4. The service is an open‑source project, which does not affect the validity of these terms.\n1.5. The service uses advanced technologies: VLESS and Shadowsocks protocols, XHTTP transport, REALITY plugin, XRay core.",
+        "title": "1. General Provisions"
+      },
+      {
+        "content": "2.1. Registration via Telegram is required to use the service.\n2.2. The user undertakes to provide accurate information.\n2.3. The user is responsible for the security of access to their account.\n2.4. Registration of multiple accounts to circumvent restrictions or gain unfair advantages is prohibited.\n2.5. The administration reserves the right to block the account if fraudulent activity is suspected.",
+        "title": "2. Registration and Account"
+      },
+      {
+        "content": "3.1. The user undertakes to:\n- Not share configuration files and access with third parties\n- Not attempt to hack, modify, or bypass service protection\n- Not abuse service resources\n- Not violate the rights of other users\n- Comply with the selected tariff plan\n- Not use the service for automated data collection",
+        "title": "3. User Obligations"
+      },
+      {
+        "content": "4.1. The following are strictly prohibited:\n- Distributing paid configurations for free or circumventing payment\n- Reverse engineering, decompilation, or code analysis of the service\n- Using bots, scripts, or automated systems to interact with the service\n- Attempting unauthorised access to the project infrastructure\n- Load testing without written consent of the administration\n- Abusing the trial period and referral programme",
+        "title": "4. Prohibited Actions"
+      },
+      {
+        "content": "5.1. The following are strictly prohibited:\n- Collecting, searching for, or distributing any personal information about project team members (real names, places of residence, contacts, social networks, photos)\n- Doxing (disclosure of personal information) of project participants\n- Attempting to deanonymise the project team\n- Any psychological, physical, or legal pressure on team members\n- Threatening, blackmailing, or intimidating project participants\n- Publishing calls to attack the project team\n- Stalking team members in any form\n\n5.2. Violation of this section entails:\n- Immediate and permanent account blocking without refund\n- Transfer of information to law enforcement agencies\n- The right of the project team to take legal action to protect their rights\n\n5.3. The project team reserves the right to anonymity and privacy.",
+        "title": "5. Protection of Project Team Information"
+      },
+      {
+        "content": "6.1. Despite the open‑source MIT licence, the following is prohibited:\n- Using the name {vpnName}, logos and trademarks without permission\n- Creating derivative projects aimed at direct competition\n- Using the project's infrastructure and developments for commercial purposes without consent\n\n6.2. All configuration files generated by the service are the intellectual property of the project and are provided to users for personal use only.",
+        "title": "6. Intellectual Property"
+      },
+      {
+        "content": "7.1. {vpnName} adheres to a No‑Logs policy:\n- No history of visited websites\n- No analysis of traffic content\n- No connection logs\n\n7.2. For service operation, the following are processed:\n- Telegram ID of the user\n- Tariff and subscription term data\n- Aggregated traffic volume indicators\n- Payment data (only for payment verification)\n\n7.3. Detailed information is available in the Privacy Policy.",
+        "title": "7. Confidentiality and Data Processing"
+      },
+      {
+        "content": "8.1. The service uses:\n- Protocols: VLESS and Shadowsocks\n- Transport: XHTTP\n- Encryption plugin: REALITY\n- Core: XRay (current version)\n\n8.2. {vpnName} reserves the right to:\n- Modify the protocols and technologies used\n- Switch to alternative solutions if necessary\n- Carry out maintenance with prior notification in the Telegram channel and/or bot",
+        "title": "8. Technical Characteristics of the Service"
+      },
+      {
+        "content": "9.1. Payment is made in accordance with the selected tariff and payment method.\n9.2. Currently, payments are processed manually.\n9.3. Refunds are made in exceptional cases by decision of the administration or support.\n9.4. If the user violates the service terms, no refund is made.\n9.5. Refund requests are sent to Telegram support.",
+        "title": "9. Payment and Refund"
+      },
+      {
+        "content": "10.1. {vpnName} is not liable for:\n- Temporary unavailability of the service for technical reasons\n- Actions of third parties (providers, regulators)\n- Indirect losses of users\n- Use of the service for illegal purposes by the user\n\n10.2. The user is fully responsible for:\n- Their actions when using the service\n- The consequences of using the VPN connection\n\n10.3. The service is provided \"as is\" without any guarantees of uptime above 98%.",
+        "title": "10. Liability of the Parties"
+      },
+      {
+        "content": "11.1. The administration has the right to suspend or terminate the user's access to the service without prior notice in cases of:\n- Violation of these terms\n- Suspected fraudulent activity\n- Violation of Section 5 (Protection of Project Team Information)\n- Abuse of service resources\n- Technical necessity\n\n11.2. In case of blocking for violation of terms, funds are not refunded.\n11.3. The user may appeal the blocking through support.",
+        "title": "11. Suspension and Termination of Access"
+      },
+      {
+        "content": "12.1. {vpnName} reserves the right to unilaterally amend these terms.\n12.2. The new version comes into force from the moment of publication on the website.\n12.3. Continued use of the service after changes implies acceptance of the new version.\n12.4. In case of significant changes, users may be notified personally.",
+        "title": "12. Amendment of Terms"
+      },
+      {
+        "content": "13.1. The parties are released from liability in the event of force majeure:\n- Natural disasters\n- Military actions\n- Decisions of government bodies\n- Large‑scale technical failures\n- Actions of third parties (attacks, blockings)\n\n13.2. The term of performance of obligations is extended for the duration of force majeure.",
+        "title": "13. Force Majeure"
+      },
+      {
+        "content": "14.1. All disputes and disagreements shall be resolved through negotiations via Telegram support.\n14.2. If agreement cannot be reached, the dispute shall be referred to the administration.\n14.3. The user agrees to the pre‑trial settlement of disputes.",
+        "title": "14. Dispute Resolution"
+      },
+      {
+        "content": "15.1. If any provision of the terms is held invalid, this does not affect the validity of the remaining provisions.\n15.2. {vpnName} is not liable for the unavailability of the service in certain regions.\n15.3. The user may not transfer their rights and obligations under the terms to third parties.\n15.4. Section headings are for convenience only and do not affect the interpretation of the terms.",
+        "title": "15. Final Provisions"
+      },
+      {
+        "content": "16.1. For all questions, contact Telegram support via the bot or website.\n16.2. Response time: usually within 1 hour.\n16.3. To speed up payment processing, it is recommended to contact support within 5–10 minutes after payment with the receipt attached (optional).\n16.4. The project team is always ready to help with technical and individual questions.",
+        "title": "16. Contacts"
+      }
+    ],
+    "subtitle": "{vpnName} – service usage rules",
+    "title": "Terms of Use"
+  }
+}

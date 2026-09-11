@@ -1,0 +1,4321 @@
+{
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Session token (secrets.token_urlsafe), выдаётся при регистрации или входе. Срок действия: 6 часов."
+      },
+      "adminApiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authorization",
+        "description": "BOT_ADMIN_KEY из файла .env. Используется для админских эндпоинтов."
+      },
+      "adminJwt": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Admin JWT access token obtained from /api/v1/auth/admin/token"
+      }
+    },
+    "schemas": {
+      "WebRegisterRequest": {
+        "description": "WebRegisterRequest represents the registration payload for creating a new user account via the web interface.",
+        "properties": {
+          "username": {
+            "description": "Unique username for authentication",
+            "type": "string"
+          },
+          "password": {
+            "description": "User password (hashed with bcrypt on server)",
+            "type": "string"
+          },
+          "tg_id": {
+            "description": "Telegram user ID (optional, can be linked later via /auth/telegram/link)",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "username",
+          "password"
+        ],
+        "type": "object"
+      },
+      "WebLoginRequest": {
+        "description": "WebLoginRequest represents the login payload for authenticating with username and password.",
+        "properties": {
+          "username": {
+            "description": "Username for authentication",
+            "type": "string"
+          },
+          "password": {
+            "description": "User password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "password"
+        ],
+        "type": "object"
+      },
+      "WebPasswordChangeRequest": {
+        "description": "WebPasswordChangeRequest represents the payload for changing user password.",
+        "properties": {
+          "old_password": {
+            "description": "Current password for verification",
+            "type": "string"
+          },
+          "new_password": {
+            "description": "New password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "old_password",
+          "new_password"
+        ],
+        "type": "object"
+      },
+      "WebTelegramLinkRequest": {
+        "description": "WebTelegramLinkRequest represents the payload for linking a Telegram account to a web account.",
+        "properties": {
+          "tg_id": {
+            "description": "Telegram user ID to link",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tg_id"
+        ],
+        "type": "object"
+      },
+      "TelegramLoginRequest": {
+        "description": "TelegramLoginRequest represents the payload for logging in via Telegram.",
+        "properties": {
+          "tg_id": {
+            "description": "Telegram user ID for login",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tg_id"
+        ],
+        "type": "object"
+      },
+      "ManualPaymentConfirmRequest": {
+        "description": "ManualPaymentConfirmRequest represents the payload for manually confirming a payment.",
+        "properties": {
+          "payment_id": {
+            "description": "Payment ID to confirm",
+            "type": "string"
+          },
+          "transaction_id": {
+            "description": "Transaction ID from payment provider",
+            "type": "string"
+          },
+          "amount": {
+            "description": "Payment amount",
+            "type": "number"
+          }
+        },
+        "required": [
+          "payment_id",
+          "transaction_id",
+          "amount"
+        ],
+        "type": "object"
+      },
+      "PartnerStatsRequest": {
+        "description": "PartnerStatsRequest represents the payload for requesting partner statistics.",
+        "properties": {
+          "period_days": {
+            "description": "Statistics period in days (1-365)",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "BotTelegramLoginRequest": {
+        "description": "BotTelegramLoginRequest represents the payload for bot-assisted Telegram login.",
+        "properties": {
+          "tg_id": {
+            "description": "Telegram user ID",
+            "type": "integer"
+          },
+          "state": {
+            "description": "One-time state token from /auth/bot/create-login-state (valid for 5 minutes)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tg_id",
+          "state"
+        ],
+        "type": "object"
+      },
+      "Tariff": {
+        "description": "Tariff represents a subscription plan with pricing, traffic limits, and server configuration.",
+        "properties": {
+          "id": {
+            "description": "Unique tariff identifier",
+            "type": "string"
+          },
+          "name": {
+            "description": "Human-readable tariff name",
+            "type": "string"
+          },
+          "price_rub": {
+            "description": "Price in Russian Rubles",
+            "type": "number"
+          },
+          "traffic_gb": {
+            "description": "Monthly traffic allowance in GB",
+            "type": "integer"
+          },
+          "ip_limit": {
+            "description": "Maximum simultaneous IP connections",
+            "type": "integer"
+          },
+          "duration_days": {
+            "description": "Subscription duration in days",
+            "type": "integer"
+          },
+          "servers": {
+            "description": "List of available server locations",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "active": {
+            "description": "Whether the tariff is currently available for purchase",
+            "type": "boolean"
+          },
+          "trial": {
+            "description": "Whether this is a trial (free) tariff",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "Location": {
+        "description": "Location represents a server location with flag and label information.",
+        "properties": {
+          "code": {
+            "description": "Location code (e.g., 'RU', 'DE', 'US')",
+            "type": "string"
+          },
+          "flag": {
+            "description": "Flag emoji for the location",
+            "type": "string"
+          },
+          "label": {
+            "description": "Human-readable location name",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CustomTariffRequest": {
+        "description": "CustomTariffRequest represents the payload for generating a custom tariff plan.",
+        "properties": {
+          "traffic_gb": {
+            "description": "Traffic volume in GB (minimum: 1)",
+            "type": "integer"
+          },
+          "ip_limit": {
+            "description": "Number of simultaneous IPs (minimum: 1)",
+            "type": "integer"
+          },
+          "duration_days": {
+            "description": "Duration in days (minimum: 1)",
+            "type": "integer"
+          },
+          "servers": {
+            "description": "List of server locations to include",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "traffic_gb",
+          "ip_limit",
+          "duration_days"
+        ],
+        "type": "object"
+      },
+      "UserProfile": {
+        "description": "UserProfile represents a sanitized user profile for API responses (without sensitive fields).",
+        "properties": {
+          "user_id": {
+            "description": "Unique user identifier",
+            "type": "integer"
+          },
+          "username": {
+            "description": "Username",
+            "type": "string"
+          },
+          "join_date": {
+            "description": "Account creation date (ISO format)",
+            "type": "string"
+          },
+          "has_subscription": {
+            "description": "Whether the user has an active subscription",
+            "type": "boolean"
+          },
+          "is_mate": {
+            "description": "Whether the user is a partner",
+            "type": "boolean"
+          },
+          "trust_score": {
+            "description": "User trust score (0-100)",
+            "type": "integer"
+          },
+          "language": {
+            "description": "User preferred language code",
+            "type": "string"
+          },
+          "web_id": {
+            "description": "Web account identifier",
+            "type": "integer"
+          },
+          "web_registered_at": {
+            "description": "Web registration timestamp",
+            "type": "string"
+          },
+          "web_auth_method": {
+            "description": "Authentication method (local, telegram)",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SubscriptionState": {
+        "description": "SubscriptionState represents the current state of a user subscription.",
+        "properties": {
+          "status": {
+            "description": "Subscription status",
+            "type": "string",
+            "enum": [
+              "active",
+              "expired",
+              "none"
+            ]
+          },
+          "plan": {
+            "description": "Active plan name",
+            "type": "string"
+          },
+          "expiry": {
+            "description": "Subscription expiry timestamp",
+            "type": "string"
+          },
+          "traffic_remaining_gb": {
+            "description": "Remaining traffic in GB",
+            "type": "number"
+          },
+          "traffic_total_gb": {
+            "description": "Total traffic allowance in GB",
+            "type": "number"
+          },
+          "days_until_expiry": {
+            "description": "Days remaining until subscription expires",
+            "type": "integer"
+          },
+          "is_expiring_soon": {
+            "description": "Whether the subscription expires within Config.EXPIRY_ALERT_DAYS",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "CreateSubscriptionRequest": {
+        "description": "CreateSubscriptionRequest represents the payload for creating or renewing a subscription.",
+        "properties": {
+          "user_id": {
+            "description": "Target user ID (required for admin endpoints)",
+            "type": "integer"
+          },
+          "plan_id": {
+            "description": "Tariff ID from catalog",
+            "type": "string"
+          },
+          "plan_name": {
+            "description": "Custom plan name (optional)",
+            "type": "string"
+          },
+          "price_rub": {
+            "description": "Custom price in RUB (optional)",
+            "type": "number"
+          },
+          "ip_limit": {
+            "description": "Custom IP limit (optional, uses tariff default)",
+            "type": "integer"
+          },
+          "traffic_gb": {
+            "description": "Custom traffic allowance in GB (optional)",
+            "type": "integer"
+          },
+          "duration_days": {
+            "description": "Custom duration in days (optional)",
+            "type": "integer"
+          },
+          "servers": {
+            "description": "Custom server list (optional)",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "plan_id"
+        ],
+        "type": "object"
+      },
+      "ExtendSubscriptionRequest": {
+        "description": "ExtendSubscriptionRequest represents the payload for extending a subscription by a number of days.",
+        "properties": {
+          "user_id": {
+            "description": "Target user ID (admin only)",
+            "type": "integer"
+          },
+          "days": {
+            "description": "Number of days to extend (minimum: 1)",
+            "type": "integer"
+          },
+          "reason": {
+            "description": "Optional reason for extension",
+            "type": "string"
+          }
+        },
+        "required": [
+          "days"
+        ],
+        "type": "object"
+      },
+      "BanUserRequest": {
+        "description": "BanUserRequest represents the payload for banning a user.",
+        "properties": {
+          "reason": {
+            "description": "Reason for ban",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CreateCheckoutRequest": {
+        "description": "CreateCheckoutRequest represents the payload for creating a payment checkout session.",
+        "properties": {
+          "plan_id": {
+            "description": "Tariff ID to purchase",
+            "type": "string"
+          },
+          "method": {
+            "description": "Payment method",
+            "type": "string",
+            "enum": [
+              "manual",
+              "yoomoney"
+            ],
+            "default": "manual"
+          }
+        },
+        "required": [
+          "plan_id"
+        ],
+        "type": "object"
+      },
+      "PaymentRecord": {
+        "description": "PaymentRecord represents a payment transaction in the system.",
+        "properties": {
+          "payment_id": {
+            "description": "Unique payment identifier",
+            "type": "string"
+          },
+          "user_id": {
+            "description": "User ID who made the payment",
+            "type": "integer"
+          },
+          "plan_id": {
+            "description": "Tariff ID associated with the payment",
+            "type": "string"
+          },
+          "plan_name": {
+            "description": "Tariff name",
+            "type": "string"
+          },
+          "amount": {
+            "description": "Payment amount",
+            "type": "number"
+          },
+          "currency": {
+            "description": "Payment currency",
+            "type": "string"
+          },
+          "status": {
+            "description": "Payment status",
+            "type": "string",
+            "enum": [
+              "pending",
+              "confirmed",
+              "rejected"
+            ]
+          },
+          "timestamp": {
+            "description": "Payment timestamp (ISO format)",
+            "type": "string"
+          },
+          "payment_method": {
+            "description": "Payment method used",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PaymentVerifyRequest": {
+        "description": "PaymentVerifyRequest represents the payload for verifying (confirming or rejecting) a payment.",
+        "properties": {
+          "payment_id": {
+            "description": "Payment ID to verify",
+            "type": "string"
+          },
+          "status": {
+            "description": "Verification action",
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "rejected"
+            ]
+          },
+          "admin_note": {
+            "description": "Optional admin note for the verification",
+            "type": "string"
+          }
+        },
+        "required": [
+          "payment_id",
+          "status"
+        ],
+        "type": "object"
+      },
+      "PartnerProfile": {
+        "description": "PartnerProfile represents a partner account profile with balance, commission, subscription and referral information.",
+        "properties": {
+          "user_id": {
+            "description": "User ID",
+            "type": "integer"
+          },
+          "is_mate": {
+            "description": "Whether the user is a partner",
+            "type": "boolean"
+          },
+          "mate_nickname": {
+            "description": "Partner nickname",
+            "type": "string"
+          },
+          "mate_balance": {
+            "description": "Current partner balance",
+            "type": "number"
+          },
+          "mate_commission_total": {
+            "description": "Total commission earned",
+            "type": "number"
+          },
+          "mate_expiry": {
+            "description": "Partner status expiry date (DD.MM.YYYY)",
+            "type": "string"
+          },
+          "mate_followers": {
+            "description": "Number of social media followers",
+            "type": "integer"
+          },
+          "mate_social_links": {
+            "description": "Social media profile links",
+            "type": "string"
+          },
+          "period_months": {
+            "description": "Partner period in months",
+            "type": "integer"
+          },
+          "subscription_id": {
+            "description": "Partner subscription ID (named, equals nickname)",
+            "type": "string"
+          },
+          "ref_link_code": {
+            "description": "Referral link code (mate_{nickname})",
+            "type": "string"
+          },
+          "ref_link": {
+            "description": "Full referral link",
+            "type": "string"
+          },
+          "referrals_count": {
+            "description": "Total referrals",
+            "type": "integer"
+          },
+          "referrals_paid": {
+            "description": "Paying referrals",
+            "type": "integer"
+          },
+          "conversion_rate": {
+            "description": "Conversion rate (paid/total * 100)",
+            "type": "number"
+          },
+          "avg_commission_per_paid": {
+            "description": "Average commission per paying referral",
+            "type": "number"
+          },
+          "web_registered_at": {
+            "description": "Web registration timestamp (ISO format)",
+            "type": "string"
+          },
+          "web_last_login": {
+            "description": "Web last login timestamp (ISO format)",
+            "type": "string"
+          },
+          "mate_period_months": {
+            "description": "Total partner periods completed",
+            "type": "integer"
+          },
+          "ref_code": {
+            "description": "Partner referral code",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PartnerApplication": {
+        "description": "PartnerApplication represents a partner program application.",
+        "properties": {
+          "followers": {
+            "description": "Number of followers on social media",
+            "type": "integer"
+          },
+          "social_links": {
+            "description": "Social media profile URLs",
+            "type": "string"
+          },
+          "nickname": {
+            "description": "Partner nickname (English letters, digits, _ only, no spaces or special chars)",
+            "type": "string"
+          },
+          "period_months": {
+            "description": "Desired partner period in months",
+            "type": "integer"
+          },
+          "bonus_type": {
+            "description": "Type of bonus requested",
+            "type": "string"
+          },
+          "bonus_value": {
+            "description": "Bonus value",
+            "type": "integer"
+          },
+          "pd_consent": {
+            "description": "Personal data processing consent (1 = yes, 0 = no)",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "followers",
+          "social_links",
+          "nickname",
+          "period_months",
+          "bonus_type",
+          "bonus_value",
+          "pd_consent"
+        ],
+        "type": "object"
+      },
+      "PartnerStats": {
+        "description": "PartnerStats represents partner program statistics for a given period.",
+        "properties": {
+          "total_refs": {
+            "description": "Total number of referrals",
+            "type": "integer"
+          },
+          "paid_refs": {
+            "description": "Number of paying referrals",
+            "type": "integer"
+          },
+          "unpaid_refs": {
+            "description": "Number of unpaid referrals",
+            "type": "integer"
+          },
+          "balance": {
+            "description": "Current partner balance",
+            "type": "number"
+          },
+          "commission_total": {
+            "description": "Total commission earned",
+            "type": "number"
+          },
+          "conversion_rate": {
+            "description": "Conversion rate (paid/total * 100)",
+            "type": "number"
+          },
+          "avg_commission_per_paid": {
+            "description": "Average commission per paying referral",
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "ReferralRecord": {
+        "description": "ReferralRecord represents a referral entry in the referral program.",
+        "properties": {
+          "user_id": {
+            "description": "Referred user ID",
+            "type": "integer"
+          },
+          "join_date": {
+            "description": "Referral join date",
+            "type": "string"
+          },
+          "has_subscription": {
+            "description": "Whether the referral has an active subscription",
+            "type": "boolean"
+          },
+          "bonus_days": {
+            "description": "Bonus days earned from this referral",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "BroadcastRequest": {
+        "description": "BroadcastRequest represents a mass message send request.",
+        "properties": {
+          "message": {
+            "description": "Message text to send",
+            "type": "string"
+          },
+          "target_user_ids": {
+            "description": "Target user IDs (empty = send to all)",
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "type": "object"
+      },
+      "CreateClientRequest": {
+        "description": "CreateClientRequest represents a payload for creating a client in the VPN panel.",
+        "properties": {
+          "user_id": {
+            "description": "User ID",
+            "type": "integer"
+          },
+          "email": {
+            "description": "Client email (format: user_{id}@vpn.com)",
+            "type": "string"
+          },
+          "limit_ip": {
+            "description": "IP connection limit",
+            "type": "integer",
+            "default": 0
+          },
+          "total_gb": {
+            "description": "Traffic limit in GB",
+            "type": "integer",
+            "default": 0
+          },
+          "days": {
+            "description": "Subscription duration in days",
+            "type": "integer"
+          },
+          "inbound_ids": {
+            "description": "List of inbound IDs to attach",
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "required": [
+          "user_id",
+          "email"
+        ],
+        "type": "object"
+      },
+      "BulkActionRequest": {
+        "description": "BulkActionRequest represents a bulk user operation.",
+        "properties": {
+          "user_ids": {
+            "description": "List of user IDs to operate on",
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "action": {
+            "description": "Action to perform",
+            "type": "string",
+            "enum": [
+              "ban",
+              "unban",
+              "remove_subscription"
+            ]
+          },
+          "reason": {
+            "description": "Reason for the action",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_ids",
+          "action"
+        ],
+        "type": "object"
+      },
+      "DebugCleanupRequest": {
+        "description": "DebugCleanupRequest represents a database cleanup operation request.",
+        "properties": {
+          "dry_run": {
+            "description": "If true, only calculate what would be deleted without actually deleting",
+            "type": "boolean",
+            "default": true
+          },
+          "cleanup_expired": {
+            "description": "Clean up expired subscriptions",
+            "type": "boolean"
+          },
+          "cleanup_traffic_exhausted": {
+            "description": "Clean up users who exhausted their traffic",
+            "type": "boolean"
+          },
+          "cleanup_missing": {
+            "description": "Clean up clients missing from the VPN panel",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "AdminTokenRequest": {
+        "type": "object",
+        "properties": {
+          "admin_key": {
+            "type": "string",
+            "description": "BOT_ADMIN_KEY from .env",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "admin_key"
+        ]
+      },
+      "RefreshTokenRequest": {
+        "type": "object",
+        "properties": {
+          "refresh_token": {
+            "type": "string",
+            "description": "Refresh token obtained from /api/v1/auth/admin/token",
+            "minLength": 1,
+            "maxLength": 4096
+          }
+        },
+        "required": [
+          "refresh_token"
+        ]
+      },
+      "AdminTokenResponse": {
+        "type": "object",
+        "properties": {
+          "access_token": {
+            "type": "string"
+          },
+          "refresh_token": {
+            "type": "string"
+          },
+          "token_type": {
+            "type": "string",
+            "example": "bearer"
+          },
+          "expires_in": {
+            "type": "integer",
+            "description": "Expires in seconds"
+          }
+        }
+      },
+      "AdminRefreshResponse": {
+        "type": "object",
+        "properties": {
+          "access_token": {
+            "type": "string"
+          },
+          "token_type": {
+            "type": "string",
+            "example": "bearer"
+          },
+          "expires_in": {
+            "type": "integer",
+            "description": "Expires in seconds"
+          }
+        }
+      },
+      "AbuseClearRequest": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "description": "User ID to clear abuse status"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Optional reason for clearing"
+          }
+        },
+        "required": [
+          "user_id"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Phantom VPN Bot API",
+    "version": "1.0.0",
+    "description": "Programmatic interface for the Phantom VPN Telegram bot. Authenticate with username + password or via Telegram. Email is not used for authentication."
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Health check",
+        "description": "Public endpoint to check API availability. No authentication required.",
+        "operationId": "get_health",
+        "responses": {
+          "200": {
+            "description": "API is operational",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "version": {
+                      "type": "string",
+                      "example": "1.0.0"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/config/features": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Get feature flags and public configuration",
+        "description": "Returns public feature flags, payment methods, and configured payment details.",
+        "operationId": "get_config_features",
+        "responses": {
+          "200": {
+            "description": "Feature flags and config",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "payment_methods": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "payment_card": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "yoomoney": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "panel_types": {
+                      "type": "object"
+                    },
+                    "features": {
+                      "type": "object",
+                      "properties": {
+                        "custom_tariff": {
+                          "type": "boolean"
+                        },
+                        "partner": {
+                          "type": "boolean"
+                        },
+                        "telegram_login": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "public_links": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/health": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Admin health check",
+        "description": "Detailed system health check including users, payments, and partner operations. Requires admin API key.",
+        "operationId": "get_admin_health",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "System health status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "users": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer"
+                        },
+                        "banned": {
+                          "type": "integer"
+                        },
+                        "active_subscriptions": {
+                          "type": "integer"
+                        },
+                        "partners": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "payments": {
+                      "type": "object",
+                      "properties": {
+                        "pending": {
+                          "type": "integer"
+                        },
+                        "processing": {
+                          "type": "integer"
+                        },
+                        "total_stored": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "partner_operations": {
+                      "type": "object",
+                      "properties": {
+                        "pending": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "tech_work_mode": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/panel-status": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Admin panel status",
+        "description": "Detailed panel information including server status and nodes. Returns full unsanitized data including panel_base. Requires admin API key.",
+        "operationId": "get_admin_panel_status",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Panel status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "panel": {
+                      "type": "object",
+                      "properties": {
+                        "panel_version": {
+                          "type": "string"
+                        },
+                        "xray_version": {
+                          "type": "string"
+                        },
+                        "panel_base": {
+                          "type": "string",
+                          "description": "Full panel base URL (admin only)"
+                        }
+                      }
+                    },
+                    "server_status": {
+                      "type": "object",
+                      "description": "Full server status including IP and port (admin only)"
+                    },
+                    "nodes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "description": "Full node data including address, port, apiToken (admin only)"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Register new account",
+        "description": "Create a new user account with username and password. Telegram ID is optional and can be linked later via /auth/telegram/link.",
+        "operationId": "register",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebRegisterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Account created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user_id": {
+                      "type": "integer"
+                    },
+                    "web_id": {
+                      "type": "integer"
+                    },
+                    "token": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Username and password required"
+          },
+          "409": {
+            "description": "Username already registered"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Login with username and password",
+        "description": "Authenticate with username and password. Returns a session token valid for 6 hours.",
+        "operationId": "login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebLoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user_id": {
+                      "type": "integer"
+                    },
+                    "web_id": {
+                      "type": "integer"
+                    },
+                    "token": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Logout",
+        "description": "Invalidate the current session token.",
+        "operationId": "logout",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session invalidated"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Get current user profile",
+        "description": "Returns the profile of the authenticated user (without password_hash or session_token).",
+        "operationId": "get_me",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "$ref": "#/components/schemas/UserProfile"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/change-password": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Change password",
+        "description": "Update user password after verifying the old one. Password is hashed with bcrypt. New password must meet minimum length requirement (PASSWORD_MIN_LENGTH).",
+        "operationId": "change_password",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebPasswordChangeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password changed"
+          },
+          "400": {
+            "description": "Old password incorrect"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/telegram/link": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Link Telegram account",
+        "description": "Link a Telegram user ID to the current web account. Requires a valid Telegram verification state created by /auth/telegram/link/start. Returns 403 if state is missing, expired, or tg_id does not match the verified state. Returns 409 if Telegram is already linked to another account.",
+        "operationId": "link_telegram",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebTelegramLinkRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Telegram linked"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "409": {
+            "description": "Telegram already linked to another account"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/telegram/unlink": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Unlink Telegram account",
+        "description": "Unlink the Telegram user ID from the current web account.",
+        "operationId": "unlink_telegram",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Telegram unlinked"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/telegram/login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Login via Telegram (web)",
+        "description": "Login to an existing web account via Telegram ID. Requires a valid Telegram verification state created by /auth/telegram/start. Returns 403 if state is missing, expired, or tg_id does not match the verified state.",
+        "operationId": "telegram_login_web",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelegramLoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user_id": {
+                      "type": "integer"
+                    },
+                    "web_id": {
+                      "type": "integer"
+                    },
+                    "token": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "No web account linked to this Telegram user"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/telegram/start": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Create Telegram login state",
+        "description": "Create a one-time state token for bot-assisted login. State is valid for 5 minutes (TTL=300). Returns a Telegram deep-link URL to open in the bot.",
+        "operationId": "create_telegram_login_state",
+        "responses": {
+          "200": {
+            "description": "State created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "description": "Deep-link URL to open in Telegram bot"
+                    },
+                    "state": {
+                      "type": "string",
+                      "description": "One-time state token"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Bot username not configured or state creation failed"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/telegram/link-start": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Create Telegram link state",
+        "description": "Create a state token for linking Telegram to a web account via bot. Requires authentication. Returns a Telegram deep-link URL.",
+        "operationId": "create_telegram_link_state",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "State created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Bot username not configured or state creation failed"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/telegram/status/{state}": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Check Telegram auth state status",
+        "description": "Poll the status of a Telegram authentication state created by /auth/telegram/start or /auth/telegram/link-start.",
+        "operationId": "telegram_auth_status",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "State status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "completed",
+                        "expired"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tariffs": {
+      "get": {
+        "tags": [
+          "Tariffs"
+        ],
+        "summary": "Get all active tariffs",
+        "description": "Public endpoint. Returns all active tariffs from the catalog (tarifs.json).",
+        "operationId": "get_tariffs",
+        "responses": {
+          "200": {
+            "description": "List of tariffs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tariffs": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Tariff"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tariffs/custom/generate": {
+      "post": {
+        "tags": [
+          "Tariffs"
+        ],
+        "summary": "Generate custom tariff",
+        "description": "Calculate the cost of a custom plan with traffic, IP, and duration parameters. Requires authentication.",
+        "operationId": "generate_custom_tariff",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomTariffRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Custom tariff calculated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "plan": {
+                      "$ref": "#/components/schemas/Tariff"
+                    },
+                    "total_price": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid custom tariff parameters"
+          },
+          "403": {
+            "description": "Custom tariffs disabled"
+          }
+        }
+      }
+    },
+    "/api/v1/tariffs/custom/params": {
+      "get": {
+        "tags": [
+          "Tariffs"
+        ],
+        "summary": "Custom tariff parameters",
+        "description": "Returns bounds and coefficients for generating custom tariffs. Requires authentication (session token or admin API key).",
+        "operationId": "get_custom_tariff_params",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Custom tariff params",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "base_price": {
+                      "type": "number"
+                    },
+                    "gb_coef": {
+                      "type": "number"
+                    },
+                    "ip_day_coef": {
+                      "type": "number"
+                    },
+                    "min_gb": {
+                      "type": "integer"
+                    },
+                    "max_gb": {
+                      "type": "integer"
+                    },
+                    "min_ip": {
+                      "type": "integer"
+                    },
+                    "max_ip": {
+                      "type": "integer"
+                    },
+                    "min_days": {
+                      "type": "integer"
+                    },
+                    "max_days": {
+                      "type": "integer"
+                    },
+                    "locations": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "flag": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "price_per_day_rub": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/v1/locations": {
+      "get": {
+        "tags": [
+          "Tariffs"
+        ],
+        "summary": "Get available server locations",
+        "description": "Public endpoint. Returns a list of available server locations with flags and labels.",
+        "operationId": "get_locations",
+        "responses": {
+          "200": {
+            "description": "List of locations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "locations": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Location"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "List users (paginated)",
+        "description": "Returns a paginated list of users. Requires admin API key.",
+        "operationId": "get_users",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Page number"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            },
+            "description": "Items per page"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "users": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/UserProfile"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "page": {
+                      "type": "integer"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/users/search": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Search users",
+        "description": "Search by user_id or email (internal VPN panel email). Requires admin API key.",
+        "operationId": "search_users",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Search query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/users/{user_id}": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Get user",
+        "description": "Returns data for a specific user (without password_hash). Requires admin API key.",
+        "operationId": "get_user",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User data"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Delete user",
+        "description": "Completely delete a user from the system. Requires admin rights. Clears session tokens before deletion. Admin users are protected and cannot be deleted.",
+        "operationId": "delete_user",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User deleted"
+          },
+          "403": {
+            "description": "Admin required or cannot delete admin user"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        }
+      }
+    },
+    "/api/v1/users/{user_id}/subscription-state": {
+      "get": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Get subscription state",
+        "description": "Returns the full subscription state: status, remaining traffic, days until expiry, servers.",
+        "operationId": "get_subscription_state",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Subscription state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionState"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/users/{user_id}/subscribe": {
+      "post": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Create subscription (admin)",
+        "description": "Admin subscription creation for a user. Automatically creates a client in the VPN panel.",
+        "operationId": "admin_subscribe",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSubscriptionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Subscription created"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        }
+      }
+    },
+    "/api/v1/users/{user_id}/unsubscribe": {
+      "post": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Remove subscription (admin)",
+        "description": "Completely remove a user subscription from bot and VPN panel. Admin users are protected and cannot have their subscription removed.",
+        "operationId": "admin_unsubscribe",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Subscription removed"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        }
+      }
+    },
+    "/api/v1/users/{user_id}/extend": {
+      "post": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Extend subscription (admin)",
+        "description": "Extend a user subscription by a specified number of days. Automatically updates the expiry in the VPN panel.",
+        "operationId": "admin_extend_subscription",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "days": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Number of days to extend"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Subscription extended"
+          },
+          "400": {
+            "description": "Invalid number of days"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        }
+      }
+    },
+    "/api/v1/users/{user_id}/ban": {
+      "post": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Ban user",
+        "description": "Block user access. Blocks in bot and VPN panel.",
+        "operationId": "ban_user",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BanUserRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User banned"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        }
+      }
+    },
+    "/api/v1/users/{user_id}/unban": {
+      "post": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Unban user",
+        "description": "Remove block from a user.",
+        "operationId": "unban_user",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User unbanned"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        }
+      }
+    },
+    "/api/v1/subscription/create": {
+      "post": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Create subscription",
+        "description": "Purchase a subscription from the catalog tariff. Automatically creates a client in the VPN panel and generates a VPN link.",
+        "operationId": "create_subscription",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSubscriptionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Subscription created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user_id": {
+                      "type": "integer"
+                    },
+                    "plan": {
+                      "$ref": "#/components/schemas/Tariff"
+                    },
+                    "vpn_url": {
+                      "type": "string"
+                    },
+                    "json_vpn_url": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid parameters"
+          },
+          "403": {
+            "description": "Admins cannot purchase"
+          },
+          "409": {
+            "description": "Active subscription already exists"
+          }
+        }
+      }
+    },
+    "/api/v1/subscription/renew": {
+      "post": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Renew subscription",
+        "description": "Renew an existing subscription with a catalog tariff.",
+        "operationId": "renew_subscription",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSubscriptionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Subscription renewed"
+          },
+          "400": {
+            "description": "Invalid parameters"
+          },
+          "409": {
+            "description": "Active subscription already exists"
+          }
+        }
+      }
+    },
+    "/api/v1/subscription/trial": {
+      "post": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Trial subscription",
+        "description": "Activate a trial (free) subscription. Only available for users without an active subscription.",
+        "operationId": "trial_subscription",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Trial activated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user_id": {
+                      "type": "integer"
+                    },
+                    "plan": {
+                      "$ref": "#/components/schemas/Tariff"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid parameters"
+          },
+          "403": {
+            "description": "Admins cannot use trial"
+          },
+          "409": {
+            "description": "Active subscription already exists"
+          }
+        }
+      }
+    },
+    "/api/v1/subscription/link": {
+      "get": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Get VPN link",
+        "description": "Returns the VPN link and JSON link for an active subscription.",
+        "operationId": "get_subscription_link",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "VPN link",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "subscription_id": {
+                      "type": "string"
+                    },
+                    "vpn_url": {
+                      "type": "string"
+                    },
+                    "json_vpn_url": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "No active subscription"
+          }
+        }
+      }
+    },
+    "/api/v1/subscription/add-traffic": {
+      "post": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Add extra traffic",
+        "description": "Add extra traffic (GB) to an active subscription.",
+        "operationId": "add_extra_traffic",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "gb": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "GB to add"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Traffic added"
+          },
+          "400": {
+            "description": "Invalid GB amount"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/subscription/verify/{sub_id}": {
+      "get": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Verify subscription by sub_id",
+        "description": "Public endpoint to verify the validity of a subscription by subscription ID.",
+        "operationId": "verify_subscription",
+        "parameters": [
+          {
+            "name": "sub_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Subscription status"
+          },
+          "404": {
+            "description": "Subscription not found"
+          }
+        }
+      }
+    },
+    "/api/v1/payments/create-checkout": {
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Create checkout",
+        "description": "Create a payment session. Generates a payment_id and returns a payment URL (Yoomoney).",
+        "operationId": "create_checkout",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCheckoutRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Checkout created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "checkout_url": {
+                      "type": "string"
+                    },
+                    "payment_id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid tariff price"
+          },
+          "404": {
+            "description": "Tariff not found"
+          },
+          "409": {
+            "description": "Payment request already exists"
+          }
+        }
+      }
+    },
+    "/api/v1/payments/pending": {
+      "get": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Pending payments (admin)",
+        "description": "List of all payments awaiting confirmation.",
+        "operationId": "get_pending_payments",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pending payments list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "payments": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PaymentRecord"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        }
+      }
+    },
+    "/api/v1/payments/confirm/{payment_id}": {
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Confirm payment (admin)",
+        "description": "DEPRECATED: use /api/v1/payments/verify/{payment_id} (status=confirmed) instead. Manually confirm a payment by a moderator. Issues subscription and bonuses.",
+        "operationId": "confirm_payment",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "payment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Payment confirmed"
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "404": {
+            "description": "Payment not found"
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/v1/payments/reject/{payment_id}": {
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Reject payment (admin)",
+        "description": "DEPRECATED: use /api/v1/payments/verify/{payment_id} (status=rejected) instead. Manually reject a payment by a moderator.",
+        "operationId": "reject_payment",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "payment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Payment rejected"
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "404": {
+            "description": "Payment not found"
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/v1/payments/verify/{payment_id}": {
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Verify payment",
+        "description": "Verify a payment with confirmation or rejection. Requires admin rights.",
+        "operationId": "verify_payment",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "payment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentVerifyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Payment verified"
+          },
+          "400": {
+            "description": "Invalid status"
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "404": {
+            "description": "Payment not found"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/payments/history": {
+      "get": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Payment history (admin)",
+        "description": "Full payment history with pagination and status filtering.",
+        "operationId": "get_payment_history",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Page number"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            },
+            "description": "Items per page"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "confirmed",
+                "rejected",
+                "all"
+              ]
+            },
+            "description": "Filter by status"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Payment history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "payments": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PaymentRecord"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "page": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        }
+      }
+    },
+    "/api/v1/partner/public-info": {
+      "get": {
+        "tags": [
+          "Partners"
+        ],
+        "summary": "Public partner program information",
+        "description": "Returns public partner program configuration: commission percent, requirements, terms URL, period limits, bonus days, and trust points.",
+        "operationId": "get_partner_public_info",
+        "responses": {
+          "200": {
+            "description": "Partner public info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "commission_percent": {
+                      "type": "integer"
+                    },
+                    "min_followers": {
+                      "type": "integer"
+                    },
+                    "min_avg_reach": {
+                      "type": "integer"
+                    },
+                    "required_socials": {
+                      "type": "string"
+                    },
+                    "terms_url": {
+                      "type": "string"
+                    },
+                    "min_period_months": {
+                      "type": "integer"
+                    },
+                    "max_period_months": {
+                      "type": "integer"
+                    },
+                    "bonus_days_min": {
+                      "type": "integer"
+                    },
+                    "bonus_days_max": {
+                      "type": "integer"
+                    },
+                    "trust_points_min": {
+                      "type": "integer"
+                    },
+                    "trust_points_max": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/partner/profile": {
+      "get": {
+        "tags": [
+          "Partners"
+        ],
+        "summary": "Partner profile",
+        "description": "Get partner account information: balance, commission, status, referrals.",
+        "operationId": "get_partner_profile",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Partner profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "partner": {
+                      "$ref": "#/components/schemas/PartnerProfile"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/partner/apply": {
+      "post": {
+        "tags": [
+          "Partners"
+        ],
+        "summary": "Apply for partnership",
+        "description": "Submit an application to join the partner program. Requires authentication. Nickname must contain only English letters, digits and _. Referral link format: t.me/bot?start=mate_{nickname}.",
+        "operationId": "apply_partner",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartnerApplication"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Application submitted"
+          },
+          "400": {
+            "description": "Invalid application data (nickname format, period range)"
+          },
+          "403": {
+            "description": "Admins cannot become partners or partner program disabled"
+          },
+          "409": {
+            "description": "Already a partner"
+          }
+        }
+      }
+    },
+    "/api/v1/partner/pending-status": {
+      "get": {
+        "tags": [
+          "Partners"
+        ],
+        "summary": "Check pending partner application status",
+        "description": "Returns whether the authenticated user has a pending partner application.",
+        "operationId": "get_partner_pending_status",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pending status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "has_pending_application": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/partner/withdraw": {
+      "post": {
+        "tags": [
+          "Partners"
+        ],
+        "summary": "Withdraw partner funds",
+        "description": "Request a withdrawal from the partner balance via SBP (System of Instant Payments). Requires fio, phone, and bank for the withdrawal.",
+        "operationId": "partner_withdraw",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "amount": {
+                    "type": "number",
+                    "minimum": 0.01,
+                    "description": "Amount to withdraw in RUB"
+                  },
+                  "fio": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Full name of the recipient (FIO)"
+                  },
+                  "phone": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Phone number for SBP transfer"
+                  },
+                  "bank": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Bank name (Sberbank, Tinkoff, etc.)"
+                  }
+                },
+                "required": [
+                  "amount",
+                  "fio",
+                  "phone",
+                  "bank"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Withdrawal request created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "operation_id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid amount, missing fio, phone, or bank"
+          },
+          "403": {
+            "description": "Not a partner"
+          },
+          "409": {
+            "description": "Insufficient balance or pending request exists"
+          }
+        }
+      }
+    },
+    "/api/v1/partner/stats": {
+      "get": {
+        "tags": [
+          "Partners"
+        ],
+        "summary": "Partner statistics",
+        "description": "Detailed partner statistics: referrals, payouts, bonuses.",
+        "operationId": "get_partner_stats",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "period_days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 365
+            },
+            "description": "Period in days"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Partner statistics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerStats"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/referrals/stats": {
+      "get": {
+        "tags": [
+          "Referrals"
+        ],
+        "summary": "Referral statistics",
+        "description": "Referral program statistics: total referrals, paying referrals, bonuses.",
+        "operationId": "get_referrals_stats",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Referral statistics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "total_referrals": {
+                      "type": "integer"
+                    },
+                    "paid_referrals": {
+                      "type": "integer"
+                    },
+                    "ref_code": {
+                      "type": "string"
+                    },
+                    "bonus_days_earned": {
+                      "type": "integer"
+                    },
+                    "referral_list": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ReferralRecord"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/operations/await": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "summary": "Awaiting operations (admin)",
+        "description": "List of all operations awaiting in the system.",
+        "operationId": "get_await_operations",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operations list"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        }
+      }
+    },
+    "/api/v1/operations/partner": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "summary": "Partner operations (admin)",
+        "description": "List of partner operations for moderation.",
+        "operationId": "get_partner_operations",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Partner operations list"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        }
+      }
+    },
+    "/api/v1/broadcast/send": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Send broadcast message",
+        "description": "Send a notification to all users or only subscribers.",
+        "operationId": "send_broadcast",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BroadcastRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Broadcast sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sent": {
+                      "type": "integer"
+                    },
+                    "failed": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        }
+      }
+    },
+    "/api/v1/panel/clients/create": {
+      "post": {
+        "tags": [
+          "Panel"
+        ],
+        "summary": "Create panel client",
+        "description": "Create a client in the 3X-UI panel. Automatically generates email user_{id}@vpn.com.",
+        "operationId": "create_panel_client",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateClientRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Client created"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        }
+      }
+    },
+    "/api/v1/panel/clients": {
+      "get": {
+        "tags": [
+          "Panel"
+        ],
+        "summary": "List panel clients",
+        "description": "Get the list of clients from the 3X-UI panel.",
+        "operationId": "get_panel_clients",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Clients list"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        }
+      }
+    },
+    "/api/v1/panel/clients/{sub_id}": {
+      "delete": {
+        "tags": [
+          "Panel"
+        ],
+        "summary": "Delete panel client",
+        "description": "Delete a client from the 3X-UI panel by subscription ID.",
+        "operationId": "delete_panel_client",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sub_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Client deleted"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        }
+      }
+    },
+    "/api/v1/profile": {
+      "get": {
+        "tags": [
+          "Profile"
+        ],
+        "summary": "Get user profile",
+        "description": "Get the current authenticated user's profile with subscription, referrals, and partner information.",
+        "operationId": "get_profile",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "$ref": "#/components/schemas/UserProfile"
+                    },
+                    "subscription_state": {
+                      "$ref": "#/components/schemas/SubscriptionState"
+                    },
+                    "referrals": {
+                      "type": "object"
+                    },
+                    "partner": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/profile/language": {
+      "patch": {
+        "tags": [
+          "Profile"
+        ],
+        "summary": "Change interface language",
+        "description": "Update the current user's interface language preference.",
+        "operationId": "change_language",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "language": {
+                    "type": "string",
+                    "description": "Language code (e.g. ru, en, pl, zh)"
+                  }
+                },
+                "required": [
+                  "language"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Language updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "language": {
+                      "type": "string"
+                    },
+                    "display_name": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Language not supported"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/stats/overview": {
+      "get": {
+        "tags": [
+          "Stats"
+        ],
+        "summary": "System statistics overview",
+        "description": "System statistics: total users, subscribers, partners.",
+        "operationId": "get_stats_overview",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "System statistics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "total_users": {
+                      "type": "integer"
+                    },
+                    "subscribed_users": {
+                      "type": "integer"
+                    },
+                    "partners": {
+                      "type": "integer"
+                    },
+                    "pending_payments": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/stats/panel-status": {
+      "get": {
+        "tags": [
+          "Stats"
+        ],
+        "summary": "Panel status (public stats)",
+        "description": "Public panel status information including server status and nodes. Returns only fields required for public rendering.",
+        "operationId": "get_stats_panel_status",
+        "responses": {
+          "200": {
+            "description": "Panel status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "panel": {
+                      "type": "object",
+                      "properties": {
+                        "panel_version": {
+                          "type": "string"
+                        },
+                        "xray_version": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "server_status": {
+                      "type": "object",
+                      "properties": {
+                        "xray": {
+                          "type": "object",
+                          "properties": {
+                            "state": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "uptime": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "nodes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "uptime": {
+                            "type": "integer"
+                          },
+                          "panel_version": {
+                            "type": "string"
+                          },
+                          "xray_version": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users/{user_id}/full-info": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Full user info",
+        "description": "Returns complete user information: data, subscription, referrals, partner, payments, panel data.",
+        "operationId": "get_user_full_info",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "include_payments",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Include payments"
+          },
+          {
+            "name": "include_referrals",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Include referrals"
+          },
+          {
+            "name": "include_panel_data",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Include panel data"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Full user info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "$ref": "#/components/schemas/UserProfile"
+                    },
+                    "subscription_state": {
+                      "$ref": "#/components/schemas/SubscriptionState"
+                    },
+                    "trust_score": {
+                      "type": "integer"
+                    },
+                    "discount_percent": {
+                      "type": "integer"
+                    },
+                    "referrals": {
+                      "type": "object"
+                    },
+                    "partner": {
+                      "type": "object"
+                    },
+                    "payments": {
+                      "type": "array"
+                    },
+                    "panel_clients": {
+                      "type": "array"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users/{user_id}/reset": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Reset user",
+        "description": "Remove all user data: subscription, referrals, partner, payments. Admin users are protected and cannot be reset.",
+        "operationId": "reset_user",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User reset"
+          },
+          "403": {
+            "description": "Admin required or cannot reset admin user"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users/{user_id}/message": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Send message to user",
+        "description": "Send a personal message to a user via Telegram bot.",
+        "operationId": "send_admin_message",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "description": "Message text"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Message sent"
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users/bulk-action": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Bulk user actions",
+        "description": "Bulk user status changes: ban/unban/remove subscription.",
+        "operationId": "bulk_user_action",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkActionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Action completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "processed": {
+                      "type": "integer",
+                      "description": "Number of users successfully processed"
+                    },
+                    "failed": {
+                      "type": "integer",
+                      "description": "Number of users that failed"
+                    },
+                    "skipped_admins": {
+                      "type": "integer",
+                      "description": "Number of admin users skipped (admins are protected from modification)"
+                    },
+                    "results": {
+                      "type": "array",
+                      "description": "Detailed results for each user",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "user_id": {
+                            "type": "integer"
+                          },
+                          "error": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users/export": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Export users",
+        "description": "Export user data in JSON or CSV format.",
+        "operationId": "export_users",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "csv"
+              ]
+            },
+            "description": "Export format"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Data exported"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/debug/cleanup": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Database cleanup",
+        "description": "Clean up expired records: expired subscriptions, exhausted traffic, missing clients. Supports dry-run mode.",
+        "operationId": "debug_cleanup",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DebugCleanupRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cleanup completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "dry_run": {
+                      "type": "boolean"
+                    },
+                    "expired_cleaned": {
+                      "type": "integer"
+                    },
+                    "traffic_exhausted_cleaned": {
+                      "type": "integer"
+                    },
+                    "missing_clients_cleaned": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/debug/search": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Debug user search",
+        "description": "Search users by query for debugging purposes. Requires admin API key.",
+        "operationId": "admin_debug_search",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Search query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "query": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "integer"
+                    },
+                    "users": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/ws/notifications/{user_id}": {
+      "websocket": {
+        "tags": [
+          "WebSocket"
+        ],
+        "summary": "User notifications WebSocket",
+        "description": "WebSocket endpoint for real-time user notifications. Connect with user_id path parameter.",
+        "operationId": "ws_notifications",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "101": {
+            "description": "WebSocket connection established"
+          }
+        }
+      }
+    },
+    "/ws/admin/{admin_key}": {
+      "websocket": {
+        "tags": [
+          "WebSocket"
+        ],
+        "summary": "Admin WebSocket",
+        "description": "WebSocket endpoint for admin connections. Authentication is performed via the `Authorization: Bearer <BOT_ADMIN_KEY>` header (recommended). The `{admin_key}` path parameter is DEPRECATED and will be removed in a future release; do not use it in new clients.",
+        "operationId": "ws_admin",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "admin_key",
+            "in": "path",
+            "required": true,
+            "deprecated": true,
+            "description": "DEPRECATED: pass BOT_ADMIN_KEY in the Authorization header instead.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "101": {
+            "description": "WebSocket connection established"
+          },
+          "4001": {
+            "description": "Unauthorized (invalid or missing admin_key)"
+          }
+        }
+      }
+    },
+    "/api/v1/users/{user_id}/ban-by-uid": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Ban user by UID (admin)",
+        "description": "DEPRECATED: path renamed to /api/v1/users/{user_id}/ban-by-uid. Use that endpoint instead. The old `uid` parameter is now `user_id`. Ban a user by their user ID (UID). Requires admin API key.",
+        "operationId": "ban_user_by_uid",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BanUserRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User banned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "success": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Failed to ban user"
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/v1/users/{user_id}/unban-by-uid": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Unban user by UID (admin)",
+        "description": "DEPRECATED: path renamed to /api/v1/users/{user_id}/unban-by-uid. Use that endpoint instead. The old `uid` parameter is now `user_id`. Unban a user by their user ID (UID). Requires admin API key.",
+        "operationId": "unban_user_by_uid",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BanUserRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User unbanned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "success": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Failed to unban user"
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/v1/auth/admin/token": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Get admin JWT token pair",
+        "description": "Exchange BOT_ADMIN_KEY for JWT access+refresh tokens. Used for programmatic admin access.",
+        "operationId": "adminToken",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminTokenRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token pair issued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTokenResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid admin key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/admin/refresh": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Refresh admin access token",
+        "description": "Exchange a refresh JWT for a new access token. The refresh token must have type=refresh.",
+        "operationId": "adminRefresh",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "New access token issued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRefreshResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid refresh token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/abuse-users": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "List users with abuse status",
+        "description": "Returns all users that have a non-empty abuse_status field.",
+        "operationId": "getAbuseUsers",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of abuse users",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "users": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users/{user_id}/clear-abuse": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Clear abuse status for a user",
+        "description": "Resets the abuse_status field for the specified user, sends notification to user, and optionally recreates their subscription.",
+        "operationId": "clearAbuse",
+        "security": [
+          {
+            "adminApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AbuseClearRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Abuse status cleared",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error"
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    },
+    {
+      "adminApiKey": []
+    }
+  ],
+  "servers": [
+    {
+      "url": "https://<API_IP>:2005",
+      "description": "Main API server (IP, HTTPS)"
+    },
+    {
+      "url": "https://localhost:2005",
+      "description": "Local development"
+    }
+  ],
+  "tags": [
+    {
+      "name": "System",
+      "description": "API and system health checks"
+    },
+    {
+      "name": "Auth",
+      "description": "Registration, login, logout, Telegram linking"
+    },
+    {
+      "name": "Tariffs",
+      "description": "Tariff catalog, custom plans, server locations"
+    },
+    {
+      "name": "Users",
+      "description": "User management, ban/unban"
+    },
+    {
+      "name": "Subscriptions",
+      "description": "Create, renew, remove subscriptions"
+    },
+    {
+      "name": "Payments",
+      "description": "Checkout, confirm, reject payments"
+    },
+    {
+      "name": "Partners",
+      "description": "Partner program, applications, withdrawals"
+    },
+    {
+      "name": "Referrals",
+      "description": "Referral program statistics"
+    },
+    {
+      "name": "Operations",
+      "description": "Awaiting and partner operations"
+    },
+    {
+      "name": "Admin",
+      "description": "Bulk actions, broadcasts, cleanup"
+    },
+    {
+      "name": "Panel",
+      "description": "3X-UI panel client management"
+    },
+    {
+      "name": "Profile",
+      "description": "User profile and statistics"
+    },
+    {
+      "name": "Stats",
+      "description": "System-wide statistics"
+    },
+    {
+      "name": "WebSocket",
+      "description": "Real-time WebSocket connections"
+    }
+  ]
+}

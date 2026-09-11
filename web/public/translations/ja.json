@@ -1,0 +1,531 @@
+{
+  "meta": {
+    "code": "ja",
+    "name": "日本語"
+  },
+  "buttons": {
+    "back": "戻る",
+    "back_to_top": "トップへ",
+    "buy": "サブスクリプションを購入",
+    "cancel": "キャンセル",
+    "change_password": "パスワードを変更",
+    "cleanup": "クリーンアップ",
+    "confirm": "確認",
+    "contact_support": "サポート",
+    "continue": "続ける",
+    "copied": "コピーしました",
+    "copy": "コピー",
+    "dark_theme": "ダークテーマ",
+    "download_app": "INCYをダウンロード",
+    "dry_run": "ドライラン（確認）",
+    "forward": "次へ",
+    "light_theme": "ライトテーマ",
+    "link_telegram": "Telegramを連携",
+    "login": "ログイン",
+    "logout": "ログアウト",
+    "main": "メインメニュー",
+    "open_bot": "ボットを開く",
+    "partner": "パートナー向け",
+    "password_login": "ログインIDで",
+    "referral_copy": "リンクをコピー",
+    "register": "登録",
+    "renew_partner": "パートナーシップを更新",
+    "retry": "再試行",
+    "search": "検索",
+    "social_telegram": "Telegramチャンネル",
+    "support": "サポート",
+    "telegram_chat": "Telegramチャット",
+    "telegram_login": "Telegramで",
+    "tiktok": "TikTok",
+    "withdraw": "出金",
+    "youtube": "YouTube"
+  },
+  "texts": {
+    "3x_ui": "3X-UI",
+    "about": "{vpnName}について",
+    "about_text": "{vpnName} は、XRay コア 26.7.28+ と XHTTP トランスポート、REALITY プラグインをベースにした VPN サービスです。プロトコルは VLESS と Shadowsocks、ポスト量子暗号 ML‑KEM‑768、xPadding 難読化、xmux 多重化を使用しています。ログは保持されません。",
+    "about_text_2": "このプロジェクトは 2 人の愛好家によって設立されました。フィードバックをお待ちしており、サービスを継続的に改善しています。",
+    "account": "アカウント",
+    "account_banned_message": "アカウントが停止されました。サポートにお問い合わせください。",
+    "account_banned_title": "アカウント停止",
+    "actions": "アクション",
+    "active_partner_subscription_guard": "すでに有効なパートナーサブスクリプションがあります。新規注文はできません。",
+    "active_subs": "有効なサブスクリプション",
+    "admin_panel": "管理パネル",
+    "admin_plan": "管理者",
+    "admin_section": "管理者向け",
+    "admin_user_banned": "停止中",
+    "admin_user_login": "ログインID",
+    "admin_user_telegram_id": "Telegram ID",
+    "admin_user_trust": "信頼度",
+    "admin_user_uid": "ユーザーID",
+    "admin_user_username": "ユーザー名",
+    "admin_user_vpn_url": "VPN URL",
+    "all_users": "総ユーザー数",
+    "alt_client": "代替クライアント",
+    "alt_client_text": "v2RayNG – Android で安定して動作します。",
+    "amount": "金額",
+    "amount_must_be_positive": "金額はゼロより大きくなければなりません",
+    "api_offline": "API オフライン",
+    "api_online": "API オンライン",
+    "auth_error": "認証エラー",
+    "authenticating": "認証中...",
+    "authorized_section": "認証済み",
+    "balance": "残高",
+    "banned": "停止",
+    "bonus_days": "ボーナス日数",
+    "calculate_price": "価格を計算",
+    "checkout_error": "チェックアウトエラー",
+    "cleanup_subs": "サブスクリプションのクリーンアップ",
+    "cleanup_text": "有効期限切れ、トラフィックを使い切った、またはパネルに存在しないユーザーのサブスクリプションを削除します。",
+    "client_setup": "クライアント設定",
+    "client_setup_text": "接続設定手順",
+    "confirm_new_password": "新しいパスワードを確認",
+    "confirm_password": "パスワードを再入力",
+    "contact_section": "連絡先",
+    "custom_tariff": "カスタム料金",
+    "custom_tariff_collect": "カスタム料金を組み立てる",
+    "custom_tariff_description": "プランをカスタマイズ: {min_gb}–{max_gb} GB トラフィック、{min_ip}–{max_ip} デバイス、{min_days}–{max_days} 日。価格は自動計算されます。",
+    "custom_tariff_error": "価格計算エラー",
+    "custom_tariff_formula": "計算式: <strong>total = base + GB × gb_coef + IP × D × ip_day_coef + ΣLOC × D</strong>",
+    "custom_tariff_formula_params": "計算式パラメータ:",
+    "custom_tariff_location_price_line": "• {label}: +{price} ₽/日",
+    "custom_tariff_no_locations": "ロケーションが選択されていません。",
+    "custom_tariff_param_days": "• <strong>D</strong> – サブスクリプション期間（日）（1–365）",
+    "custom_tariff_param_gb": "• <strong>GB</strong> – トラフィック量（1–1000）",
+    "custom_tariff_param_ip": "• <strong>IP</strong> – デバイス制限（1–10）",
+    "custom_tariff_param_locations": "• <strong>LOC</strong> – 選択したロケーション:",
+    "days": "日",
+    "debug": "デバッグ",
+    "debug_search": "ユーザー検索",
+    "debug_search_description": "UID、ユーザー名、または Telegram ID でユーザーを検索",
+    "debug_search_placeholder": "検索クエリを入力...",
+    "debug_subtitle": "技術ツール",
+    "discount": "割引",
+    "duration_days": "{days}日",
+    "effective_date": "発効日: {date}",
+    "error": "エラー",
+    "expires": "有効期限",
+    "failed_to_load_features": "機能の読み込みに失敗しました",
+    "failed_to_load_user": "ユーザーの読み込みに失敗しました",
+    "features": "{vpnName} が提供できるものは？",
+    "guide_available": "完全なガイドは Telegram チャンネルで入手可能:",
+    "guide_link": "設定ガイド",
+    "have_account": "すでにアカウントをお持ちですか？",
+    "how_it_works": "仕組み",
+    "how_it_works_text": "紹介リンクで友達を招待し、有料紹介 1 件につき +{days} 日のサブスクリプションを獲得しましょう。",
+    "important": "重要",
+    "important_text": "V2RayTun (コア 25.9.11) および Happ (コア 26.3.27) はサポートされなくなりました。XRay 26.7.28+ と XHTTP トランスポート、REALITY プラグインを使用しています – 古いコアとは互換性がありません。",
+    "insufficient_balance": "残高不足",
+    "ip_label": "IP",
+    "ips": "IP アドレス",
+    "language": "インターフェース言語",
+    "language_changed": "言語を {name} に変更しました",
+    "language_error": "言語変更エラー",
+    "loading": "読み込み中...",
+    "loading_nodes": "ノードを読み込み中...",
+    "locations": "ロケーション",
+    "login_error": "ログインエラー",
+    "login_failed_after_register": "アカウントは作成されましたが、ログインに失敗しました。手動でログインしてください。",
+    "login_link": "ログイン",
+    "login_required_partner": "パートナーシップを申請するには、ログインまたは登録してください",
+    "login_subtitle": "Telegram またはログインIDでログイン",
+    "login_timeout": "ログインタイムアウト。もう一度お試しください。",
+    "login_title": "アカウントにログイン",
+    "main_client": "メインクライアント",
+    "main_client_text": "INCY – 推奨メインクライアント。すべてのプロトコルで動作します。",
+    "main_server": "メインサーバー",
+    "menu_login_label": "ログインまたはメニューを開く",
+    "menu_profile_label": "プロフィール {username}",
+    "nav_close_menu": "メニューを閉じる",
+    "nav_main_navigation": "メインナビゲーション",
+    "nav_open_menu": "メニューを開く",
+    "need_help": "ヘルプが必要ですか？",
+    "need_help_text": "INCY、v2RayNG などのクライアントについてサポートいたします。サポートにご連絡ください。",
+    "new_password": "新しいパスワード",
+    "no": "いいえ",
+    "no_account": "アカウントがありませんか？",
+    "no_payment_methods": "現在、利用可能な支払い方法はありません。管理者にお問い合わせください。",
+    "no_subscription": "有効なサブスクリプションがありません",
+    "no_subscription_text": "サブスクリプションを取得するには、Telegram ボットを開いて料金を選択してください。",
+    "no_tariffs_available": "現在、料金は利用できません。",
+    "node_fallback": "ノード",
+    "node_status_failed": "ノードステータスの読み込みに失敗しました",
+    "nodes_empty": "利用可能なノードがありません",
+    "nodes": "ノード",
+    "not_found": "ページが見つかりません",
+    "not_found_text": "要求されたページは存在しないか、移動されました。",
+    "offer_section_2": "2. 支払い手順",
+    "offer_text_1": "このオファーは、{vpnName} によるサービス契約締結の公式提案です。",
+    "offer_text_2": "支払いは、支払いセクションに記載されている利用可能な方法のいずれかで行われます。",
+    "offer_text_3": "返金は、サービスが使用されていない場合、支払いから 24 時間以内に可能です。",
+    "old_password": "現在のパスワード",
+    "p2p": "銀行カードへの振込 (P2P)",
+    "p2p_text": "銀行カードへの送金。手動確認 – 通常数分。",
+    "page_of": "ページ {page} / {total}",
+    "paid_refs": "支払い済み",
+    "partner_admin_not_allowed": "パートナーとして管理パネルにアクセスする権限がありません。",
+    "partner_application_pending_block": "すでにパートナーシップ申請があります。\n\n管理者の審査をお待ちください。",
+    "partner_apply_error": "申請送信エラー",
+    "partner_apply_socials_placeholder": "Telegram, YouTube, TikTok",
+    "partner_apply_submit": "申請を送信",
+    "partner_apply_success": "申請を送信しました！審査をお待ちください。",
+    "partner_apply_text": "以下のフォームに入力してください。審査いたします。",
+    "partner_bonus_days": "ボーナス日数: 紹介ユーザー 1 人あたり {min} ～ {max} 日",
+    "partner_bonus_placeholder": "値 ({min}–{max})",
+    "partner_commission": "手数料: 紹介ユーザーごとの支払額の {commission_percent}%。手数料は支払い確認後すぐに付与され、リクエストに応じて支払われます。",
+    "partner_conditions": "パートナー条件",
+    "partner_conditions_detailed": "{vpnName} のパートナープログラムでは、有料ユーザーを紹介して収入を得ることができます。",
+    "partner_dashboard": "ダッシュボード",
+    "partner_dashboard_subtitle": "パートナーパネル",
+    "partner_followers": "フォロワー",
+    "partner_nickname": "ニックネーム",
+    "partner_ops": "パートナー操作",
+    "partner_payment_terms": "リクエストに応じて SBP（電話番号経由）で支払い。他の方法についてはサポートにお問い合わせください。",
+    "partner_pd_consent": "個人データの処理に同意します",
+    "partner_period": "パートナー期間: {min} ～ {max} か月",
+    "partner_withdrawal_info": "出金はリクエストに応じて SBP（電話番号による振込）で行われます。SBP が利用できない場合は、サポートに連絡して代替方法を調整してください。",
+    "withdrawal_request": "出金リクエスト",
+    "withdrawal_sbps_info": "出金は SBP（高速決済システム）を介して電話番号で行われます。指定された電話番号が銀行にリンクされていることを確認してください。",
+    "withdrawal_amount": "出金額",
+    "withdrawal_amount_placeholder": "最大 {balance} ₽",
+    "withdrawal_fio": "フルネーム",
+    "withdrawal_fio_placeholder": "Ivanov Ivan Ivanovich",
+    "withdrawal_phone": "SBP 用電話番号",
+    "withdrawal_phone_placeholder": "+79001234567",
+    "withdrawal_bank": "銀行名",
+    "withdrawal_bank_placeholder": "Sberbank / Tinkoff / など",
+    "fio_required": "受取人のフルネームを入力してください",
+    "phone_required": "出金用の電話番号を入力してください",
+    "bank_required": "銀行名を入力してください",
+    "partner_period_label": "期間 ({min}–{max} か月)",
+    "partner_program": "パートナープログラム",
+    "partner_program_text": "{vpnName} で収益を得る",
+    "partner_requirements": "パートナー要件",
+    "partner_requirements_detailed": "<b>パートナー要件:</b>\n\n• ソーシャルメディアのフォロワーが少なくとも {min_followers} 人\n• 平均リーチが少なくとも {min_avg_reach} ビュー\n• アカウントの保有: {required_socials}\n• <a href=\"{terms_url}\">パートナー条件</a> に同意すること",
+    "partner_requires_telegram": "パートナープログラムに参加するには Telegram でのログインが必要です",
+    "partner_status": "ステータス",
+    "partner_subscription": "パートナーサブスクリプション",
+    "partner_trust_placeholder": "値 ({min}–{max})",
+    "partner_trust_points": "信頼ポイント: {min} から {max}。割引は Trust Score に基づいて自動計算されます。",
+    "partners": "パートナー",
+    "partners_section": "パートナー",
+    "password": "パスワード",
+    "password_change_error": "パスワード変更に失敗しました",
+    "password_changed_success": "パスワードが正常に変更されました",
+    "password_too_short": "パスワードは 10 文字以上である必要があります",
+    "passwords_mismatch": "パスワードが一致しません",
+    "pay_now": "YooMoney で支払う",
+    "payment_id_label": "支払い ID",
+    "payment_instructions": "上のボタンをクリックして支払いを行ってください。支払い後、「確認」をクリックしてください。\n\n重要: 支払いは手動で確認されます。サブスクリプションがすぐに有効にならない場合は、5〜10 分待ってからサポートに領収書を添付して連絡してください – 確認が迅速化されます。将来的には RollyPay による自動化を予定しています。",
+    "payment_methods": "支払い方法",
+    "payment_order": "支払い順序",
+    "payment_request_already_exists": "すでに有効なリクエストがあります。管理者の審査をお待ちください。",
+    "payment_request_received": "支払いリクエストが作成されました。管理者による確認後、サブスクリプションを受け取ります。",
+    "payment_subtitle": "サブスクリプションで利用可能な支払い方法",
+    "payment_title": "支払い",
+    "payments": "支払い",
+    "pending": "保留中",
+    "per_day_short": "/日",
+    "plan": "料金",
+    "platform_android": "INCY または v2RayNG",
+    "platform_android_tv": "INCY",
+    "platform_ios": "INCY",
+    "platform_linux": "INCY または V2RayN",
+    "platform_macos": "INCY",
+    "platform_router": "理論上は可能です。サポートにお問い合わせください",
+    "platform_router_name": "ルーター",
+    "platform_windows": "INCY または V2RayN",
+    "platforms": "プラットフォーム",
+    "processing": "処理中",
+    "public_offer": "公開オファー",
+    "public_section": "公開",
+    "purchase_blocked_wait_admin": "すでにサブスクリプションを購入しています。管理者の確認をお待ちください – 再購入は現在利用できません。",
+    "qa_faq_title": "よくある質問",
+    "qa_no_results": "検索条件に一致するものは見つかりませんでした。別の検索を試すか、サポートにお問い合わせください。",
+    "qa_search_placeholder": "質問を検索...",
+    "qa_show_count": "表示: {count} / {total}",
+    "qa_subtitle": "よくある質問への回答",
+    "quote": "帝国が崩壊に近づくほど、その法律は狂気を帯びる。",
+    "rate_limited": "リクエスト制限を超過しました。しばらくお待ちください。",
+    "recommended_apps": "推奨アプリ",
+    "redirecting_to_profile": "プロフィールにリダイレクト...",
+    "referral_link_unavailable": "紹介リンクが利用できません",
+    "referral_program": "紹介プログラム",
+    "referral_program_text": "友達を招待してボーナス日数を獲得",
+    "refund": "返金",
+    "refund_text": "返金は、サービスが提供されなかった場合、またはサービスが使用されなかった場合に、管理者の裁量で行われます。",
+    "register_error": "登録エラー",
+    "register_link": "登録",
+    "register_subtitle": "サービスにアクセスするためのアカウントを作成",
+    "register_title": "登録",
+    "renew_partner_support": "パートナーシップ更新についてはサポートにお問い合わせください",
+    "result": "結果",
+    "search_no_results": "結果が見つかりません",
+    "search_placeholder": "UID、ユーザー名、または Telegram ID で検索",
+    "search_results_count": "{count} 件の結果が見つかりました",
+    "select_custom_tariff": "選択",
+    "settings_link_telegram": "Telegram を連携",
+    "settings_subtitle": "言語、テーマ、Telegram 連携",
+    "settings_title": "設定",
+    "setup_client": "クライアントを設定",
+    "stats": "統計",
+    "status": "ステータス",
+    "status_active": "アクティブ",
+    "status_pending": "保留中",
+    "currency_rub": "₽",
+    "step_1": "INCY をダウンロードしてインストール",
+    "step_2": "Telegram ボットを開く",
+    "step_3": "ボットから設定を取得",
+    "step_4": "INCY に設定をインポート",
+    "step_5": "サーバーに接続",
+    "steps": "ステップバイステップ手順",
+    "subscription_activated": "サブスクリプションが有効になりました",
+    "subscription_link": "サブスクリプションリンク",
+    "subscription_status": "サブスクリプションステータス",
+    "support_unavailable": "サポートリンクが設定されていません",
+    "support_not_configured": "サポートが設定されていません",
+    "system_health": "システムヘルスと統計",
+    "tariffs": "料金",
+    "tech_mode": "テクニカルモード",
+    "tech_work": "メンテナンス中",
+    "telegram_id_label": "Telegram ID",
+    "telegram_link": "Telegram 連携",
+    "telegram_link_failed": "Telegram の連携に失敗しました。後でもう一度お試しください。",
+    "telegram_link_hint": "Telegram ボットを開き、アカウント連携を確認してください。確認後、ページを更新してください。",
+    "telegram_linked_note": "Telegram 連携は永続的です。変更するにはサポートにお問い合わせください。",
+    "telegram_linked_permanent": "Telegram 連携済み (ID: {id})",
+    "telegram_linked_success": "Telegram の連携に成功しました！",
+    "telegram_login_hint": "ボタンをクリックすると Telegram ボットが開きます。ログイン後、自動的にアカウントにログインします。",
+    "telegram_unlinked": "Telegram 未連携",
+    "telegram_username_label": "Telegram ユーザー名",
+    "telegram_waiting": "Telegram からの確認待ち...",
+    "theme": "テーマ",
+    "total_earned": "総収益",
+    "total_refs": "総紹介数",
+    "traffic": "トラフィック",
+    "traffic_gb": "{value} GB",
+    "traffic_progress": "トラフィック使用進捗",
+    "traffic_used": "利用可能な {total} GB の {percent}% を使用しました",
+    "trial_activated": "トライアル期間が有効になりました！サブスクリプションがプロフィールに表示されます。",
+    "trial_admin_only_bot": "管理者向けトライアル期間はボット経由でのみ利用可能です。",
+    "trial_available": "新規ユーザー向けに無料トライアル期間が利用可能です。",
+    "trial_requires_telegram": "トライアル期間を取得するには、設定で Telegram を連携してください。",
+    "trust_score": "Trust Score",
+    "unlimited": "無制限",
+    "uptime": "稼働時間",
+    "uptime_hours": "{hours} 時間",
+    "user_id": "ユーザー ID",
+    "username": "ログインID",
+    "username_too_short": "ユーザー名は 3 文字以上である必要があります",
+    "users_count": "全ユーザー",
+    "users_list": "ユーザー",
+    "waiting": "待機時間が切れました",
+    "withdrawal_failed": "出金に失敗しました",
+    "working_normally": "正常に動作中",
+    "xray_label": "Xray バージョン",
+    "yes": "はい",
+    "yoomoney": "YooMoney",
+    "yoomoney_text": "YooMoney による安全な支払い。即時確認。",
+    "your_ref_link": "あなたの紹介リンク",
+    "become_partner": "パートナーになる",
+    "change_password": "パスワードを変更",
+    "qa": "よくある質問",
+    "withdrawal_request_submitted": "出金リクエストを送信しました"
+  },
+  "legal": {
+    "offer": {
+      "effectiveDate": "07.09.2026",
+      "sections": [
+        {
+          "content": "この公開オファーは、{vpnName} による VPN サービスの提供条件を定めます。サービスを利用することにより、利用規約に同意し、本オファーを受諾したものとみなされます。",
+          "title": "VPN サービス提供に関する公開オファー"
+        },
+        {
+          "content": "1.1. 提供者（{vpnName}）は、選択された料金に従って VPN ネットワークへのアクセスを提供します。\n1.2. ユーザーはサービスの対価を支払い、サービスのルールを遵守します。\n1.3. サービス内容:\n- 接続設定ファイルを取得するためのサブスクリプション URL の提供\n- 選択されたロケーションへのアクセス\n- テクニカルサポート\n- 必要に応じた設定の更新",
+          "title": "1. オファーの対象"
+        },
+        {
+          "content": "2.1. 契約はオファーの受諾によって成立します:\n- Telegram ボットまたはウェブサイトでの料金選択\n- サービスの支払い\n- 支払いの確認\n\n2.2. オファーの受諾は、ユーザーがサービスの支払いを行うことで成立します。\n2.3. 契約は支払いが確認された時点で成立したものとみなされます。",
+          "title": "2. 契約締結手順"
+        },
+        {
+          "content": "3.1. サービスの料金と期間は、Telegram ボットおよびウェブサイトの料金選択時に表示されます。\n3.2. 支払いは以下の利用可能な方法で行われます:\n- YooMoney（高速支払い）\n- P2P カード振込\n- ボットまたはウェブサイトに記載されたその他の方法\n\n3.3. 現在、支払いは手動で処理されます。\n3.4. 振込後、処理を迅速化するために、5〜10 分以内に領収書を添付してサポートに連絡することをお勧めします。",
+          "title": "3. 料金と支払い"
+        },
+        {
+          "content": "4.1. 契約は支払い期間の終了まで有効です。\n4.2. ユーザーは、新しい料金を注文するか、既存のものを延長することで契約を更新できます。\n4.3. 契約は以下の場合に終了することがあります:\n- ユーザーの申し出による\n- 提供者の申し出による（条件違反の場合、返金なし）\n- 双方の合意による",
+          "title": "4. 契約期間"
+        },
+        {
+          "content": "5.1. 提供者は以下の権利を有します:\n- 条件違反の場合にアクセスを停止する\n- サービスの技術的パラメータを変更する\n- メンテナンス作業を実施する\n- 悪用があった場合にサービスを拒否する\n\n5.2. 提供者は以下の義務を負います:\n- サービスの可用性を確保する\n- テクニカルサポートを提供する\n- データの機密性を保持する\n- 問い合わせに適時対応する",
+          "title": "5. 提供者の権利と義務"
+        },
+        {
+          "content": "6.1. ユーザーは以下の権利を有します:\n- 料金に従ってサービスを利用する\n- テクニカルサポートを受ける\n- サブスクリプションを更新する\n- 自身のデータに関する情報を要求する\n\n6.2. ユーザーは以下の義務を負います:\n- アクセスを第三者に譲渡しない\n- 利用規約に違反しない\n- サービス料金を適時に支払う",
+          "title": "6. ユーザーの権利と義務"
+        },
+        {
+          "content": "7.1. 提供者は以下について責任を負いません:\n- 技術的理由による一時的なサービス利用不能\n- 第三者の行為（プロバイダー、規制当局）\n- ユーザーの間接的損害\n\n7.2. 提供者は以下の場合にアクセスを停止できます:\n- 利用規約違反\n- 料金の悪用\n- 不正アクセスの試み\n- プロジェクトチーム保護に関するセクションの違反",
+          "title": "7. 免責事項"
+        },
+        {
+          "content": "8.1. 返金は、管理者またはサポートの判断により例外的な場合に行われます。\n8.2. 返金は以下の場合には行われません:\n- ユーザーによるサービス条件違反\n- サブスクリプションの有効期限切れ\n- サービス利用の自主的辞退\n\n8.3. 返金に関する問い合わせは Telegram サポートに送信してください。\n8.4. 決定はサービスの実際の提供状況を考慮して行われます。",
+          "title": "8. 返金"
+        },
+        {
+          "content": "9.1. 当事者は、不可抗力が発生した場合に責任を免れます:\n- 自然災害\n- 戦争行為\n- 政府機関の決定\n- 大規模な技術的障害\n- 第三者の行為（攻撃、ブロック）\n\n9.2. 義務の履行期間は、不可抗力の期間に応じて延長されます。",
+          "title": "9. 不可抗力"
+        },
+        {
+          "content": "10.1. {vpnName} は、本オファーを一方的に変更する権利を留保します。\n10.2. 新版はウェブサイトまたは Telegram ボットでの公開をもって効力を生じます。\n10.3. 変更後のサービスの継続利用は、新版への同意とみなされます。",
+          "title": "10. オファーの変更"
+        },
+        {
+          "content": "11.1. すべての紛争や意見の相違は、Telegram サポートを通じた交渉により解決されます。\n11.2. 合意に達しない場合、紛争は管理者に付託されます。\n11.3. ユーザーは訴訟前の紛争解決に同意します。",
+          "title": "11. 紛争解決"
+        },
+        {
+          "content": "12.1. 本オファーのいずれかの条項が無効と判断されても、残りの条項の有効性には影響しません。\n12.2. {vpnName} は特定の地域におけるサービスの利用不能について責任を負いません。\n12.3. セクションの見出しは参考のために付されており、オファーの解釈に影響しません。",
+          "title": "12. 最終規定"
+        },
+        {
+          "content": "13.1. ご質問は、ボット経由で Telegram サポートにお問い合わせください。\n13.2. 応答時間: 通常 2 時間以内。\n13.3. プロジェクトチームは、技術的および組織的な問題について常にサポートいたします。",
+          "title": "13. 連絡先"
+        }
+      ],
+      "subtitle": "{vpnName} – サービス提供条件",
+      "title": "公開オファー"
+    },
+    "privacy": {
+      "effectiveDate": "07.09.2026",
+      "sections": [
+        {
+          "content": "このポリシーは、{vpnName} がウェブサイト、ボット、VPN サービスの運用時に処理する技術的データについて説明します。サービスを利用することにより、本ポリシーに同意したものとみなされます。",
+          "title": "{vpnName} VPN サービスのプライバシーポリシー"
+        },
+        {
+          "content": "1.1. {vpnName} はユーザーのプライバシーを尊重し、個人データの保護を保証します。\n1.2. 本ポリシーはデータ最小化の原則に従って策定されています。\n1.3. サービス運営に必要なデータのみを収集します。",
+          "title": "1. 総則"
+        },
+        {
+          "content": "2.1. サービス運営のために以下のデータが処理されることがあります:\n- ユーザーの Telegram ID とユーザー名\n- 選択された料金とサブスクリプションの技術的ステータスに関する情報\n- 支払いデータ（確認のみ、保存されません）\n- 接続に関する技術情報\n\n2.2. 以下のデータは収集しません:\n- パスポートデータ\n- 電話番号（パートナープログラムセクションで指定された場合を除く）\n- メールアドレス（支払いセクションで指定された場合を除く）\n- 2.1 項に記載されていないその他の情報",
+          "title": "2. 処理されるデータ"
+        },
+        {
+          "content": "3.1. {vpnName} は厳格な No‑Logs ポリシーを遵守します:\n- 訪問したウェブサイトの履歴は保持されません\n- トラフィックの内容は分析されません\n- 接続ログは保存されません\n- ネットワーク上のユーザーアクティビティは追跡されません\n\n3.2. サブスクリプション運用のために、以下の集計指標のみが処理されることがあります:\n- 使用されたトラフィック総量\n- サブスクリプションの有効期間\n- 接続ステータス（アクティブ/非アクティブ）",
+          "title": "3. No‑Logs ポリシー"
+        },
+        {
+          "content": "4.1. 収集したデータは以下の目的にのみ使用されます:\n- ユーザーの登録と認証\n- VPN サブスクリプションの発行と管理\n- ユーザーへのテクニカルサポート\n- 悪用や詐欺の防止\n- 支払い処理の実行\n- メンテナンスやサービス変更の通知",
+          "title": "4. データ処理の目的"
+        },
+        {
+          "content": "5.1. データはサービス運営に必要な限られた期間保存されます:\n- アクティブなサブスクリプション: 有効期間全体\n- 非アクティブなサブスクリプション: 有効期限から 3 日間まで\n- 支払いデータ: 保存されず、確認のみに使用\n\n5.2. 保存期間経過後、データは自動的に削除されます。",
+          "title": "5. データ保存"
+        },
+        {
+          "content": "6.1. {vpnName} は技術的および組織的セキュリティ対策を適用します:\n- 転送時のデータ暗号化 (TLS/SSL)\n- データベースでの安全な保存\n- データへのアクセス制限\n- 定期的なバックアップ\n\n6.2. データへのアクセスは、プロジェクトチームの認可されたメンバーのみが持つことができます。",
+          "title": "6. データ保護"
+        },
+        {
+          "content": "7.1. 個人データを第三者に開示することはありません。ただし、以下を除きます:\n- 決済システム（決済処理に必要なデータのみ）\n\n7.2. マーケティングやその他の目的でデータを販売または提供することはありません。",
+          "title": "7. 第三者へのデータ提供"
+        },
+        {
+          "content": "8.1. ユーザーは以下の権利を有します:\n- 自身のデータ処理に関する情報を得る\n- 不正確なデータを訂正する\n- 自身のデータの削除を要求する\n- データ処理への同意を撤回する\n- 機械可読形式で自身のデータのコピーを受け取る\n\n8.2. 権利を行使するには、Telegram サポートにお問い合わせください。",
+          "title": "8. ユーザーの権利"
+        },
+        {
+          "content": "9.1. Web インターフェースは以下の目的で Cookie を使用することがあります:\n- ユーザー認証\n- テーマ設定の保存\n\n9.2. ユーザーはブラウザ設定で Cookie を無効にできます。",
+          "title": "9. Cookie および類似技術"
+        },
+        {
+          "content": "10.1. {vpnName} はプライバシーポリシーを変更する権利を留保します。\n10.2. 新版はウェブサイトでの公開をもって効力を生じます。\n10.3. 重要な変更があった場合、ユーザーに個別に通知されることがあります。",
+          "title": "10. ポリシーの変更"
+        },
+        {
+          "content": "11.1. 個人データ処理に関するお問い合わせは、ボット経由で Telegram サポートにお問い合わせください。\n11.2. リクエストには 2 営業日以内に回答します。",
+          "title": "11. 連絡先"
+        }
+      ],
+      "subtitle": "{vpnName} – ユーザーデータの処理",
+      "title": "プライバシーポリシー"
+    },
+    "tos": {
+      "effectiveDate": "07.09.2026",
+      "sections": [
+        {
+          "content": "これらの条件は、{vpnName} VPN サービスへのアクセスと利用を規制します。サービスを利用することにより、これらの条件および公開オファーを完全に受諾したものとみなされます。",
+          "title": "{vpnName} VPN サービスの利用規約"
+        },
+        {
+          "content": "1.1. サービスはプロジェクトチームによって Telegram ボットおよび Web インターフェースを通じて提供されます。\n1.2. サービスの利用は、現行版の条件への完全かつ無条件の同意を意味します。\n1.3. {vpnName} はサブスクリプションベースで VPN ネットワークアクセスサービスを提供します。\n1.4. サービスはオープンソースプロジェクトであり、これらの条件の有効性には影響しません。\n1.5. サービスは最先端技術を使用: VLESS および Shadowsocks プロトコル、XHTTP トランスポート、REALITY プラグイン、XRay コア。",
+          "title": "1. 総則"
+        },
+        {
+          "content": "2.1. サービスを利用するには Telegram による登録が必要です。\n2.2. ユーザーは正確な情報を提供する義務があります。\n2.3. ユーザーはアカウントへのアクセスを安全に保つ責任を負います。\n2.4. 制限を回避したり不当な利益を得るための複数アカウントの登録は禁止されています。\n2.5. 管理当局は詐欺行為が疑われる場合にアカウントを停止する権利を有します。",
+          "title": "2. 登録とアカウント"
+        },
+        {
+          "content": "3.1. ユーザーは以下の義務を負います:\n- 設定ファイルやアクセス権を第三者に共有しない\n- サービスの保護をハッキング、変更、または回避しようとしない\n- サービスリソースを悪用しない\n- 他のユーザーの権利を侵害しない\n- 選択した料金プランの条件を遵守する\n- 自動データ収集にサービスを使用しない",
+          "title": "3. ユーザーの義務"
+        },
+        {
+          "content": "4.1. 以下は厳禁です:\n- 有料設定を無償で配布したり、支払いを回避すること\n- リバースエンジニアリング、逆コンパイル、またはサービスのコード解析を行うこと\n- ボット、スクリプト、自動化システムを使用してサービスと相互作用すること\n- プロジェクトインフラへの不正アクセスを試みること\n- 管理当局の書面による同意なしに負荷テストを実施すること\n- トライアル期間や紹介プログラムを悪用すること",
+          "title": "4. 禁止行為"
+        },
+        {
+          "content": "5.1. 以下は厳禁です:\n- プロジェクトチームメンバーに関する個人情報（本名、居住地、連絡先、SNS、写真など）の収集、検索、配布\n- プロジェクト参加者への個人情報公開（doxing）\n- プロジェクトチームの匿名性解除の試み\n- チームメンバーへの精神的、身体的、法的圧力\n- プロジェクト参加者への脅迫、恐喝、または嫌がらせ\n- プロジェクトチームへの攻撃を促す投稿\n- あらゆる形式でのチームメンバーへのストーキング\n\n5.2. 本セクションの違反は以下を招きます:\n- 返金なしでの即時かつ永久のアカウント停止\n- 法執行機関への情報提供\n- プロジェクトチームの権利を保護するための法的措置を取る権利\n\n5.3. プロジェクトチームは匿名性とプライバシーを保持する権利を留保します。",
+          "title": "5. プロジェクトチーム情報の保護"
+        },
+        {
+          "content": "6.1. オープンソース MIT ライセンスにもかかわらず、以下は禁止されています:\n- 許可なく {vpnName} の名称、ロゴ、商標を使用すること\n- 直接競争を目的とした派生プロジェクトを作成すること\n- 同意なしにプロジェクトのインフラストラクチャや開発成果を商業目的で使用すること\n\n6.2. サービスによって生成されるすべての設定ファイルはプロジェクトの知的財産であり、ユーザーには個人的な使用のみが許可されます。",
+          "title": "6. 知的財産"
+        },
+        {
+          "content": "7.1. {vpnName} は No‑Logs ポリシーを遵守します:\n- 訪問したウェブサイトの履歴は保持されません\n- トラフィックの内容は分析されません\n- 接続ログは保存されません\n\n7.2. サービス運用のために以下が処理されます:\n- ユーザーの Telegram ID\n- 料金とサブスクリプション期間のデータ\n- トラフィック量の集計指標\n- 支払いデータ（確認のみ）\n\n7.3. 詳細はプライバシーポリシーをご参照ください。",
+          "title": "7. 機密性とデータ処理"
+        },
+        {
+          "content": "8.1. サービスは以下を使用します:\n- プロトコル: VLESS および Shadowsocks\n- トランスポート: XHTTP\n- 暗号化プラグイン: REALITY\n- コア: XRay（最新バージョン）\n\n8.2. {vpnName} は以下の権利を留保します:\n- 使用するプロトコルや技術を変更する\n- 必要に応じて代替ソリューションに移行する\n- Telegram チャンネルおよび/またはボットで事前に通知した上でメンテナンスを実施する",
+          "title": "8. サービスの技術的特性"
+        },
+        {
+          "content": "9.1. 支払いは選択した料金と支払い方法に従って行われます。\n9.2. 現在、支払いは手動で処理されます。\n9.3. 返金は管理者またはサポートの判断により例外的な場合に行われます。\n9.4. ユーザーがサービス条件に違反した場合、返金は行われません。\n9.5. 返金に関する問い合わせは Telegram サポートに送信してください。",
+          "title": "9. 支払いと返金"
+        },
+        {
+          "content": "10.1. {vpnName} は以下について責任を負いません:\n- 技術的理由による一時的なサービス利用不能\n- 第三者の行為（プロバイダー、規制当局）\n- ユーザーの間接的損害\n- ユーザーによる違法目的でのサービス使用\n\n10.2. ユーザーは以下について全責任を負います:\n- サービス利用時の自身の行動\n- VPN 接続使用の結果\n\n10.3. サービスは「現状のまま」（as is）で提供され、可用性が 98% を超える保証はありません。",
+          "title": "10. 当事者の責任"
+        },
+        {
+          "content": "11.1. 管理当局は、以下の場合に事前通知なしにユーザーのサービスへのアクセスを停止または終了することができます:\n- 本条件の違反\n- 不正行為の疑い\n- 第 5 条（プロジェクトチーム情報の保護）の違反\n- サービスリソースの悪用\n- 技術的必要性\n\n11.2. 条件違反による停止の場合、返金は行われません。\n11.3. ユーザーはサポートを通じて停止を異議申し立てることができます。",
+          "title": "11. アクセスの停止と終了"
+        },
+        {
+          "content": "12.1. {vpnName} は本条件を一方的に変更する権利を留保します。\n12.2. 新版はウェブサイトでの公開をもって効力を生じます。\n12.3. 変更後のサービスの継続利用は、新版への同意とみなされます。\n12.4. 重要な変更があった場合、ユーザーに個別に通知されることがあります。",
+          "title": "12. 条件の変更"
+        },
+        {
+          "content": "13.1. 当事者は、不可抗力が発生した場合に責任を免れます:\n- 自然災害\n- 戦争行為\n- 政府機関の決定\n- 大規模な技術的障害\n- 第三者の行為（攻撃、ブロック）\n\n13.2. 義務の履行期間は、不可抗力の期間に応じて延長されます。",
+          "title": "13. 不可抗力"
+        },
+        {
+          "content": "14.1. すべての紛争や意見の相違は、Telegram サポートを通じた交渉により解決されます。\n14.2. 合意に達しない場合、紛争は管理者に付託されます。\n14.3. ユーザーは訴訟前の紛争解決に同意します。",
+          "title": "14. 紛争解決"
+        },
+        {
+          "content": "15.1. 本条件のいずれかの条項が無効と判断されても、残りの条項の有効性には影響しません。\n15.2. {vpnName} は特定の地域におけるサービスの利用不能について責任を負いません。\n15.3. ユーザーは本条件に基づく権利と義務を第三者に譲渡することはできません。\n15.4. セクションの見出しは参考のために付されており、条件の解釈に影響しません。",
+          "title": "15. 最終規定"
+        },
+        {
+          "content": "16.1. ご質問は、ボットまたはウェブサイト経由で Telegram サポートにお問い合わせください。\n16.2. 応答時間: 通常 1 時間以内。\n16.3. 支払い処理を迅速化するために、支払い後 5〜10 分以内に領収書を添えてサポートに連絡することを推奨します（任意）。\n16.4. プロジェクトチームは、技術的および個別の問題について常にサポートいたします。",
+          "title": "16. 連絡先"
+        }
+      ],
+      "subtitle": "{vpnName} – サービス利用規則",
+      "title": "利用規約"
+    }
+  }
+}

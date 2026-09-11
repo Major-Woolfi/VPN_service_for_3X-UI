@@ -1,0 +1,531 @@
+{
+  "meta": {
+    "code": "en",
+    "name": "English"
+  },
+  "buttons": {
+    "back": "Back",
+    "back_to_top": "Back to Top",
+    "buy": "Buy Subscription",
+    "cancel": "Cancel",
+    "change_password": "Change Password",
+    "cleanup": "Cleanup",
+    "confirm": "Confirm",
+    "contact_support": "Support",
+    "continue": "Continue",
+    "copied": "Copied",
+    "copy": "Copy",
+    "dark_theme": "Dark Theme",
+    "download_app": "Download INCY",
+    "dry_run": "Dry Run (check)",
+    "forward": "Forward",
+    "light_theme": "Light Theme",
+    "link_telegram": "Link Telegram",
+    "login": "Login",
+    "logout": "Logout",
+    "main": "Main Menu",
+    "open_bot": "Open Bot",
+    "partner": "For Partners",
+    "password_login": "By Login",
+    "referral_copy": "Copy Link",
+    "register": "Register",
+    "renew_partner": "Renew Partnership",
+    "retry": "Retry",
+    "search": "Search",
+    "social_telegram": "Telegram Channel",
+    "support": "Support",
+    "telegram_chat": "Telegram Chat",
+    "telegram_login": "Via Telegram",
+    "tiktok": "TikTok",
+    "withdraw": "Withdraw",
+    "youtube": "YouTube"
+  },
+  "texts": {
+    "3x_ui": "3X-UI",
+    "about": "About {vpnName}",
+    "about_text": "{vpnName} is a VPN service based on XRay core 26.7.28+ with XHTTP transport and REALITY plugin. Protocols VLESS and Shadowsocks, post‑quantum encryption ML‑KEM‑768, xPadding obfuscation, xmux multiplexing. No logs are kept.",
+    "about_text_2": "The project was founded by two enthusiasts. We are open to feedback and constantly improve the service.",
+    "account": "Account",
+    "account_banned_message": "Your account has been banned. Please contact support.",
+    "account_banned_title": "Account Banned",
+    "actions": "Actions",
+    "active_partner_subscription_guard": "You already have an active partner subscription. A new order is not possible.",
+    "active_subs": "Active Subscriptions",
+    "admin_panel": "Admin Panel",
+    "admin_plan": "Admin",
+    "admin_section": "Admin",
+    "admin_user_banned": "Banned",
+    "admin_user_login": "Login",
+    "admin_user_telegram_id": "Telegram ID",
+    "admin_user_trust": "Trust",
+    "admin_user_uid": "User ID",
+    "admin_user_username": "Username",
+    "admin_user_vpn_url": "VPN URL",
+    "all_users": "Total Users",
+    "alt_client": "Alternative Client",
+    "alt_client_text": "v2RayNG – stable on Android.",
+    "amount": "Amount",
+    "amount_must_be_positive": "Amount must be greater than zero",
+    "api_offline": "API Offline",
+    "api_online": "API Online",
+    "auth_error": "Authentication Error",
+    "authenticating": "Authenticating...",
+    "authorized_section": "Authorized",
+    "balance": "Balance",
+    "banned": "Banned",
+    "bonus_days": "Bonus Days",
+    "calculate_price": "Calculate Price",
+    "checkout_error": "Checkout Error",
+    "cleanup_subs": "Cleanup Subscriptions",
+    "cleanup_text": "Removes subscriptions from users with expired term, exhausted traffic, or those missing from the panel.",
+    "client_setup": "Client Setup",
+    "client_setup_text": "Connection setup instructions",
+    "confirm_new_password": "Confirm new password",
+    "confirm_password": "Repeat password",
+    "contact_section": "Contacts",
+    "custom_tariff": "Custom Tariff",
+    "custom_tariff_collect": "Build Custom Tariff",
+    "custom_tariff_description": "Customize your plan: {min_gb}–{max_gb} GB traffic, {min_ip}–{max_ip} devices, {min_days}–{max_days} days. The price is calculated automatically.",
+    "custom_tariff_error": "Price calculation error",
+    "custom_tariff_formula": "Formula: <strong>total = base + GB × gb_coef + IP × D × ip_day_coef + ΣLOC × D</strong>",
+    "custom_tariff_formula_params": "Formula parameters:",
+    "custom_tariff_location_price_line": "• {label}: +{price} ₽/day",
+    "custom_tariff_no_locations": "No locations selected.",
+    "custom_tariff_param_days": "• <strong>D</strong> – subscription duration in days (1–365)",
+    "custom_tariff_param_gb": "• <strong>GB</strong> – traffic volume (1–1000)",
+    "custom_tariff_param_ip": "• <strong>IP</strong> – device limit (1–10)",
+    "custom_tariff_param_locations": "• <strong>LOC</strong> – selected locations:",
+    "days": "Days",
+    "debug": "Debug",
+    "debug_search": "Search Users",
+    "debug_search_description": "Search users by UID, username, or Telegram ID",
+    "debug_search_placeholder": "Enter your search query...",
+    "debug_subtitle": "Technical Tools",
+    "discount": "Discount",
+    "duration_days": "{days} d",
+    "effective_date": "Effective date: {date}",
+    "error": "Error",
+    "expires": "Expires",
+    "failed_to_load_features": "Failed to load features",
+    "failed_to_load_user": "Failed to load user",
+    "features": "What can {vpnName} offer you?",
+    "guide_available": "Full guide available in our Telegram channel:",
+    "guide_link": "Setup Guide",
+    "have_account": "Already have an account?",
+    "how_it_works": "How it works",
+    "how_it_works_text": "Invite friends via your referral link and get +{days} days of subscription for each paid referral.",
+    "important": "Important",
+    "important_text": "V2RayTun (core 25.9.11) and Happ (core 26.3.27) are no longer supported. We use XRay 26.7.28+ with XHTTP transport and REALITY plugin – incompatible with older cores.",
+    "insufficient_balance": "Insufficient balance",
+    "ip_label": "IP",
+    "ips": "IP Addresses",
+    "language": "Interface Language",
+    "language_changed": "Language changed to {name}",
+    "language_error": "Language change error",
+    "loading": "Loading...",
+    "loading_nodes": "Loading nodes...",
+    "locations": "Locations",
+    "login_error": "Login error",
+    "login_failed_after_register": "Account created, but login failed. Please log in manually.",
+    "login_link": "Login",
+    "login_required_partner": "Please log in or register to apply for partnership",
+    "login_subtitle": "Log in via Telegram or by login",
+    "login_timeout": "Login timeout. Please try again.",
+    "login_title": "Login to Account",
+    "main_client": "Main Client",
+    "main_client_text": "INCY – the recommended primary client, works with all protocols.",
+    "main_server": "Main Server",
+    "menu_login_label": "Log in or open menu",
+    "menu_profile_label": "Profile {username}",
+    "nav_close_menu": "Close menu",
+    "nav_main_navigation": "Main navigation",
+    "nav_open_menu": "Open menu",
+    "need_help": "Need help?",
+    "need_help_text": "We can help with INCY, v2RayNG and other clients. Just contact support.",
+    "new_password": "New password",
+    "no": "No",
+    "no_account": "No account?",
+    "no_payment_methods": "No payment methods available at the moment. Please contact the administrator.",
+    "no_subscription": "You have no active subscription",
+    "no_subscription_text": "To get a subscription, open the Telegram bot and choose a tariff.",
+    "no_tariffs_available": "No tariffs available at the moment.",
+    "node_fallback": "Node",
+    "node_status_failed": "Failed to load node status",
+    "nodes_empty": "No nodes available",
+    "nodes": "Nodes",
+    "not_found": "Page Not Found",
+    "not_found_text": "The requested page does not exist or has been moved.",
+    "offer_section_2": "2. Payment Procedure",
+    "offer_text_1": "This offer is an official proposal of {vpnName} to conclude a service agreement.",
+    "offer_text_2": "Payment is made using one of the available methods listed in the payment section.",
+    "offer_text_3": "Refunds are possible within 24 hours of payment, provided the service has not been used.",
+    "old_password": "Old password",
+    "p2p": "Bank Card Transfer (P2P)",
+    "p2p_text": "Transfer to a bank card. Manual confirmation – usually a few minutes.",
+    "page_of": "Page {page} of {total}",
+    "paid_refs": "Paid",
+    "partner_admin_not_allowed": "You do not have permission to access the admin panel as a partner.",
+    "partner_application_pending_block": "You already have a partnership application pending.\n\nPlease wait for administrator review.",
+    "partner_apply_error": "Application submission error",
+    "partner_apply_socials_placeholder": "Telegram, YouTube, TikTok",
+    "partner_apply_submit": "Submit Application",
+    "partner_apply_success": "Application submitted! Await review.",
+    "partner_apply_text": "Fill out the form below, and we will review your application.",
+    "partner_bonus_days": "Bonus days: {min} to {max} per referred user",
+    "partner_bonus_placeholder": "Value ({min}–{max})",
+    "partner_commission": "Commission: {commission_percent}% of each referred user's payment. Commission is credited immediately after payment confirmation and paid out upon request.",
+    "partner_conditions": "Partnership Terms",
+    "partner_conditions_detailed": "{vpnName}'s partnership program allows you to earn by bringing in paying users.",
+    "partner_dashboard": "Your Dashboard",
+    "partner_dashboard_subtitle": "Partner Panel",
+    "partner_followers": "Followers",
+    "partner_nickname": "Nickname",
+    "partner_ops": "Partner Operations",
+    "partner_payment_terms": "Payouts on request via SBP (by phone number). For other methods, please contact support.",
+    "partner_pd_consent": "I consent to the processing of personal data",
+    "partner_period": "Partnership term: {min} to {max} months",
+    "partner_withdrawal_info": "Payouts are made on request via SBP (transfer by phone number). If you cannot use SBP, contact support to arrange an alternative method.",
+    "withdrawal_request": "Withdrawal Request",
+    "withdrawal_sbps_info": "Payout is made via SBP (Fast Payment System) by phone number. Make sure the phone number is linked to a bank.",
+    "withdrawal_amount": "Withdrawal Amount",
+    "withdrawal_amount_placeholder": "Up to {balance} ₽",
+    "withdrawal_fio": "Full Name",
+    "withdrawal_fio_placeholder": "Ivanov Ivan Ivanovich",
+    "withdrawal_phone": "Phone Number for SBP",
+    "withdrawal_phone_placeholder": "+79001234567",
+    "withdrawal_bank": "Bank Name",
+    "withdrawal_bank_placeholder": "Sberbank / Tinkoff / etc.",
+    "fio_required": "Please provide your full name",
+    "phone_required": "Please provide a phone number for payout",
+    "bank_required": "Please provide the bank name",
+    "partner_period_label": "Period ({min}–{max} months)",
+    "partner_program": "Partnership Program",
+    "partner_program_text": "Earn with {vpnName}",
+    "partner_requirements": "Partner Requirements",
+    "partner_requirements_detailed": "<b>Partner requirements:</b>\n\n• At least {min_followers} followers on social media\n• Average reach of at least {min_avg_reach} views\n• Accounts on: {required_socials}\n• Agreement with the <a href=\"{terms_url}\">partnership terms</a>",
+    "partner_requires_telegram": "Telegram login is required to participate in the partnership program",
+    "partner_status": "Status",
+    "partner_subscription": "Partner Subscription",
+    "partner_trust_placeholder": "Value ({min}–{max})",
+    "partner_trust_points": "Trust points: {min} to {max}. Discount is calculated automatically based on your trust score.",
+    "partners": "Partners",
+    "partners_section": "Partners",
+    "password": "Password",
+    "password_change_error": "Failed to change password",
+    "password_changed_success": "Password changed successfully",
+    "password_too_short": "Password must be at least 10 characters",
+    "passwords_mismatch": "Passwords do not match",
+    "pay_now": "Pay with YooMoney",
+    "payment_id_label": "Payment ID",
+    "payment_instructions": "Click the button above to pay. After payment, click 'Confirm'.\n\nImportant: payments are verified manually. If the subscription does not activate immediately, wait 5–10 minutes and contact support with the receipt – this speeds up confirmation. Automation via RollyPay is planned in the future.",
+    "payment_methods": "Payment Methods",
+    "payment_order": "Payment Order",
+    "payment_request_already_exists": "You already have an active request. Please wait for administrator review.",
+    "payment_request_received": "Payment request created. After verification by the administrator, you will receive the subscription.",
+    "payment_subtitle": "Available payment methods for subscription",
+    "payment_title": "Payment",
+    "payments": "Payments",
+    "pending": "Pending",
+    "per_day_short": "/d",
+    "plan": "Tariff",
+    "platform_android": "INCY or v2RayNG",
+    "platform_android_tv": "INCY",
+    "platform_ios": "INCY",
+    "platform_linux": "INCY or V2RayN",
+    "platform_macos": "INCY",
+    "platform_router": "theoretically possible, contact support",
+    "platform_router_name": "Router",
+    "platform_windows": "INCY or V2RayN",
+    "platforms": "Platforms",
+    "processing": "Processing",
+    "public_offer": "Public Offer",
+    "public_section": "Public",
+    "purchase_blocked_wait_admin": "You have already purchased a subscription. Please wait for administrator confirmation – repeat purchase is not available at this time.",
+    "qa_faq_title": "Frequently Asked Questions",
+    "qa_no_results": "No results found for your query. Try a different search or contact support.",
+    "qa_search_placeholder": "Search questions...",
+    "qa_show_count": "Showing: {count} of {total}",
+    "qa_subtitle": "Answers to frequently asked questions",
+    "quote": "The closer the empire is to collapse, the crazier its laws become.",
+    "rate_limited": "Rate limit exceeded. Please wait a moment.",
+    "recommended_apps": "Recommended Apps",
+    "redirecting_to_profile": "Redirecting to profile...",
+    "referral_link_unavailable": "Referral link unavailable",
+    "referral_program": "Referral Program",
+    "referral_program_text": "Invite friends and get bonus days",
+    "refund": "Refund",
+    "refund_text": "Refunds are made at the administrator's discretion if the service was not provided or the service was not used.",
+    "register_error": "Registration error",
+    "register_link": "Register",
+    "register_subtitle": "Create an account to access the service",
+    "register_title": "Registration",
+    "renew_partner_support": "Contact support to renew partnership",
+    "result": "Result",
+    "search_no_results": "No results found",
+    "search_placeholder": "Search by UID, username, or Telegram ID",
+    "search_results_count": "Found {count} results",
+    "select_custom_tariff": "Select",
+    "settings_link_telegram": "Link Telegram",
+    "settings_subtitle": "Language, theme, Telegram linking",
+    "settings_title": "Settings",
+    "setup_client": "Setup Client",
+    "stats": "Statistics",
+    "status": "Status",
+    "status_active": "Active",
+    "status_pending": "Pending",
+    "currency_rub": "₽",
+    "step_1": "Download and install INCY",
+    "step_2": "Open the Telegram bot",
+    "step_3": "Get the config from the bot",
+    "step_4": "Import the config into INCY",
+    "step_5": "Connect to the server",
+    "steps": "Step‑by‑Step Instructions",
+    "subscription_activated": "Subscription Activated",
+    "subscription_link": "Subscription Link",
+    "subscription_status": "Subscription Status",
+    "support_unavailable": "Support link not configured",
+    "support_not_configured": "Support not configured",
+    "system_health": "System Health & Statistics",
+    "tariffs": "Tariffs",
+    "tech_mode": "Technical Mode",
+    "tech_work": "MAINTENANCE",
+    "telegram_id_label": "Telegram ID",
+    "telegram_link": "Link Telegram",
+    "telegram_link_failed": "Failed to link Telegram. Please try again later.",
+    "telegram_link_hint": "Open the Telegram bot and confirm account linking. After confirmation, refresh the page.",
+    "telegram_linked_note": "Telegram linking is permanent. To change it, contact support.",
+    "telegram_linked_permanent": "Telegram linked (ID: {id})",
+    "telegram_linked_success": "Telegram linked successfully!",
+    "telegram_login_hint": "Click the button, the Telegram bot will open. After logging in, you will be automatically signed in.",
+    "telegram_unlinked": "Telegram not linked",
+    "telegram_username_label": "Telegram username",
+    "telegram_waiting": "Waiting for confirmation from Telegram...",
+    "theme": "Theme",
+    "total_earned": "Total Earned",
+    "total_refs": "Total Referred",
+    "traffic": "Traffic",
+    "traffic_gb": "{value} GB",
+    "traffic_progress": "Traffic usage progress",
+    "traffic_used": "Used {percent}% of available {total} GB",
+    "trial_activated": "Trial period activated! The subscription will appear in your profile.",
+    "trial_admin_only_bot": "Trial period for administrator is only available via bot.",
+    "trial_available": "Free trial period is available for new users.",
+    "trial_requires_telegram": "To get a trial period, link Telegram in settings.",
+    "trust_score": "Trust Score",
+    "unlimited": "Unlimited",
+    "uptime": "Uptime",
+    "uptime_hours": "{hours} h",
+    "user_id": "User ID",
+    "username": "Login",
+    "username_too_short": "Username must be at least 3 characters",
+    "users_count": "All Users",
+    "users_list": "Users",
+    "waiting": "Waiting time expired",
+    "withdrawal_failed": "Withdrawal failed",
+    "working_normally": "Working normally",
+    "xray_label": "Xray Version",
+    "yes": "Yes",
+    "yoomoney": "YooMoney",
+    "yoomoney_text": "Secure payment via YooMoney. Instant confirmation.",
+    "your_ref_link": "Your Referral Link",
+    "become_partner": "Become Partner",
+    "change_password": "Change Password",
+    "qa": "FAQ",
+    "withdrawal_request_submitted": "Withdrawal request submitted"
+  },
+  "legal": {
+    "offer": {
+      "effectiveDate": "07.09.2026",
+      "sections": [
+        {
+          "content": "This public offer defines the terms and conditions for the provision of VPN services by {vpnName}. By using the service, you agree to the terms of use and accept this offer.",
+          "title": "Public Offer for the Provision of VPN Services"
+        },
+        {
+          "content": "1.1. The Provider ({vpnName}) provides access to the VPN network in accordance with the selected tariff.\n1.2. The User pays for the service and complies with the service rules.\n1.3. The service includes:\n- Provision of a subscription URL to obtain configuration files for connection\n- Access to selected locations\n- Technical support\n- Configuration updates when necessary",
+          "title": "1. Subject of the Offer"
+        },
+        {
+          "content": "2.1. The contract is concluded by accepting the offer:\n- Selecting a tariff in the Telegram bot or on the website\n- Paying for the service\n- Confirming payment\n\n2.2. Acceptance of the offer is deemed to be the user's actions to pay for the service.\n2.3. The contract is deemed concluded from the moment payment is confirmed.",
+          "title": "2. Procedure for Concluding the Contract"
+        },
+        {
+          "content": "3.1. The cost and duration of the service are indicated in the Telegram bot and on the website when selecting a tariff.\n3.2. Payment is made using available methods:\n- YooMoney (Quick payment)\n- P2P card transfer\n- Other methods specified in the bot or on the website\n\n3.3. Currently, payments are processed manually.\n3.4. After the transfer, to speed up processing, it is recommended to contact support within 5–10 minutes with the receipt attached.",
+          "title": "3. Cost and Payment"
+        },
+        {
+          "content": "4.1. The contract is valid until the end of the paid period.\n4.2. The user may extend the contract by ordering a new tariff or extending the old one.\n4.3. The contract may be terminated:\n- At the user's initiative\n- At the provider's initiative in case of breach of conditions (without refund)\n- By agreement of the parties",
+          "title": "4. Term of the Contract"
+        },
+        {
+          "content": "5.1. The Provider has the right to:\n- Suspend access in case of violation of terms\n- Change the technical parameters of the service\n- Carry out maintenance work\n- Refuse service in case of abuse\n\n5.2. The Provider undertakes to:\n- Ensure service availability\n- Provide technical support\n- Maintain data confidentiality\n- Respond to inquiries in a timely manner",
+          "title": "5. Rights and Obligations of the Provider"
+        },
+        {
+          "content": "6.1. The User has the right to:\n- Use the service in accordance with the tariff\n- Receive technical support\n- Renew the subscription\n- Request information about their data\n\n6.2. The User undertakes to:\n- Not transfer access to third parties\n- Not violate the terms of use\n- Pay for the service in a timely manner",
+          "title": "6. Rights and Obligations of the User"
+        },
+        {
+          "content": "7.1. The Provider is not liable for:\n- Temporary unavailability of the service for technical reasons\n- Actions of third parties (providers, regulators)\n- Indirect losses of users\n\n7.2. The Provider may suspend access in case of:\n- Violation of terms of use\n- Abuse of the tariff\n- Attempting unauthorised access\n- Violation of the section on protection of the project team",
+          "title": "7. Limitations and Liability"
+        },
+        {
+          "content": "8.1. Refunds are made in exceptional cases by decision of the administration or support.\n8.2. Refunds are not made in case of:\n- Violation of service terms by the user\n- Expiration of subscription\n- Voluntary refusal of service\n\n8.3. Refund requests are sent to Telegram support.\n8.4. The decision is made taking into account the actual provision of the service.",
+          "title": "8. Refund"
+        },
+        {
+          "content": "9.1. The parties are released from liability in the event of force majeure:\n- Natural disasters\n- Military actions\n- Decisions of government bodies\n- Large‑scale technical failures\n- Actions of third parties (attacks, blockings)\n\n9.2. The term of performance of obligations is extended for the duration of force majeure.",
+          "title": "9. Force Majeure"
+        },
+        {
+          "content": "10.1. {vpnName} reserves the right to amend this offer unilaterally.\n10.2. The new version comes into force from the moment of publication on the website or in the Telegram bot.\n10.3. Continued use of the service after changes implies acceptance of the new version.",
+          "title": "10. Amendment of the Offer"
+        },
+        {
+          "content": "11.1. All disputes and disagreements shall be resolved through negotiations via Telegram support.\n11.2. If agreement cannot be reached, the dispute shall be referred to the administration.\n11.3. The user agrees to the pre‑trial settlement of disputes.",
+          "title": "11. Dispute Resolution"
+        },
+        {
+          "content": "12.1. If any provision of the offer is held invalid, this does not affect the validity of the remaining provisions.\n12.2. {vpnName} is not liable for the unavailability of the service in certain regions.\n12.3. Section headings are for convenience only and do not affect the interpretation of the offer.",
+          "title": "12. Final Provisions"
+        },
+        {
+          "content": "13.1. For all questions, contact Telegram support via the bot.\n13.2. Response time: usually within 2 hours.\n13.3. The project team is always ready to help with technical and organisational matters.",
+          "title": "13. Details and Contacts"
+        }
+      ],
+      "subtitle": "{vpnName} – terms of service",
+      "title": "Public Offer"
+    },
+    "privacy": {
+      "effectiveDate": "07.09.2026",
+      "sections": [
+        {
+          "content": "This policy describes what technical data {vpnName} processes when operating the website, bot, and VPN service. By using the service, you agree to this policy.",
+          "title": "Privacy Policy of {vpnName} VPN Service"
+        },
+        {
+          "content": "1.1. {vpnName} respects user privacy and ensures the protection of personal data.\n1.2. This policy is developed in accordance with the principles of data minimisation.\n1.3. We collect only the data necessary for the functioning of the service.",
+          "title": "1. General Provisions"
+        },
+        {
+          "content": "2.1. The service may process:\n- User's Telegram ID and username\n- Selected tariff and technical subscription status\n- Payment data (only for payment confirmation, not stored)\n- Technical connection information\n\n2.2. We do NOT collect:\n- Passport data\n- Phone numbers (except as specified in the partnership section)\n- Email addresses (except as specified in the payment section)\n- Other information not listed in clause 2.1",
+          "title": "2. What Data Is Processed"
+        },
+        {
+          "content": "3.1. {vpnName} adheres to a strict No‑Logs policy:\n- No history of visited websites is kept\n- No analysis of traffic content\n- No connection logs are saved\n- No user activity is tracked\n\n3.2. For subscription operation, only aggregated metrics may be processed:\n- Total traffic used\n- Subscription validity period\n- Connection status (active/inactive)",
+          "title": "3. No‑Logs Policy"
+        },
+        {
+          "content": "4.1. Collected data is used solely for:\n- User registration and authentication\n- Issuing and managing VPN subscriptions\n- Technical support for users\n- Preventing abuse and fraud\n- Processing payment transactions\n- Notifying about maintenance and service changes",
+          "title": "4. Purposes of Data Processing"
+        },
+        {
+          "content": "5.1. Data is stored for the limited time necessary for the service:\n- Active subscriptions: for the entire term\n- Inactive subscriptions: up to 3 days after expiration\n- Payment data: not stored, used only for confirmation\n\n5.2. After the retention period, data is automatically deleted.",
+          "title": "5. Data Storage"
+        },
+        {
+          "content": "6.1. {vpnName} applies technical and organisational security measures:\n- Data encryption during transmission (TLS/SSL)\n- Secure storage in databases\n- Restricted access to data\n- Regular backups\n\n6.2. Only authorised project team members have access to data.",
+          "title": "6. Data Protection"
+        },
+        {
+          "content": "7.1. We do not transfer personal data to third parties, except:\n- Payment systems (only data necessary for payment processing)\n\n7.2. We do not sell or transfer data for marketing or other purposes.",
+          "title": "7. Transfer of Data to Third Parties"
+        },
+        {
+          "content": "8.1. The user has the right to:\n- Obtain information about the processing of their data\n- Correct inaccurate data\n- Request deletion of their data\n- Withdraw consent for data processing\n- Receive a copy of their data in a machine‑readable format\n\n8.2. To exercise your rights, contact Telegram support.",
+          "title": "8. User Rights"
+        },
+        {
+          "content": "9.1. The web interface may use cookies for:\n- User authentication\n- Saving theme settings\n\n9.2. The user may disable cookies in browser settings.",
+          "title": "9. Cookies and Similar Technologies"
+        },
+        {
+          "content": "10.1. {vpnName} reserves the right to amend the privacy policy.\n10.2. The new version comes into force from the moment of publication on the website.\n10.3. Users may be notified personally in case of significant changes.",
+          "title": "10. Policy Changes"
+        },
+        {
+          "content": "11.1. For questions regarding personal data processing, contact Telegram support via the bot.\n11.2. We respond to requests within 2 days.",
+          "title": "11. Contacts"
+        }
+      ],
+      "subtitle": "{vpnName} – user data processing",
+      "title": "Privacy Policy"
+    },
+    "tos": {
+      "effectiveDate": "07.09.2026",
+      "sections": [
+        {
+          "content": "These terms govern access to and use of the {vpnName} VPN service. By using the service, you accept these terms and the public offer in full.",
+          "title": "Terms of Use of the {vpnName} VPN Service"
+        },
+        {
+          "content": "1.1. The service is provided by the project team through a Telegram bot and web interface.\n1.2. Use of the service constitutes full and unconditional acceptance of the current version of the terms.\n1.3. {vpnName} provides VPN network access services on a subscription basis.\n1.4. The service is an open‑source project, which does not affect the validity of these terms.\n1.5. The service uses advanced technologies: VLESS and Shadowsocks protocols, XHTTP transport, REALITY plugin, XRay core.",
+          "title": "1. General Provisions"
+        },
+        {
+          "content": "2.1. Registration via Telegram is required to use the service.\n2.2. The user undertakes to provide accurate information.\n2.3. The user is responsible for the security of access to their account.\n2.4. Registration of multiple accounts to circumvent restrictions or gain unfair advantages is prohibited.\n2.5. The administration reserves the right to block the account if fraudulent activity is suspected.",
+          "title": "2. Registration and Account"
+        },
+        {
+          "content": "3.1. The user undertakes to:\n- Not share configuration files and access with third parties\n- Not attempt to hack, modify, or bypass service protection\n- Not abuse service resources\n- Not violate the rights of other users\n- Comply with the selected tariff plan\n- Not use the service for automated data collection",
+          "title": "3. User Obligations"
+        },
+        {
+          "content": "4.1. The following are strictly prohibited:\n- Distributing paid configurations for free or circumventing payment\n- Reverse engineering, decompilation, or code analysis of the service\n- Using bots, scripts, or automated systems to interact with the service\n- Attempting unauthorised access to the project infrastructure\n- Load testing without written consent of the administration\n- Abusing the trial period and referral programme",
+          "title": "4. Prohibited Actions"
+        },
+        {
+          "content": "5.1. The following are strictly prohibited:\n- Collecting, searching for, or distributing any personal information about project team members (real names, places of residence, contacts, social networks, photos)\n- Doxing (disclosure of personal information) of project participants\n- Attempting to deanonymise the project team\n- Any psychological, physical, or legal pressure on team members\n- Threatening, blackmailing, or intimidating project participants\n- Publishing calls to attack the project team\n- Stalking team members in any form\n\n5.2. Violation of this section entails:\n- Immediate and permanent account blocking without refund\n- Transfer of information to law enforcement agencies\n- The right of the project team to take legal action to protect their rights\n\n5.3. The project team reserves the right to anonymity and privacy.",
+          "title": "5. Protection of Project Team Information"
+        },
+        {
+          "content": "6.1. Despite the open‑source MIT licence, the following is prohibited:\n- Using the name {vpnName}, logos and trademarks without permission\n- Creating derivative projects aimed at direct competition\n- Using the project's infrastructure and developments for commercial purposes without consent\n\n6.2. All configuration files generated by the service are the intellectual property of the project and are provided to users for personal use only.",
+          "title": "6. Intellectual Property"
+        },
+        {
+          "content": "7.1. {vpnName} adheres to a No‑Logs policy:\n- No history of visited websites\n- No analysis of traffic content\n- No connection logs\n\n7.2. For service operation, the following are processed:\n- Telegram ID of the user\n- Tariff and subscription term data\n- Aggregated traffic volume indicators\n- Payment data (only for payment verification)\n\n7.3. Detailed information is available in the Privacy Policy.",
+          "title": "7. Confidentiality and Data Processing"
+        },
+        {
+          "content": "8.1. The service uses:\n- Protocols: VLESS and Shadowsocks\n- Transport: XHTTP\n- Encryption plugin: REALITY\n- Core: XRay (current version)\n\n8.2. {vpnName} reserves the right to:\n- Modify the protocols and technologies used\n- Switch to alternative solutions if necessary\n- Carry out maintenance with prior notification in the Telegram channel and/or bot",
+          "title": "8. Technical Characteristics of the Service"
+        },
+        {
+          "content": "9.1. Payment is made in accordance with the selected tariff and payment method.\n9.2. Currently, payments are processed manually.\n9.3. Refunds are made in exceptional cases by decision of the administration or support.\n9.4. If the user violates the service terms, no refund is made.\n9.5. Refund requests are sent to Telegram support.",
+          "title": "9. Payment and Refund"
+        },
+        {
+          "content": "10.1. {vpnName} is not liable for:\n- Temporary unavailability of the service for technical reasons\n- Actions of third parties (providers, regulators)\n- Indirect losses of users\n- Use of the service for illegal purposes by the user\n\n10.2. The user is fully responsible for:\n- Their actions when using the service\n- The consequences of using the VPN connection\n\n10.3. The service is provided \"as is\" without any guarantees of uptime above 98%.",
+          "title": "10. Liability of the Parties"
+        },
+        {
+          "content": "11.1. The administration has the right to suspend or terminate the user's access to the service without prior notice in cases of:\n- Violation of these terms\n- Suspected fraudulent activity\n- Violation of Section 5 (Protection of Project Team Information)\n- Abuse of service resources\n- Technical necessity\n\n11.2. In case of blocking for violation of terms, funds are not refunded.\n11.3. The user may appeal the blocking through support.",
+          "title": "11. Suspension and Termination of Access"
+        },
+        {
+          "content": "12.1. {vpnName} reserves the right to unilaterally amend these terms.\n12.2. The new version comes into force from the moment of publication on the website.\n12.3. Continued use of the service after changes implies acceptance of the new version.\n12.4. In case of significant changes, users may be notified personally.",
+          "title": "12. Amendment of Terms"
+        },
+        {
+          "content": "13.1. The parties are released from liability in the event of force majeure:\n- Natural disasters\n- Military actions\n- Decisions of government bodies\n- Large‑scale technical failures\n- Actions of third parties (attacks, blockings)\n\n13.2. The term of performance of obligations is extended for the duration of force majeure.",
+          "title": "13. Force Majeure"
+        },
+        {
+          "content": "14.1. All disputes and disagreements shall be resolved through negotiations via Telegram support.\n14.2. If agreement cannot be reached, the dispute shall be referred to the administration.\n14.3. The user agrees to the pre‑trial settlement of disputes.",
+          "title": "14. Dispute Resolution"
+        },
+        {
+          "content": "15.1. If any provision of the terms is held invalid, this does not affect the validity of the remaining provisions.\n15.2. {vpnName} is not liable for the unavailability of the service in certain regions.\n15.3. The user may not transfer their rights and obligations under the terms to third parties.\n15.4. Section headings are for convenience only and do not affect the interpretation of the terms.",
+          "title": "15. Final Provisions"
+        },
+        {
+          "content": "16.1. For all questions, contact Telegram support via the bot or website.\n16.2. Response time: usually within 1 hour.\n16.3. To speed up payment processing, it is recommended to contact support within 5–10 minutes after payment with the receipt attached (optional).\n16.4. The project team is always ready to help with technical and individual questions.",
+          "title": "16. Contacts"
+        }
+      ],
+      "subtitle": "{vpnName} – service usage rules",
+      "title": "Terms of Use"
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "vpn-web",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 2010",
+    "build": "npx tsx scripts/generate-i18n.ts && next build",
+    "start": "next start -p 2010",
+    "lint": "eslint",
+    "generate-i18n": "npx tsx scripts/generate-i18n.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "next": "16.3.2",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "26.4.0",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "eslint": "10.9.1",
+    "eslint-config-next": "16.3.2",
+    "prettier": "3.9.6",
+    "tailwindcss": "4.3.3",
+    "tsx": "4.23.13",
+    "typescript": "6.0.3"
+  }
+}

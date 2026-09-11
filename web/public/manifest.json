@@ -1,0 +1,17 @@
+{
+  "name": "VPN",
+  "short_name": "VPN",
+  "description": "Быстрый и надёжный VPN-сервис на базе XRay",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "icons": [
+    {
+      "src": "/icon.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}

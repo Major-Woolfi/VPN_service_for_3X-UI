@@ -1,0 +1,531 @@
+{
+  "meta": {
+    "code": "zh",
+    "name": "中文"
+  },
+  "buttons": {
+    "back": "返回",
+    "back_to_top": "回到顶部",
+    "buy": "购买订阅",
+    "cancel": "取消",
+    "change_password": "修改密码",
+    "cleanup": "清理",
+    "confirm": "确认",
+    "contact_support": "支持",
+    "continue": "继续",
+    "copied": "已复制",
+    "copy": "复制",
+    "dark_theme": "深色主题",
+    "download_app": "下载 INCY",
+    "dry_run": "试运行（检查）",
+    "forward": "前进",
+    "light_theme": "浅色主题",
+    "link_telegram": "绑定 Telegram",
+    "login": "登录",
+    "logout": "退出",
+    "main": "主菜单",
+    "open_bot": "打开机器人",
+    "partner": "合作伙伴",
+    "password_login": "通过登录名",
+    "referral_copy": "复制链接",
+    "register": "注册",
+    "renew_partner": "续约合作伙伴",
+    "retry": "重试",
+    "search": "搜索",
+    "social_telegram": "Telegram 频道",
+    "support": "支持",
+    "telegram_chat": "Telegram 聊天",
+    "telegram_login": "通过 Telegram",
+    "tiktok": "TikTok",
+    "withdraw": "提现",
+    "youtube": "YouTube"
+  },
+  "texts": {
+    "3x_ui": "3X-UI",
+    "about": "关于 {vpnName}",
+    "about_text": "{vpnName} 是基于 XRay 核心 26.7.28+ 并采用 XHTTP 传输和 REALITY 插件的 VPN 服务。协议包括 VLESS 和 Shadowsocks，后量子加密 ML‑KEM‑768，xPadding 混淆，xmux 多路复用。不保留日志。",
+    "about_text_2": "该项目由两位爱好者创立。我们欢迎反馈并持续改进服务。",
+    "account": "账户",
+    "account_banned_message": "您的账户已被封禁。请联系支持。",
+    "account_banned_title": "账户已封禁",
+    "actions": "操作",
+    "active_partner_subscription_guard": "您已有有效的合作伙伴订阅。无法下新订单。",
+    "active_subs": "有效订阅",
+    "admin_panel": "管理面板",
+    "admin_plan": "管理员",
+    "admin_section": "管理",
+    "admin_user_banned": "已封禁",
+    "admin_user_login": "登录名",
+    "admin_user_telegram_id": "Telegram ID",
+    "admin_user_trust": "信任度",
+    "admin_user_uid": "用户 ID",
+    "admin_user_username": "用户名",
+    "admin_user_vpn_url": "VPN URL",
+    "all_users": "总用户数",
+    "alt_client": "替代客户端",
+    "alt_client_text": "v2RayNG – 在 Android 上稳定运行。",
+    "amount": "金额",
+    "amount_must_be_positive": "金额必须大于零",
+    "api_offline": "API 离线",
+    "api_online": "API 在线",
+    "auth_error": "认证错误",
+    "authenticating": "认证中...",
+    "authorized_section": "已认证",
+    "balance": "余额",
+    "banned": "已封禁",
+    "bonus_days": "奖励天数",
+    "calculate_price": "计算价格",
+    "checkout_error": "结账错误",
+    "cleanup_subs": "清理订阅",
+    "cleanup_text": "删除已过期、流量耗尽或面板中不存在的用户的订阅。",
+    "client_setup": "客户端设置",
+    "client_setup_text": "连接设置说明",
+    "confirm_new_password": "确认新密码",
+    "confirm_password": "重复密码",
+    "contact_section": "联系方式",
+    "custom_tariff": "自定义套餐",
+    "custom_tariff_collect": "组合自定义套餐",
+    "custom_tariff_description": "定制您的套餐：{min_gb}–{max_gb} GB 流量，{min_ip}–{max_ip} 台设备，{min_days}–{max_days} 天。价格自动计算。",
+    "custom_tariff_error": "价格计算错误",
+    "custom_tariff_formula": "公式：<strong>total = base + GB × gb_coef + IP × D × ip_day_coef + ΣLOC × D</strong>",
+    "custom_tariff_formula_params": "公式参数：",
+    "custom_tariff_location_price_line": "• {label}：+{price} ₽/天",
+    "custom_tariff_no_locations": "未选择任何位置。",
+    "custom_tariff_param_days": "• <strong>D</strong> – 订阅期限（天）（1–365）",
+    "custom_tariff_param_gb": "• <strong>GB</strong> – 流量（1–1000）",
+    "custom_tariff_param_ip": "• <strong>IP</strong> – 设备限制（1–10）",
+    "custom_tariff_param_locations": "• <strong>LOC</strong> – 所选位置：",
+    "days": "天",
+    "debug": "调试",
+    "debug_search": "搜索用户",
+    "debug_search_description": "按 UID、用户名或 Telegram ID 搜索用户",
+    "debug_search_placeholder": "输入搜索关键词...",
+    "debug_subtitle": "技术工具",
+    "discount": "折扣",
+    "duration_days": "{days} 天",
+    "effective_date": "生效日期：{date}",
+    "error": "错误",
+    "expires": "过期",
+    "failed_to_load_features": "无法加载功能",
+    "failed_to_load_user": "无法加载用户",
+    "features": "{vpnName} 能为您提供什么？",
+    "guide_available": "完整指南可在我们的 Telegram 频道获取：",
+    "guide_link": "设置指南",
+    "have_account": "已有账户？",
+    "how_it_works": "工作原理",
+    "how_it_works_text": "通过您的推荐链接邀请朋友，每成功付费邀请一位，可获得 +{days} 天订阅。",
+    "important": "重要",
+    "important_text": "V2RayTun（核心 25.9.11）和 Happ（核心 26.3.27）不再受支持。我们使用 XRay 26.7.28+ 并配合 XHTTP 传输和 REALITY 插件 – 与旧内核不兼容。",
+    "insufficient_balance": "余额不足",
+    "ip_label": "IP",
+    "ips": "IP 地址",
+    "language": "界面语言",
+    "language_changed": "语言已切换为 {name}",
+    "language_error": "语言切换错误",
+    "loading": "加载中...",
+    "loading_nodes": "加载节点中...",
+    "locations": "位置",
+    "login_error": "登录错误",
+    "login_failed_after_register": "账户已创建，但登录失败。请手动登录。",
+    "login_link": "登录",
+    "login_required_partner": "请登录或注册以申请合作伙伴",
+    "login_subtitle": "通过 Telegram 或登录名登录",
+    "login_timeout": "登录超时。请重试。",
+    "login_title": "登录账户",
+    "main_client": "主要客户端",
+    "main_client_text": "INCY – 推荐的主要客户端，支持所有协议。",
+    "main_server": "主服务器",
+    "menu_login_label": "登录或打开菜单",
+    "menu_profile_label": "个人资料 {username}",
+    "nav_close_menu": "关闭菜单",
+    "nav_main_navigation": "主导航",
+    "nav_open_menu": "打开菜单",
+    "need_help": "需要帮助？",
+    "need_help_text": "我们可以帮助处理 INCY、v2RayNG 及其他客户端。请联系支持。",
+    "new_password": "新密码",
+    "no": "否",
+    "no_account": "没有账户？",
+    "no_payment_methods": "目前没有可用的支付方式。请联系管理员。",
+    "no_subscription": "您没有有效的订阅",
+    "no_subscription_text": "要获取订阅，请打开 Telegram 机器人并选择套餐。",
+    "no_tariffs_available": "目前暂无套餐。",
+    "node_fallback": "节点",
+    "node_status_failed": "无法加载节点状态",
+    "nodes_empty": "没有可用的节点",
+    "nodes": "节点",
+    "not_found": "页面未找到",
+    "not_found_text": "请求的页面不存在或已移动。",
+    "offer_section_2": "2. 付款程序",
+    "offer_text_1": "本要约是 {vpnName} 就签订服务合同提出的正式建议。",
+    "offer_text_2": "付款可通过付款部分列出的可用方式之一进行。",
+    "offer_text_3": "如果服务未被使用，可在付款后 24 小时内退款。",
+    "old_password": "旧密码",
+    "p2p": "银行卡转账（P2P）",
+    "p2p_text": "转账至银行卡。手动确认 – 通常只需几分钟。",
+    "page_of": "第 {page} 页，共 {total} 页",
+    "paid_refs": "已付款",
+    "partner_admin_not_allowed": "您没有作为合作伙伴访问管理面板的权限。",
+    "partner_application_pending_block": "您已有合作伙伴申请。\n\n请等待管理员审核。",
+    "partner_apply_error": "申请提交错误",
+    "partner_apply_socials_placeholder": "Telegram, YouTube, TikTok",
+    "partner_apply_submit": "提交申请",
+    "partner_apply_success": "申请已提交！请等待审核。",
+    "partner_apply_text": "填写以下表格，我们将审核您的申请。",
+    "partner_bonus_days": "奖励天数：每推荐一位用户可获得 {min} 至 {max} 天",
+    "partner_bonus_placeholder": "值（{min}–{max}）",
+    "partner_commission": "佣金：每位被推荐用户付款金额的 {commission_percent}%。佣金在付款确认后立即入账，并按请求支付。",
+    "partner_conditions": "合作条件",
+    "partner_conditions_detailed": "{vpnName} 的合作伙伴计划让您通过吸引付费用户来赚钱。",
+    "partner_dashboard": "您的仪表盘",
+    "partner_dashboard_subtitle": "合作伙伴面板",
+    "partner_followers": "关注者",
+    "partner_nickname": "昵称",
+    "partner_ops": "合作伙伴操作",
+    "partner_payment_terms": "按需通过 SBP（按电话号码）支付。如需其他方式，请联系支持。",
+    "partner_pd_consent": "我同意处理个人数据",
+    "partner_period": "合作伙伴期限：{min} 至 {max} 个月",
+    "partner_withdrawal_info": "提现按需通过 SBP（按电话号码转账）进行。如果您无法使用 SBP，请联系支持以协商替代方式。",
+    "withdrawal_request": "提现申请",
+    "withdrawal_sbps_info": "提现通过 SBP（快速支付系统）按电话号码进行。请确保所提供的电话号码与银行绑定。",
+    "withdrawal_amount": "提现金额",
+    "withdrawal_amount_placeholder": "最多 {balance} ₽",
+    "withdrawal_fio": "收款人全名",
+    "withdrawal_fio_placeholder": "Ivanov Ivan Ivanovich",
+    "withdrawal_phone": "用于 SBP 的电话号码",
+    "withdrawal_phone_placeholder": "+79001234567",
+    "withdrawal_bank": "银行名称",
+    "withdrawal_bank_placeholder": "Sberbank / Tinkoff / 等",
+    "fio_required": "请提供收款人全名",
+    "phone_required": "请提供提现用的电话号码",
+    "bank_required": "请提供银行名称",
+    "partner_period_label": "期限（{min}–{max} 个月）",
+    "partner_program": "合作伙伴计划",
+    "partner_program_text": "通过 {vpnName} 赚钱",
+    "partner_requirements": "合作伙伴要求",
+    "partner_requirements_detailed": "<b>合作伙伴要求：</b>\n\n• 社交媒体上至少有 {min_followers} 名关注者\n• 平均覆盖至少 {min_avg_reach} 次浏览\n• 拥有账号：{required_socials}\n• 同意 <a href=\"{terms_url}\">合作伙伴条款</a>",
+    "partner_requires_telegram": "参与合作伙伴计划需要通过 Telegram 登录",
+    "partner_status": "状态",
+    "partner_subscription": "合作伙伴订阅",
+    "partner_trust_placeholder": "值（{min}–{max}）",
+    "partner_trust_points": "信任积分：{min} 至 {max}。折扣根据您的 Trust Score 自动计算。",
+    "partners": "合作伙伴",
+    "partners_section": "合作伙伴",
+    "password": "密码",
+    "password_change_error": "修改密码失败",
+    "password_changed_success": "密码修改成功",
+    "password_too_short": "密码至少需要 10 个字符",
+    "passwords_mismatch": "密码不一致",
+    "pay_now": "通过 YooMoney 支付",
+    "payment_id_label": "支付 ID",
+    "payment_instructions": "点击上方按钮进行支付。支付后点击“确认”。\n\n重要：支付由人工审核。如果订阅未立即激活，请等待 5–10 分钟并联系支持附上收据 – 这将加快确认。未来计划通过 RollyPay 实现自动化。",
+    "payment_methods": "支付方式",
+    "payment_order": "付款顺序",
+    "payment_request_already_exists": "您已有一个有效的申请。请等待管理员审核。",
+    "payment_request_received": "支付请求已创建。管理员审核后，您将获得订阅。",
+    "payment_subtitle": "订阅可用的支付方式",
+    "payment_title": "支付",
+    "payments": "支付",
+    "pending": "待处理",
+    "per_day_short": "/天",
+    "plan": "套餐",
+    "platform_android": "INCY 或 v2RayNG",
+    "platform_android_tv": "INCY",
+    "platform_ios": "INCY",
+    "platform_linux": "INCY 或 V2RayN",
+    "platform_macos": "INCY",
+    "platform_router": "理论上可行，请联系支持",
+    "platform_router_name": "路由器",
+    "platform_windows": "INCY 或 V2RayN",
+    "platforms": "平台",
+    "processing": "处理中",
+    "public_offer": "公开要约",
+    "public_section": "公开",
+    "purchase_blocked_wait_admin": "您已购买订阅。请等待管理员确认 – 重复购买目前不可用。",
+    "qa_faq_title": "常见问题",
+    "qa_no_results": "未找到与您查询匹配的结果。请尝试其他搜索或联系支持。",
+    "qa_search_placeholder": "搜索问题...",
+    "qa_show_count": "显示：{count} 条，共 {total} 条",
+    "qa_subtitle": "常见问题解答",
+    "quote": "帝国越接近崩溃，其法律就越疯狂。",
+    "rate_limited": "请求次数超限。请稍等。",
+    "recommended_apps": "推荐应用",
+    "redirecting_to_profile": "正在重定向到个人资料...",
+    "referral_link_unavailable": "推荐链接不可用",
+    "referral_program": "推荐计划",
+    "referral_program_text": "邀请好友并获得奖励天数",
+    "refund": "退款",
+    "refund_text": "如果服务未被提供或未使用，退款由管理员酌情决定。",
+    "register_error": "注册错误",
+    "register_link": "注册",
+    "register_subtitle": "创建账户以访问服务",
+    "register_title": "注册",
+    "renew_partner_support": "请联系支持以续约合作伙伴",
+    "result": "结果",
+    "search_no_results": "未找到结果",
+    "search_placeholder": "按 UID、用户名或 Telegram ID 搜索",
+    "search_results_count": "找到 {count} 条结果",
+    "select_custom_tariff": "选择",
+    "settings_link_telegram": "绑定 Telegram",
+    "settings_subtitle": "语言、主题、Telegram 绑定",
+    "settings_title": "设置",
+    "setup_client": "设置客户端",
+    "stats": "统计",
+    "status": "状态",
+    "status_active": "有效",
+    "status_pending": "待处理",
+    "currency_rub": "₽",
+    "step_1": "下载并安装 INCY",
+    "step_2": "打开 Telegram 机器人",
+    "step_3": "通过机器人获取配置",
+    "step_4": "将配置导入 INCY",
+    "step_5": "连接到服务器",
+    "steps": "分步说明",
+    "subscription_activated": "订阅已激活",
+    "subscription_link": "订阅链接",
+    "subscription_status": "订阅状态",
+    "support_unavailable": "支持链接未配置",
+    "support_not_configured": "支持未配置",
+    "system_health": "系统健康状况与统计",
+    "tariffs": "套餐",
+    "tech_mode": "技术模式",
+    "tech_work": "维护中",
+    "telegram_id_label": "Telegram ID",
+    "telegram_link": "绑定 Telegram",
+    "telegram_link_failed": "绑定 Telegram 失败。请稍后重试。",
+    "telegram_link_hint": "打开 Telegram 机器人并确认账户绑定。确认后刷新页面。",
+    "telegram_linked_note": "Telegram 绑定是永久的。如需更改，请联系支持。",
+    "telegram_linked_permanent": "Telegram 已绑定（ID：{id}）",
+    "telegram_linked_success": "Telegram 绑定成功！",
+    "telegram_login_hint": "点击按钮将打开 Telegram 机器人。登录后，您将自动登录账户。",
+    "telegram_unlinked": "Telegram 未绑定",
+    "telegram_username_label": "Telegram 用户名",
+    "telegram_waiting": "等待 Telegram 确认...",
+    "theme": "主题",
+    "total_earned": "总收入",
+    "total_refs": "总推荐数",
+    "traffic": "流量",
+    "traffic_gb": "{value} GB",
+    "traffic_progress": "流量使用进度",
+    "traffic_used": "已使用可用 {total} GB 中的 {percent}%",
+    "trial_activated": "试用期已激活！订阅将显示在您的个人资料中。",
+    "trial_admin_only_bot": "管理员的试用期仅可通过机器人获取。",
+    "trial_available": "新用户可享免费试用期。",
+    "trial_requires_telegram": "要获得试用期，请在设置中绑定 Telegram。",
+    "trust_score": "Trust Score",
+    "unlimited": "不限量",
+    "uptime": "运行时间",
+    "uptime_hours": "{hours} 小时",
+    "user_id": "用户 ID",
+    "username": "登录名",
+    "username_too_short": "用户名至少需要 3 个字符",
+    "users_count": "所有用户",
+    "users_list": "用户",
+    "waiting": "等待时间已过",
+    "withdrawal_failed": "提现失败",
+    "working_normally": "正常运行",
+    "xray_label": "Xray 版本",
+    "yes": "是",
+    "yoomoney": "YooMoney",
+    "yoomoney_text": "通过 YooMoney 安全支付。即时确认。",
+    "your_ref_link": "您的推荐链接",
+    "become_partner": "成为合作伙伴",
+    "change_password": "修改密码",
+    "qa": "常见问题",
+    "withdrawal_request_submitted": "提现请求已提交"
+  },
+  "legal": {
+    "offer": {
+      "effectiveDate": "07.09.2026",
+      "sections": [
+        {
+          "content": "本公开要约规定了 {vpnName} 提供 VPN 服务的条件。使用本服务即表示您同意使用条款并接受本要约。",
+          "title": "提供 VPN 服务的公开要约"
+        },
+        {
+          "content": "1.1. 服务提供方（{vpnName}）根据所选套餐提供 VPN 网络访问。\n1.2. 用户支付服务费用并遵守服务规则。\n1.3. 服务包括：\n- 提供订阅 URL 以获取连接配置文件\n- 访问所选位置\n- 技术支持\n- 必要时更新配置",
+          "title": "1. 要约标的"
+        },
+        {
+          "content": "2.1. 合同通过接受要约而订立：\n- 在 Telegram 机器人或网站中选择套餐\n- 支付服务费用\n- 确认付款\n\n2.2. 用户完成服务付款即视为接受要约。\n2.3. 合同自付款确认之时起视为订立。",
+          "title": "2. 合同订立程序"
+        },
+        {
+          "content": "3.1. 服务费用和期限在 Telegram 机器人及网站选择套餐时注明。\n3.2. 可通过以下可用方式付款：\n- YooMoney（快速支付）\n- P2P 银行卡转账\n- 机器人或网站中指定的其他方式\n\n3.3. 目前支付由人工处理。\n3.4. 转账后，为加快处理速度，建议在 5–10 分钟内联系支持并附上收据。",
+          "title": "3. 费用与支付"
+        },
+        {
+          "content": "4.1. 合同有效期至付费期结束。\n4.2. 用户可通过订购新套餐或续订旧套餐来延长合同。\n4.3. 合同可在以下情况下终止：\n- 用户主动提出\n- 服务提供方在违反条件时主动提出（不退款）\n- 双方协商一致",
+          "title": "4. 合同期限"
+        },
+        {
+          "content": "5.1. 服务提供方有权：\n- 在违反条件时暂停访问\n- 更改服务的技术参数\n- 进行维护工作\n- 在滥用情况下拒绝提供服务\n\n5.2. 服务提供方承诺：\n- 确保服务可用性\n- 提供技术支持\n- 保护数据机密性\n- 及时响应询问",
+          "title": "5. 服务提供方的权利与义务"
+        },
+        {
+          "content": "6.1. 用户有权：\n- 根据套餐使用服务\n- 获得技术支持\n- 续订订阅\n- 查询自己的数据信息\n\n6.2. 用户承诺：\n- 不将访问权限转让给第三方\n- 不违反使用条款\n- 及时支付服务费用",
+          "title": "6. 用户的权利与义务"
+        },
+        {
+          "content": "7.1. 服务提供方不对以下情况承担责任：\n- 因技术原因导致的临时服务不可用\n- 第三方行为（提供商、监管机构）\n- 用户的间接损失\n\n7.2. 服务提供方可在以下情况下暂停访问：\n- 违反使用条款\n- 滥用套餐\n- 尝试未经授权的访问\n- 违反关于保护项目团队的条款",
+          "title": "7. 责任限制"
+        },
+        {
+          "content": "8.1. 退款仅在特殊情况下由管理方或支持方决定。\n8.2. 以下情况不予退款：\n- 用户违反服务条款\n- 订阅过期\n- 自愿放弃服务\n\n8.3. 退款问题请提交至 Telegram 支持。\n8.4. 将根据服务的实际提供情况作出决定。",
+          "title": "8. 退款"
+        },
+        {
+          "content": "9.1. 如遇不可抗力，双方免责：\n- 自然灾害\n- 战争行为\n- 政府机构决定\n- 大规模技术故障\n- 第三方行为（攻击、封锁）\n\n9.2. 履约期限在不可抗力期间相应延长。",
+          "title": "9. 不可抗力"
+        },
+        {
+          "content": "10.1. {vpnName} 保留单方面修改本要约的权利。\n10.2. 新版本自网站或 Telegram 机器人公布之时起生效。\n10.3. 变更后继续使用服务即表示同意新版本。",
+          "title": "10. 要约的修改"
+        },
+        {
+          "content": "11.1. 所有争议和分歧应通过 Telegram 支持进行协商解决。\n11.2. 若无法达成一致，争议将提交管理方处理。\n11.3. 用户同意诉前争议解决方式。",
+          "title": "11. 争议解决"
+        },
+        {
+          "content": "12.1. 若本要约的任何条款被认定为无效，不影响其余条款的效力。\n12.2. {vpnName} 不对特定区域的服务不可用承担责任。\n12.3. 章节标题仅为方便而设，不影响要约的解释。",
+          "title": "12. 最终条款"
+        },
+        {
+          "content": "13.1. 如有任何问题，请通过机器人联系 Telegram 支持。\n13.2. 回复时间：通常在 2 小时内。\n13.3. 项目团队随时准备帮助解决技术和组织问题。",
+          "title": "13. 联系信息"
+        }
+      ],
+      "subtitle": "{vpnName} – 服务条款",
+      "title": "公开要约"
+    },
+    "privacy": {
+      "effectiveDate": "07.09.2026",
+      "sections": [
+        {
+          "content": "本政策描述了 {vpnName} 在运营网站、机器人和 VPN 服务时处理哪些技术数据。使用本服务即表示您同意本政策。",
+          "title": "{vpnName} VPN 服务的隐私政策"
+        },
+        {
+          "content": "1.1. {vpnName} 尊重用户隐私并确保个人数据得到保护。\n1.2. 本政策根据数据最小化原则制定。\n1.3. 我们仅收集服务运行所必需的数据。",
+          "title": "1. 总则"
+        },
+        {
+          "content": "2.1. 服务运行可能处理以下数据：\n- 用户的 Telegram ID 和用户名\n- 所选套餐和订阅技术状态信息\n- 支付数据（仅用于确认付款，不存储）\n- 连接的技术信息\n\n2.2. 我们不会收集：\n- 护照信息\n- 电话号码（合作伙伴计划部分指定除外）\n- 电子邮件地址（付款部分指定除外）\n- 2.1 款中未列出的其他信息",
+          "title": "2. 处理哪些数据"
+        },
+        {
+          "content": "3.1. {vpnName} 严格遵守无日志政策：\n- 不保留访问网站的历史记录\n- 不分析互联网流量内容\n- 不保存连接日志\n- 不追踪用户在网络中的活动\n\n3.2. 订阅运行可能仅处理以下聚合指标：\n- 已使用的总流量\n- 订阅有效期\n- 连接状态（有效/无效）",
+          "title": "3. 无日志政策"
+        },
+        {
+          "content": "4.1. 收集的数据仅用于以下目的：\n- 用户注册和认证\n- 发放和管理 VPN 订阅\n- 用户技术支持\n- 防止滥用和欺诈\n- 执行支付交易\n- 通知维护和服务变更",
+          "title": "4. 数据处理目的"
+        },
+        {
+          "content": "5.1. 数据在服务运行所需的有限时间内存储：\n- 有效订阅：整个有效期内\n- 无效订阅：到期后最多 3 天\n- 支付数据：不存储，仅用于确认\n\n5.2. 存储期限到期后，数据将自动删除。",
+          "title": "5. 数据存储"
+        },
+        {
+          "content": "6.1. {vpnName} 采用技术和组织安全措施：\n- 传输中的数据加密（TLS/SSL）\n- 数据库中的安全存储\n- 限制数据访问\n- 定期备份\n\n6.2. 只有项目团队的授权成员才能访问数据。",
+          "title": "6. 数据保护"
+        },
+        {
+          "content": "7.1. 除以下情况外，我们不会向第三方提供个人数据：\n- 支付系统（仅限支付处理所需的数据）\n\n7.2. 我们不会出于营销或其他目的出售或转让数据。",
+          "title": "7. 向第三方提供数据"
+        },
+        {
+          "content": "8.1. 用户有权：\n- 获取有关其数据处理的信息\n- 更正不准确的数据\n- 要求删除其数据\n- 撤回对数据处理的同意\n- 以机器可读格式获取其数据的副本\n\n8.2. 如需行使权利，请联系 Telegram 支持。",
+          "title": "8. 用户权利"
+        },
+        {
+          "content": "9.1. Web 界面可能使用 Cookie 用于：\n- 用户身份验证\n- 保存主题设置\n\n9.2. 用户可在浏览器设置中禁用 Cookie。",
+          "title": "9. Cookie 及类似技术"
+        },
+        {
+          "content": "10.1. {vpnName} 保留修改隐私政策的权利。\n10.2. 新版本自网站公布之时起生效。\n10.3. 如有重大变更，用户可能会收到个别通知。",
+          "title": "10. 政策变更"
+        },
+        {
+          "content": "11.1. 有关个人数据处理的问题，请通过机器人联系 Telegram 支持。\n11.2. 我们会在 2 天内回复请求。",
+          "title": "11. 联系方式"
+        }
+      ],
+      "subtitle": "{vpnName} – 用户数据处理",
+      "title": "隐私政策"
+    },
+    "tos": {
+      "effectiveDate": "07.09.2026",
+      "sections": [
+        {
+          "content": "本条款规定了 {vpnName} VPN 服务的访问和使用。使用本服务即表示您完全接受本条款和公开要约。",
+          "title": "{vpnName} VPN 服务使用条款"
+        },
+        {
+          "content": "1.1. 服务由项目团队通过 Telegram 机器人和 Web 界面提供。\n1.2. 使用本服务即表示完全和无条件接受当前版本的条款。\n1.3. {vpnName} 基于订阅提供 VPN 网络访问服务。\n1.4. 本服务是开源项目，这并不影响本条款的效力。\n1.5. 本服务采用先进技术：VLESS 和 Shadowsocks 协议、XHTTP 传输、REALITY 插件、XRay 核心。",
+          "title": "1. 总则"
+        },
+        {
+          "content": "2.1. 使用本服务需通过 Telegram 注册。\n2.2. 用户承诺提供准确信息。\n2.3. 用户负责保管好自己账户的访问权限。\n2.4. 禁止注册多个账户以规避限制或获取不正当利益。\n2.5. 如涉嫌欺诈活动，管理方有权冻结账户。",
+          "title": "2. 注册与账户"
+        },
+        {
+          "content": "3.1. 用户承诺：\n- 不将配置文件和访问权限提供给第三方\n- 不试图破解、修改或绕过服务保护\n- 不滥用服务资源\n- 不侵犯其他用户的权益\n- 遵守所选套餐计划的条件\n- 不使用服务进行自动数据收集",
+          "title": "3. 用户义务"
+        },
+        {
+          "content": "4.1. 严禁以下行为：\n- 免费或以绕过付费的方式分发付费配置\n- 对服务进行逆向工程、反编译或代码分析\n- 使用机器人、脚本或自动化系统与服务交互\n- 尝试未经授权访问项目基础设施\n- 未经管理方书面同意进行压力测试\n- 滥用试用期和推荐计划",
+          "title": "4. 禁止行为"
+        },
+        {
+          "content": "5.1. 严禁以下行为：\n- 收集、搜索或散布项目团队成员的任何个人信息（真实姓名、居住地、联系方式、社交媒体、照片）\n- 对项目参与者进行人肉搜索（公开个人信息）\n- 试图去匿名化项目团队\n- 对团队成员施加任何心理、身体或法律压力\n- 威胁、勒索或恐吓项目参与者\n- 发布针对项目团队的攻击号召\n- 以任何形式跟踪团队成员\n\n5.2. 违反本条款将导致：\n- 立即永久冻结账户且不退款\n- 将信息移交执法机构\n- 项目团队有权通过法律途径维护自身权益\n\n5.3. 项目团队保留匿名和隐私权。",
+          "title": "5. 项目团队信息保护"
+        },
+        {
+          "content": "6.1. 尽管采用开源 MIT 许可证，但禁止：\n- 未经许可使用 {vpnName} 名称、标志和商标\n- 创建旨在直接竞争的衍生项目\n- 未经同意将项目的基础设施和开发成果用于商业目的\n\n6.2. 服务生成的所有配置文件均为项目的知识产权，仅提供给用户个人使用。",
+          "title": "6. 知识产权"
+        },
+        {
+          "content": "7.1. {vpnName} 遵守无日志政策：\n- 不保留访问网站的历史记录\n- 不分析流量内容\n- 不保存连接日志\n\n7.2. 服务运行处理以下数据：\n- 用户的 Telegram ID\n- 套餐及订阅期限数据\n- 流量的聚合指标\n- 支付数据（仅用于验证付款）\n\n7.3. 详细信息请参阅隐私政策。",
+          "title": "7. 保密与数据处理"
+        },
+        {
+          "content": "8.1. 服务使用：\n- 协议：VLESS 和 Shadowsocks\n- 传输：XHTTP\n- 加密插件：REALITY\n- 核心：XRay（当前版本）\n\n8.2. {vpnName} 保留以下权利：\n- 修改所使用的协议和技术\n- 必要时切换到替代解决方案\n- 在 Telegram 频道和/或机器人中事先通知后进行维护工作",
+          "title": "8. 服务的技术特性"
+        },
+        {
+          "content": "9.1. 付款根据所选套餐和支付方式进行。\n9.2. 目前支付由人工处理。\n9.3. 退款仅在特殊情况下由管理方或支持方决定。\n9.4. 如用户违反服务条款，不予退款。\n9.5. 退款问题请提交至 Telegram 支持。",
+          "title": "9. 付款与退款"
+        },
+        {
+          "content": "10.1. {vpnName} 不对以下情况承担责任：\n- 因技术原因导致的临时服务不可用\n- 第三方行为（提供商、监管机构）\n- 用户的间接损失\n- 用户将服务用于非法目的\n\n10.2. 用户对以下方面承担全部责任：\n- 使用服务时的行为\n- 使用 VPN 连接的后果\n\n10.3. 服务按“现状”（as is）提供，不保证可用性高于 98%。",
+          "title": "10. 双方责任"
+        },
+        {
+          "content": "11.1. 在以下情况下，管理方可在不事先通知的情况下暂停或终止用户对服务的访问：\n- 违反本条款\n- 涉嫌欺诈活动\n- 违反第 5 条（项目团队信息保护）\n- 滥用服务资源\n- 技术需要\n\n11.2. 因违反条款而被冻结时，不予退款。\n11.3. 用户可通过支持对冻结提出申诉。",
+          "title": "11. 访问暂停与终止"
+        },
+        {
+          "content": "12.1. {vpnName} 保留单方面修改本条款的权利。\n12.2. 新版本自网站公布之时起生效。\n12.3. 变更后继续使用服务即表示同意新版本。\n12.4. 如有重大变更，用户可能会收到个别通知。",
+          "title": "12. 条款修改"
+        },
+        {
+          "content": "13.1. 如遇不可抗力，双方免责：\n- 自然灾害\n- 战争行为\n- 政府机构决定\n- 大规模技术故障\n- 第三方行为（攻击、封锁）\n\n13.2. 履约期限在不可抗力期间相应延长。",
+          "title": "13. 不可抗力"
+        },
+        {
+          "content": "14.1. 所有争议和分歧应通过 Telegram 支持进行协商解决。\n14.2. 若无法达成一致，争议将提交管理方处理。\n14.3. 用户同意诉前争议解决方式。",
+          "title": "14. 争议解决"
+        },
+        {
+          "content": "15.1. 若本条款的任何条款被认定为无效，不影响其余条款的效力。\n15.2. {vpnName} 不对特定区域的服务不可用承担责任。\n15.3. 用户不得将本条款下的权利和义务转让给第三方。\n15.4. 章节标题仅为方便而设，不影响条款的解释。",
+          "title": "15. 最终条款"
+        },
+        {
+          "content": "16.1. 如有任何问题，请通过机器人或网站联系 Telegram 支持。\n16.2. 回复时间：通常在 1 小时内。\n16.3. 为加快支付处理，建议付款后 5–10 分钟内联系支持并附上收据（可选）。\n16.4. 项目团队随时准备帮助解决技术和个别问题。",
+          "title": "16. 联系方式"
+        }
+      ],
+      "subtitle": "{vpnName} – 服务使用规则",
+      "title": "使用条款"
+    }
+  }
+}
