@@ -10,7 +10,7 @@ export default function FaqList() {
 
   const allFaq = useMemo(() => {
     const items: { id: number; question: string; answer: string; category: string }[] = [];
-    for (let i = 1; i <= 12; i++) {
+    for (let i = 1; i <= 15; i++) {
       const question = t(`texts.qa_question_${i}`);
       const answer = t(`texts.qa_answer_${i}`);
       const category = t(`texts.qa_category_${i}`);

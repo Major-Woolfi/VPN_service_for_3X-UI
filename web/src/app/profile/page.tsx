@@ -178,16 +178,18 @@ export default function ProfilePage() {
                   <h2>{t('texts.subscription_link')}</h2>
                   <div className="pinned-content">
                     <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {subLink?.vpn_url && (
                       <div style={{ padding: '12px', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)', fontFamily: 'monospace', fontSize: '14px', wordBreak: 'break-all', display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <code style={{ flex: 1 }}>{subLink?.vpn_url}</code>
                         <button
-                          onClick={() => handleCopy(subLink!.vpn_url, 'vpn')}
+                          onClick={() => handleCopy(subLink!.vpn_url!, 'vpn')}
                           className="button"
                           style={{ whiteSpace: 'nowrap', padding: '6px 12px' }}
                         >
                           {copied === 'vpn' ? t('buttons.copied') : t('buttons.copy')}
                         </button>
                       </div>
+                    )}
                       {subLink?.json_vpn_url && (
                         <div style={{ padding: '12px', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)', fontFamily: 'monospace', fontSize: '14px', wordBreak: 'break-all', display: 'flex', gap: '8px', alignItems: 'center' }}>
                           <code style={{ flex: 1 }}>{subLink.json_vpn_url}</code>

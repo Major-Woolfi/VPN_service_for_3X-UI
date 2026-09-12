@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { changeLanguage, changePassword, startTelegramLink, pollTelegramAuth } from '@/lib/api';
+import { changeLanguage, changePassword, startTelegramLink, pollTelegramAuth, unlinkTelegram } from '@/lib/api';
 import { setCurrentLang, getAvailableLanguages, getLanguageDisplayName } from '@/lib/i18n';
 import { useLanguage } from '@/contexts/LanguageContext';
 
@@ -395,16 +395,36 @@ onClick={() => handleLanguageChange(lang.code)}
                     : t('texts.telegram_unlinked')}
                 </p>
                 {authUser && authUser.telegram_id > 0 ? (
-                  <div
-                    style={{
-                      padding: '12px',
-                      background: 'var(--bg-tertiary)',
-                      borderRadius: 'var(--radius-sm)',
-                      fontSize: '14px',
-                      color: 'var(--text-secondary)',
-                    }}
-                  >
-                    {t('texts.telegram_linked_note')}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div
+                      style={{
+                        padding: '12px',
+                        background: 'var(--bg-tertiary)',
+                        borderRadius: 'var(--radius-sm)',
+                        fontSize: '14px',
+                        color: 'var(--text-secondary)',
+                      }}
+                    >
+                      {t('texts.telegram_linked_note')}
+                    </div>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await unlinkTelegram({});
+                          await refreshUser();
+                          setMessage(t('texts.telegram_unlinked'));
+                          setMessageType('success');
+                          setTimeout(() => setMessage(''), 3000);
+                        } catch (err) {
+                          setMessage(err instanceof Error ? err.message : t('texts.telegram_link_failed'));
+                          setMessageType('error');
+                        }
+                      }}
+                      className="button"
+                      style={{ width: '100%', background: 'var(--danger)' }}
+                    >
+                      {t('buttons.telegram_unlink')}
+                    </button>
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>

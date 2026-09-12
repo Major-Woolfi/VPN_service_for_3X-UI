@@ -5534,6 +5534,11 @@ class AddTrafficState(StatesGroup):
     waiting_for_gb = State()
 
 
+class CompensateDaysState(StatesGroup):
+    waiting_for_user_id = State()
+    waiting_for_days = State()
+
+
 class ChangeUsernameState(StatesGroup):
     waiting_for_user_id = State()
     waiting_for_new_username = State()
@@ -5642,6 +5647,25 @@ def cancel_only_keyboard() -> InlineKeyboardMarkup:
                     "text": translate(Config.DEFAULT_LANGUAGE, "buttons.cancel"),
                     "callback_data": "cancel",
                 }
+            ]
+        ]
+    )
+
+
+def cancel_or_active_subscribers_keyboard(
+    language: str = Config.DEFAULT_LANGUAGE,
+) -> InlineKeyboardMarkup:
+    return kb(
+        [
+            [
+                {
+                    "text": translate(language, "buttons.active_subscribers"),
+                    "callback_data": "compensate_active_subscribers",
+                },
+                {
+                    "text": translate(language, "buttons.cancel"),
+                    "callback_data": "cancel",
+                },
             ]
         ]
     )
@@ -6024,7 +6048,7 @@ def build_pending_payment_text(payment: dict[str, Any], tg_id: int = 0) -> str:
             )
         elif not plan_name:
             plan_name = str(plan_id)
-    tg_id_str = f" (TG: {tg_id})" if tg_id > 0 else ""
+    tg_id_str = f" (TID: {tg_id})" if tg_id > 0 else ""
     return translate(
         Config.DEFAULT_LANGUAGE,
         "texts.pending_payment_text",
@@ -7225,6 +7249,7 @@ async def reward_referrer(referrer_id: int, bonus_days: int) -> None:
                 "texts.referral_bonus_subscription_created",
                 bonus_days=format_duration(total),
                 vpn_url=vpn_url,
+                json_vpn_url=build_json_subscription_url(vpn_url),
             ),
         )
     else:
@@ -8723,6 +8748,7 @@ async def cmd_custom_confirm_test(event: CallbackQuery, state: FSMContext, **kwa
             servers=format_servers(servers),
             duration=format_duration(days, user_lang),
             vpn_url=vpn_url,
+            json_vpn_url=build_json_subscription_url(vpn_url),
         )
         setup_keyboard = build_setup_keyboard(user_lang)
     else:
@@ -8804,6 +8830,7 @@ async def cmd_custom_confirm_payment(event: CallbackQuery, state: FSMContext, **
                 servers=format_servers(servers),
                 duration=format_duration(days, user_lang),
                 vpn_url=vpn_url,
+                json_vpn_url=build_json_subscription_url(vpn_url),
             )
             setup_keyboard = build_setup_keyboard(user_lang)
         else:
@@ -9022,6 +9049,7 @@ async def cmd_test_plan(event: CallbackQuery, **kwargs: Any) -> None:
             servers=format_servers(plan.get("servers")),
             duration=format_duration(int(plan.get("duration_days", 30)), user_lang),
             vpn_url=vpn_url,
+            json_vpn_url=build_json_subscription_url(vpn_url),
         )
     else:
         text = translate(Config.DEFAULT_LANGUAGE, "texts.test_subscription_failed")
@@ -9096,6 +9124,7 @@ async def cmd_trial_plan(event: CallbackQuery, **kwargs):
             servers=format_servers(plan.get("servers")),
             duration=format_duration(int(plan.get("duration_days", 30)), user_lang),
             vpn_url=vpn_url,
+            json_vpn_url=build_json_subscription_url(vpn_url),
         )
     else:
         text = translate(Config.DEFAULT_LANGUAGE, "texts.trial_subscription_failed")
@@ -10698,7 +10727,7 @@ def build_partner_op_text(
     op_type = op.get("op_type", "")
     uid = op.get("user_id", 0)
     partner_name = str(op.get("partner_name", uid))
-    tg_id_str = f" (TG: {tg_id})" if tg_id > 0 else ""
+    tg_id_str = f" (TID: {tg_id})" if tg_id > 0 else ""
     if op_type == "partner_new":
         bonus_type_raw = str(op.get("bonus_type", ""))
         if bonus_type_raw == "days":
@@ -11432,6 +11461,7 @@ async def cmd_pay_await_accept(event: CallbackQuery, **kwargs):
                     bonus_text=bonus_text,
                     trust_change_line=trust_line,
                     vpn_url=vpn_url,
+                    json_vpn_url=build_json_subscription_url(vpn_url),
                 ),
                 reply_markup=setup_keyboard,
             )
@@ -11780,12 +11810,13 @@ async def process_broadcast_message(event: Message, state: FSMContext, **kwargs)
 async def cmd_debug_menu(event: CallbackQuery, **kwargs):
     if not await ensure_admin_access(event):
         return
-    text = translate(Config.DEFAULT_LANGUAGE, "texts.debug_menu_prompt")
+    lang = await get_lang(event)
+    text = translate(lang, "texts.debug_menu_prompt")
 
     tech_work_text = (
-        translate(Config.DEFAULT_LANGUAGE, "buttons.disable_tech_work")
+        translate(lang, "buttons.disable_tech_work")
         if tech_work_service.is_enabled()
-        else translate(Config.DEFAULT_LANGUAGE, "buttons.enable_tech_work")
+        else translate(lang, "buttons.enable_tech_work")
     )
 
     keyboard = kb(
@@ -11798,85 +11829,91 @@ async def cmd_debug_menu(event: CallbackQuery, **kwargs):
             ],
             [
                 {
-                    "text": translate(Config.DEFAULT_LANGUAGE, "buttons.search_user"),
+                    "text": translate(lang, "buttons.search_user"),
                     "callback_data": "debug_search_user",
                 }
             ],
             [
                 {
-                    "text": translate(Config.DEFAULT_LANGUAGE, "buttons.broadcast"),
+                    "text": translate(lang, "buttons.broadcast"),
                     "callback_data": "broadcast",
                 }
             ],
             [
                 {
-                    "text": translate(Config.DEFAULT_LANGUAGE, "buttons.ban_user"),
+                    "text": translate(lang, "buttons.ban_user"),
                     "callback_data": "ban",
                 }
             ],
             [
                 {
-                    "text": translate(Config.DEFAULT_LANGUAGE, "buttons.unban_user"),
+                    "text": translate(lang, "buttons.unban_user"),
                     "callback_data": "unban",
                 }
             ],
             [
                 {
-                    "text": translate(Config.DEFAULT_LANGUAGE, "buttons.trust_add"),
+                    "text": translate(lang, "buttons.trust_add"),
                     "callback_data": "debug_trust_add",
                 }
             ],
             [
                 {
-                    "text": translate(Config.DEFAULT_LANGUAGE, "buttons.trust_remove"),
+                    "text": translate(lang, "buttons.trust_remove"),
                     "callback_data": "debug_trust_remove",
                 }
             ],
             [
                 {
-                    "text": translate(Config.DEFAULT_LANGUAGE, "buttons.normalize_subscriptions"),
+                    "text": translate(lang, "buttons.normalize_subscriptions"),
                     "callback_data": "debug_normalize",
                 }
             ],
             [
                 {
-                    "text": translate(Config.DEFAULT_LANGUAGE, "buttons.reset_all_trials"),
+                    "text": translate(lang, "buttons.reset_all_trials"),
                     "callback_data": "debug_reset_trials",
                 }
             ],
             [
                 {
-                    "text": translate(Config.DEFAULT_LANGUAGE, "buttons.abuse_users"),
+                    "text": translate(lang, "buttons.abuse_users"),
                     "callback_data": "debug_search_abuse_users",
                 }
             ],
             [
                 {
-                    "text": translate(Config.DEFAULT_LANGUAGE, "buttons.delete_user_subscription"),
+                    "text": translate(lang, "buttons.delete_user_subscription"),
                     "callback_data": "debug_delete_sub",
                 }
             ],
             [
                 {
-                    "text": translate(Config.DEFAULT_LANGUAGE, "buttons.add_traffic"),
+                    "text": translate(lang, "buttons.add_traffic"),
                     "callback_data": "debug_add_traffic",
                 }
             ],
             [
                 {
-                    "text": translate(Config.DEFAULT_LANGUAGE, "buttons.change_username"),
+                    "text": translate(lang, "buttons.compensate_days"),
+                    "callback_data": "debug_compensate_days",
+                }
+            ],
+            [
+                {
+                    "text": translate(lang, "buttons.change_username"),
                     "callback_data": "debug_change_username",
                 }
             ],
             [
                 {
-                    "text": translate(Config.DEFAULT_LANGUAGE, "buttons.change_password"),
+                    "text": translate(lang, "buttons.change_password"),
                     "callback_data": "debug_change_password",
                 }
             ],
             [
                 {
-                    "text": translate(Config.DEFAULT_LANGUAGE, "buttons.main"),
+                    "text": translate(lang, "buttons.main"),
                     "callback_data": "start",
                 }
             ],
@@ -11894,10 +11931,11 @@ class SearchUserState(StatesGroup):
 async def cmd_debug_search_user(event: CallbackQuery, state: FSMContext, **kwargs):
     if not await ensure_admin_access(event):
         return
+    lang = await get_lang(event)
     await state.set_state(SearchUserState.waiting_for_query)
     await smart_answer(
         event,
-        translate(Config.DEFAULT_LANGUAGE, "texts.search_user_prompt"),
+        translate(lang, "texts.search_user_prompt"),
         reply_markup=cancel_only_keyboard(),
         delete_origin=True,
     )
@@ -11981,7 +12019,7 @@ async def process_search_user(event: Message, state: FSMContext, **kwargs):
         return
     if not query_str:
         try:
-            await event.answer(translate(Config.DEFAULT_LANGUAGE, "texts.search_user_prompt"))
+            await event.answer(translate(lang, "texts.search_user_prompt"))
         except Exception as e:  # noqa: BLE001
             logger.warning(f"Ошибка отправки ответа (search_user_prompt): {e}")
         return
@@ -11996,7 +12034,7 @@ async def process_search_user(event: Message, state: FSMContext, **kwargs):
         try:
             await event.answer(
                 translate(
-                    Config.DEFAULT_LANGUAGE,
+                    lang,
                     "texts.search_user_not_found",
                     query=query_str,
                 ),
@@ -12014,7 +12052,7 @@ async def process_search_user(event: Message, state: FSMContext, **kwargs):
             try:
                 await event.answer(
                     translate(
-                        Config.DEFAULT_LANGUAGE,
+                        lang,
                         "texts.search_user_not_found",
                         query=query_str,
                     ),
@@ -12025,10 +12063,10 @@ async def process_search_user(event: Message, state: FSMContext, **kwargs):
             await state.clear()
             return
 
-    text = translate(Config.DEFAULT_LANGUAGE, "texts.search_user_result", count=len(users))
+    text = translate(lang, "texts.search_user_result", count=len(users))
     for u in users:
         match_type = u.pop("_match_type", "text") if "_match_type" in u else "text"
-        match_label = translate(Config.DEFAULT_LANGUAGE, f"texts.search_match_{match_type}")
+        match_label = translate(lang, f"texts.search_match_{match_type}")
         text += f"\n\n{match_label}\n"
         text += format_user_raw(u)
 
@@ -12050,6 +12088,7 @@ class TechWorkCompensateState(StatesGroup):
 async def cmd_tech_work_toggle(event: CallbackQuery, state: FSMContext, **kwargs):
     if not await ensure_admin_access(event):
         return
+    lang = await get_lang(event)
 
     if not tech_work_service.is_enabled():
         await tech_work_service.set_enabled(True)
@@ -12062,7 +12101,7 @@ async def cmd_tech_work_toggle(event: CallbackQuery, state: FSMContext, **kwargs
         logger.info(f"Клиенты переключены на backup: {switch_result}")
 
         text = translate(
-            Config.DEFAULT_LANGUAGE,
+            lang,
             "texts.tech_work_enabled",
             notified=notify_result["sent"],
             switched=switch_result["switched"],
@@ -12071,7 +12110,7 @@ async def cmd_tech_work_toggle(event: CallbackQuery, state: FSMContext, **kwargs
             [
                 [
                     {
-                        "text": translate(Config.DEFAULT_LANGUAGE, "buttons.return_to_debug"),
+                        "text": translate(lang, "buttons.return_to_debug"),
                         "callback_data": "debug_menu",
                     }
                 ]
@@ -12081,16 +12120,16 @@ async def cmd_tech_work_toggle(event: CallbackQuery, state: FSMContext, **kwargs
         await state.set_state(TechWorkCompensateState.waiting_for_compensation_choice)
         await smart_answer(
             event,
-            translate(Config.DEFAULT_LANGUAGE, "texts.tech_work_compensate_ask"),
+            translate(lang, "texts.tech_work_compensate_ask"),
             reply_markup=kb(
                 [
                     [
                         {
-                            "text": translate(Config.DEFAULT_LANGUAGE, "buttons.skip"),
+                            "text": translate(lang, "buttons.skip"),
                             "callback_data": "skip_compensate",
                         },
                         {
-                            "text": translate(Config.DEFAULT_LANGUAGE, "buttons.cancel"),
+                            "text": translate(lang, "buttons.cancel"),
                             "callback_data": "cancel_compensate",
                         },
                     ]
@@ -12145,6 +12184,7 @@ async def _run_normalization_with_notification(notified_count: int) -> None:
 async def _end_tech_work_with_compensation(
     event: CallbackQuery | Message, days: int, broadcast: bool
 ) -> None:
+    lang = await get_lang(event)
     await tech_work_service.set_enabled(False)
 
     if broadcast and days > 0:
@@ -12164,20 +12204,20 @@ async def _end_tech_work_with_compensation(
 
     if broadcast:
         text = translate(
-            Config.DEFAULT_LANGUAGE,
+            lang,
             "texts.tech_work_compensate_complete",
             days=days,
             processed=0,
             errors=0,
         )
     else:
-        text = translate(Config.DEFAULT_LANGUAGE, "texts.tech_work_compensate_skipped")
+        text = translate(lang, "texts.tech_work_compensate_skipped")
 
     markup = kb(
         [
             [
                 {
-                    "text": translate(Config.DEFAULT_LANGUAGE, "buttons.return_to_debug"),
+                    "text": translate(lang, "buttons.return_to_debug"),
                     "callback_data": "debug_menu",
                 }
             ]
@@ -12198,10 +12238,11 @@ async def cmd_skip_compensate(event: CallbackQuery, state: FSMContext, **kwargs)
 async def cmd_cancel_compensate(event: CallbackQuery, state: FSMContext, **kwargs):
     if not await ensure_admin_access(event, silent=True):
         return
+    lang = await get_lang(event)
     await state.clear()
     await smart_answer(
         event,
-        translate(Config.DEFAULT_LANGUAGE, "texts.compensate_cancelled"),
+        translate(lang, "texts.compensate_cancelled"),
         reply_markup=main_menu_keyboard(),
         delete_origin=True,
     )
@@ -12211,11 +12252,12 @@ async def cmd_cancel_compensate(event: CallbackQuery, state: FSMContext, **kwarg
 async def cmd_tech_work_compensate(event: CallbackQuery, state: FSMContext, **kwargs):
     if not await ensure_admin_access(event):
         return
+    lang = await get_lang(event)
 
     await state.set_state(TechWorkCompensateState.waiting_for_days)
     await smart_answer(
         event,
-        translate(Config.DEFAULT_LANGUAGE, "texts.tech_work_compensate_prompt"),
+        translate(lang, "texts.tech_work_compensate_prompt"),
         reply_markup=cancel_only_keyboard(),
         delete_origin=True,
     )
@@ -12234,23 +12276,23 @@ async def process_tech_work_compensate(event: Message, state: FSMContext, **kwar
         return
 
     if not val.isdigit():
-        await event.answer(translate(Config.DEFAULT_LANGUAGE, "texts.invalid_days_number"))
+        await event.answer(translate(lang, "texts.invalid_days_number"))
         return
 
     days = int(val)
     if days <= 0:
-        await event.answer(translate(Config.DEFAULT_LANGUAGE, "texts.compensate_positive_days"))
+        await event.answer(translate(lang, "texts.compensate_positive_days"))
         return
 
     if days > 365:
-        await event.answer(translate(Config.DEFAULT_LANGUAGE, "texts.compensate_days_too_many"))
+        await event.answer(translate(lang, "texts.compensate_days_too_many"))
         return
 
     if days > 30:
         await state.set_state(TechWorkCompensateState.waiting_for_confirmation)
         await state.update_data(pending_days=days)
         text = translate(
-            Config.DEFAULT_LANGUAGE,
+            lang,
             "texts.compensate_confirm",
             days=days,
         )
@@ -12260,11 +12302,11 @@ async def process_tech_work_compensate(event: Message, state: FSMContext, **kwar
                 [
                     [
                         {
-                            "text": translate(Config.DEFAULT_LANGUAGE, "buttons.yes"),
+                            "text": translate(lang, "buttons.yes"),
                             "callback_data": "confirm_compensate",
                         },
                         {
-                            "text": translate(Config.DEFAULT_LANGUAGE, "buttons.no"),
+                            "text": translate(lang, "buttons.no"),
                             "callback_data": "cancel_compensate",
                         },
                     ],
@@ -12281,10 +12323,11 @@ async def process_tech_work_compensate(event: Message, state: FSMContext, **kwar
 async def confirm_compensate_handler(event: CallbackQuery, state: FSMContext, **kwargs):
     if not await ensure_admin_access(event, silent=True):
         return
+    lang = await get_lang(event)
     data = await state.get_data()
     days = to_int(data.get("pending_days"), 0)
     if days < 31 or days > 365:
-        await smart_answer(event, translate(Config.DEFAULT_LANGUAGE, "texts.invalid_days_number"))
+        await smart_answer(event, translate(lang, "texts.invalid_days_number"))
         await state.clear()
         return
     await state.clear()
@@ -12295,9 +12338,10 @@ async def confirm_compensate_handler(event: CallbackQuery, state: FSMContext, **
 async def cmd_debug_reset_trials(event: CallbackQuery, **kwargs):
     if not await ensure_admin_access(event):
         return
+    lang = await get_lang(event)
     success, errors = await db.reset_all_trials()
     text = translate(
-        Config.DEFAULT_LANGUAGE,
+        lang,
         "texts.trials_reset_result",
         success_count=success,
         error_count=errors,
@@ -12309,11 +12353,12 @@ async def cmd_debug_reset_trials(event: CallbackQuery, **kwargs):
 async def cmd_debug_search_abuse_users(event: CallbackQuery, **kwargs):
     if not await ensure_admin_access(event):
         return
+    lang = await get_lang(event)
     abuse_users = await db.get_users_with_abuse()
     if not abuse_users:
         await smart_answer(
             event,
-            translate(Config.DEFAULT_LANGUAGE, "texts.no_abuse_users"),
+            translate(lang, "texts.no_abuse_users"),
             reply_markup=main_menu_keyboard(),
             delete_origin=True,
         )
@@ -12325,7 +12370,7 @@ async def cmd_debug_search_abuse_users(event: CallbackQuery, **kwargs):
             [
                 {
                     "text": translate(
-                        Config.DEFAULT_LANGUAGE,
+                        lang,
                         "texts.abuse_user_button",
                         user_id=uid,
                         abuse_status=u.get("abuse_status", "unknown"),
@@ -12337,14 +12382,14 @@ async def cmd_debug_search_abuse_users(event: CallbackQuery, **kwargs):
     rows.append(
         [
             {
-                "text": translate(Config.DEFAULT_LANGUAGE, "buttons.back"),
+                "text": translate(lang, "buttons.back"),
                 "callback_data": "start",
             }
         ]
     )
     await smart_answer(
         event,
-        translate(Config.DEFAULT_LANGUAGE, "texts.abuse_users_list_title"),
+        translate(lang, "texts.abuse_users_list_title"),
         reply_markup=kb(rows),
         delete_origin=True,
     )
@@ -12354,20 +12399,19 @@ async def cmd_debug_search_abuse_users(event: CallbackQuery, **kwargs):
 async def cmd_debug_view_abuse_user(event: CallbackQuery, **kwargs):
     if not await ensure_admin_access(event):
         return
+    lang = await get_lang(event)
     parts = event.data.split(":")
     if len(parts) < 2:
-        await event.answer(
-            translate(Config.DEFAULT_LANGUAGE, "texts.error_generic"), show_alert=True
-        )
+        await event.answer(translate(lang, "texts.error_generic"), show_alert=True)
         return
     uid = to_int(parts[1], 0)
     if uid <= 0:
-        await event.answer(translate(Config.DEFAULT_LANGUAGE, "texts.invalid_id"), show_alert=True)
+        await event.answer(translate(lang, "texts.invalid_id"), show_alert=True)
         return
     user = await db.get_user_by_any_id(uid)
     if not user:
         await event.answer(
-            translate(Config.DEFAULT_LANGUAGE, "texts.user_not_found_alert"),
+            translate(lang, "texts.user_not_found_alert"),
             show_alert=True,
         )
         return
@@ -12375,7 +12419,7 @@ async def cmd_debug_view_abuse_user(event: CallbackQuery, **kwargs):
     daily_traffic_gb = to_float(user.get("daily_traffic_gb"), 0.0)
     total_traffic_gb = to_float(user.get("total_traffic_gb"), 0.0)
     text = translate(
-        Config.DEFAULT_LANGUAGE,
+        lang,
         "texts.abuse_user_info",
         user_id=uid,
         abuse_status=html.escape(abuse_status),
@@ -12387,7 +12431,7 @@ async def cmd_debug_view_abuse_user(event: CallbackQuery, **kwargs):
         rows.append(
             [
                 {
-                    "text": translate(Config.DEFAULT_LANGUAGE, "buttons.clear_abuse"),
+                    "text": translate(lang, "buttons.clear_abuse"),
                     "callback_data": f"debug_clear_abuse:{uid}",
                 },
             ]
@@ -12395,7 +12439,7 @@ async def cmd_debug_view_abuse_user(event: CallbackQuery, **kwargs):
     rows.append(
         [
             {
-                "text": translate(Config.DEFAULT_LANGUAGE, "buttons.back"),
+                "text": translate(lang, "buttons.back"),
                 "callback_data": "debug_search_abuse_users",
             }
         ]
@@ -12407,22 +12451,22 @@ async def cmd_debug_view_abuse_user(event: CallbackQuery, **kwargs):
 async def cmd_debug_clear_abuse(event: CallbackQuery, **kwargs):
     if not await ensure_admin_access(event):
         return
+    lang = await get_lang(event)
     parts = event.data.split(":")
     if len(parts) < 2:
-        await event.answer(
-            translate(Config.DEFAULT_LANGUAGE, "texts.error_generic"), show_alert=True
-        )
+        await event.answer(translate(lang, "texts.error_generic"), show_alert=True)
         return
     uid = to_int(parts[1], 0)
     if uid <= 0:
-        await event.answer(translate(Config.DEFAULT_LANGUAGE, "texts.invalid_id"), show_alert=True)
+        await event.answer(translate(lang, "texts.invalid_id"), show_alert=True)
         return
     await db.update_user_by_telegram_id(uid, abuse_status="")
-    await safe_send_message(bot, uid, translate(Config.DEFAULT_LANGUAGE, "texts.abuse_lifted"))
+    user_lang = await get_user_language(uid)
+    await safe_send_message(bot, uid, translate(user_lang, "texts.abuse_lifted"))
     user = await db.get_user_by_any_id(uid)
     if user and not user.get("vpn_url"):
         await recreate_subscription_for_user(uid, user)
-    text = translate(Config.DEFAULT_LANGUAGE, "texts.abuse_admin_cleared", user_id=uid)
+    text = translate(lang, "texts.abuse_admin_cleared", user_id=uid)
     await smart_answer(
         event,
         text,
@@ -12430,7 +12474,7 @@ async def cmd_debug_clear_abuse(event: CallbackQuery, **kwargs):
             [
                 [
                     {
-                        "text": translate(Config.DEFAULT_LANGUAGE, "buttons.back_to_list"),
+                        "text": translate(lang, "buttons.back_to_list"),
                         "callback_data": "debug_search_abuse_users",
                     }
                 ]
@@ -12444,11 +12488,12 @@ async def cmd_debug_clear_abuse(event: CallbackQuery, **kwargs):
 async def cmd_debug_trust_add(event: CallbackQuery, state: FSMContext, **kwargs):
     if not await ensure_admin_access(event):
         return
+    lang = await get_lang(event)
     await state.set_state(TrustScoreState.waiting_for_user_id)
     await state.update_data(action="add")
     await smart_answer(
         event,
-        translate(Config.DEFAULT_LANGUAGE, "texts.trust_add_prompt"),
+        translate(lang, "texts.trust_add_prompt"),
         reply_markup=cancel_only_keyboard(),
         delete_origin=True,
     )
@@ -12458,11 +12503,12 @@ async def cmd_debug_trust_add(event: CallbackQuery, state: FSMContext, **kwargs)
 async def cmd_debug_trust_remove(event: CallbackQuery, state: FSMContext, **kwargs):
     if not await ensure_admin_access(event):
         return
+    lang = await get_lang(event)
     await state.set_state(TrustScoreState.waiting_for_user_id)
     await state.update_data(action="remove")
     await smart_answer(
         event,
-        translate(Config.DEFAULT_LANGUAGE, "texts.trust_remove_prompt"),
+        translate(lang, "texts.trust_remove_prompt"),
         reply_markup=cancel_only_keyboard(),
         delete_origin=True,
     )
@@ -12485,10 +12531,10 @@ async def process_trust_user_id(event: Message, state: FSMContext, **kwargs):
     await state.update_data(user_id_to_adjust=tg_id, internal_user_id=internal_uid)
     data = await state.get_data()
     action = data.get("action")
-    action_text = translate(Config.DEFAULT_LANGUAGE, f"texts.trust_action_{action}")
+    action_text = translate(lang, f"texts.trust_action_{action}")
     await event.answer(
         translate(
-            Config.DEFAULT_LANGUAGE,
+            lang,
             "texts.trust_amount_prompt",
             action_text=action_text,
             user_id=tg_id,
@@ -12507,16 +12553,16 @@ async def process_trust_amount(event: Message, state: FSMContext, **kwargs):
         await cmd_start(event, state)
         return
     if not val.isdigit():
-        await event.answer(translate(Config.DEFAULT_LANGUAGE, "texts.trust_amount_invalid"))
+        await event.answer(translate(lang, "texts.trust_amount_invalid"))
         return
     amount = int(val)
     if amount <= 0:
-        await event.answer(translate(Config.DEFAULT_LANGUAGE, "texts.trust_amount_positive"))
+        await event.answer(translate(lang, "texts.trust_amount_positive"))
         return
     if amount > TRUST_SCORE_MAX:
         await event.answer(
             translate(
-                Config.DEFAULT_LANGUAGE,
+                lang,
                 "texts.trust_amount_exceeds_max",
                 max_amount=TRUST_SCORE_MAX,
             )
@@ -12527,14 +12573,14 @@ async def process_trust_amount(event: Message, state: FSMContext, **kwargs):
     uid = data.get("user_id_to_adjust")
     if not uid or action not in ("add", "remove"):
         await state.clear()
-        await event.answer(translate(Config.DEFAULT_LANGUAGE, "texts.state_error"))
+        await event.answer(translate(lang, "texts.state_error"))
         return
     current = await db.get_trust_score(uid)
     future = current + (amount if action == "add" else -amount)
     if future < TRUST_SCORE_MIN:
         await event.answer(
             translate(
-                Config.DEFAULT_LANGUAGE,
+                lang,
                 "texts.trust_operation_negative_balance",
                 current_score=current,
             )
@@ -12543,7 +12589,7 @@ async def process_trust_amount(event: Message, state: FSMContext, **kwargs):
     if future > TRUST_SCORE_MAX:
         await event.answer(
             translate(
-                Config.DEFAULT_LANGUAGE,
+                lang,
                 "texts.trust_operation_exceeds_max",
                 max_amount=TRUST_SCORE_MAX,
                 current_score=current,
@@ -12556,9 +12602,9 @@ async def process_trust_amount(event: Message, state: FSMContext, **kwargs):
     actual_delta = final - current
     await state.clear()
     if result:
-        action_text = translate(Config.DEFAULT_LANGUAGE, f"texts.trust_action_success_{action}")
+        action_text = translate(lang, f"texts.trust_action_success_{action}")
         text = translate(
-            Config.DEFAULT_LANGUAGE,
+            lang,
             "texts.trust_update_success",
             user_id=uid,
             current_score=current,
@@ -12572,7 +12618,7 @@ async def process_trust_amount(event: Message, state: FSMContext, **kwargs):
         admin_identity = f"ID <code>{admin_id}</code>" + (
             f", username <code>@{admin_username}</code>" if admin_username else ""
         )
-        admin_action = translate(Config.DEFAULT_LANGUAGE, f"texts.trust_admin_action_{action}")
+        admin_action = translate(lang, f"texts.trust_admin_action_{action}")
         user_lang = await get_user_language(uid)
         try:
             await notify_user(
@@ -12591,7 +12637,7 @@ async def process_trust_amount(event: Message, state: FSMContext, **kwargs):
         except Exception:  # noqa: BLE001, S110
             pass
     else:
-        text = translate(Config.DEFAULT_LANGUAGE, "texts.trust_update_failed")
+        text = translate(lang, "texts.trust_update_failed")
     await smart_answer(event, text, reply_markup=main_menu_keyboard(), delete_origin=True)
 
 
@@ -12599,9 +12645,10 @@ async def process_trust_amount(event: Message, state: FSMContext, **kwargs):
 async def cmd_debug_normalize(event: CallbackQuery, **kwargs):
     if not await ensure_admin_access(event, silent=True):
         return
+    lang = await get_lang(event)
     await smart_answer(
         event,
-        translate(Config.DEFAULT_LANGUAGE, "texts.normalize_subscriptions_running"),
+        translate(lang, "texts.normalize_subscriptions_running"),
         delete_origin=True,
     )
     report = await normalize_all_subscriptions_with_retry()
@@ -12616,7 +12663,7 @@ async def cmd_debug_normalize(event: CallbackQuery, **kwargs):
 
     if report["all_normalized"]:
         text = translate(
-            Config.DEFAULT_LANGUAGE,
+            lang,
             "texts.normalize_all_complete",
             iterations=report["iterations"],
             expired_cleaned=report["expired_cleaned"],
@@ -12628,7 +12675,7 @@ async def cmd_debug_normalize(event: CallbackQuery, **kwargs):
         )
     else:
         text = translate(
-            Config.DEFAULT_LANGUAGE,
+            lang,
             "texts.normalize_all_incomplete",
             iterations=report["iterations"],
             total_changes=total_changes,
@@ -12648,9 +12695,10 @@ async def cmd_debug_normalize(event: CallbackQuery, **kwargs):
 async def cmd_delete_subscription_start(event: CallbackQuery, state: FSMContext, **kwargs):
     if not await ensure_admin_access(event):
         return
+    lang = await get_lang(event)
     await smart_answer(
         event,
-        translate(Config.DEFAULT_LANGUAGE, "texts.delete_subscription_confirm_prompt"),
+        translate(lang, "texts.delete_subscription_confirm_prompt"),
         reply_markup=cancel_only_keyboard(),
         delete_origin=True,
     )
@@ -12674,7 +12722,7 @@ async def process_delete_sub_user_id(event: Message, state: FSMContext, **kwargs
     await state.update_data(del_user_id=tg_id)
     await state.set_state(DeleteSubscriptionState.waiting_for_confirm)
     await event.answer(
-        translate(Config.DEFAULT_LANGUAGE, "texts.delete_subscription_confirm", user_id=tg_id),
+        translate(lang, "texts.delete_subscription_confirm", user_id=tg_id),
         reply_markup=cancel_only_keyboard(),
     )
 
@@ -12695,9 +12743,9 @@ async def process_delete_sub_confirm(event: Message, state: FSMContext, **kwargs
     await state.clear()
     result = await cleanup_subscription(uid, "admin_deleted", notify_user_about_cleanup=True)
     if result["success"]:
-        text = translate(Config.DEFAULT_LANGUAGE, "texts.delete_subscription_success", user_id=uid)
+        text = translate(lang, "texts.delete_subscription_success", user_id=uid)
     else:
-        text = translate(Config.DEFAULT_LANGUAGE, "texts.delete_subscription_fail", user_id=uid)
+        text = translate(lang, "texts.delete_subscription_fail", user_id=uid)
     await smart_answer(event, text, reply_markup=main_menu_keyboard(), delete_origin=True)
 
 
@@ -12706,9 +12754,10 @@ async def process_delete_sub_confirm(event: Message, state: FSMContext, **kwargs
 async def cmd_add_traffic_start(event: CallbackQuery, state: FSMContext, **kwargs):
     if not await ensure_admin_access(event):
         return
+    lang = await get_lang(event)
     await smart_answer(
         event,
-        translate(Config.DEFAULT_LANGUAGE, "texts.add_traffic_user_prompt"),
+        translate(lang, "texts.add_traffic_user_prompt"),
         reply_markup=cancel_only_keyboard(),
         delete_origin=True,
     )
@@ -12732,7 +12781,7 @@ async def process_add_traffic_user_id(event: Message, state: FSMContext, **kwarg
     if not normalize_sub_id(user_data.get("vpn_url")) if user_data else True:
         await event.answer(
             translate(
-                Config.DEFAULT_LANGUAGE,
+                lang,
                 "texts.add_traffic_no_subscription",
                 user_id=tg_id,
             )
@@ -12741,7 +12790,7 @@ async def process_add_traffic_user_id(event: Message, state: FSMContext, **kwarg
     await state.update_data(traffic_user_id=tg_id)
     await state.set_state(AddTrafficState.waiting_for_gb)
     await event.answer(
-        translate(Config.DEFAULT_LANGUAGE, "texts.add_traffic_gb_prompt", user_id=tg_id),
+        translate(lang, "texts.add_traffic_gb_prompt", user_id=tg_id),
         reply_markup=cancel_only_keyboard(),
     )
 
@@ -12755,11 +12804,11 @@ async def process_add_traffic_gb(event: Message, state: FSMContext, **kwargs):
         await cmd_start(event, state)
         return
     if not val.isdigit():
-        await event.answer(translate(Config.DEFAULT_LANGUAGE, "texts.add_traffic_gb_invalid"))
+        await event.answer(translate(lang, "texts.add_traffic_gb_invalid"))
         return
     gb = int(val)
     if gb <= 0:
-        await event.answer(translate(Config.DEFAULT_LANGUAGE, "texts.add_traffic_gb_positive"))
+        await event.answer(translate(lang, "texts.add_traffic_gb_positive"))
         return
     data = await state.get_data()
     uid: int = int(data.get("traffic_user_id", 0))
@@ -12768,7 +12817,7 @@ async def process_add_traffic_gb(event: Message, state: FSMContext, **kwargs):
     if uid <= 0:
         await smart_answer(
             event,
-            translate(Config.DEFAULT_LANGUAGE, "texts.add_traffic_fail", user_id=uid),
+            translate(lang, "texts.add_traffic_fail", user_id=uid),
             reply_markup=main_menu_keyboard(),
             delete_origin=True,
         )
@@ -12778,7 +12827,7 @@ async def process_add_traffic_gb(event: Message, state: FSMContext, **kwargs):
     if not user:
         await smart_answer(
             event,
-            translate(Config.DEFAULT_LANGUAGE, "texts.user_not_found"),
+            translate(lang, "texts.user_not_found"),
             reply_markup=main_menu_keyboard(),
             delete_origin=True,
         )
@@ -12790,7 +12839,7 @@ async def process_add_traffic_gb(event: Message, state: FSMContext, **kwargs):
     if not db_ok:
         await smart_answer(
             event,
-            translate(Config.DEFAULT_LANGUAGE, "texts.add_traffic_fail", user_id=uid),
+            translate(lang, "texts.add_traffic_fail", user_id=uid),
             reply_markup=main_menu_keyboard(),
             delete_origin=True,
         )
@@ -12808,10 +12857,186 @@ async def process_add_traffic_gb(event: Message, state: FSMContext, **kwargs):
         pass
 
     if panel_ok:
-        text = translate(Config.DEFAULT_LANGUAGE, "texts.add_traffic_success", user_id=uid, gb=gb)
+        text = translate(lang, "texts.add_traffic_success", user_id=uid, gb=gb)
     else:
-        text = translate(Config.DEFAULT_LANGUAGE, "texts.add_traffic_partial", user_id=uid, gb=gb)
+        text = translate(lang, "texts.add_traffic_partial", user_id=uid, gb=gb)
     await smart_answer(event, text, reply_markup=main_menu_keyboard(), delete_origin=True)
+
+
+# --- Компенсация дня (debug) ---
+@router.callback_query(F.data == "debug_compensate_days")
+async def cmd_debug_compensate_days_start(event: CallbackQuery, state: FSMContext, **kwargs):
+    if not await ensure_admin_access(event):
+        return
+    lang = await get_lang(event)
+    await smart_answer(
+        event,
+        translate(lang, "texts.compensate_days_user_prompt"),
+        reply_markup=cancel_or_active_subscribers_keyboard(lang),
+        delete_origin=True,
+    )
+    await state.set_state(CompensateDaysState.waiting_for_user_id)
+
+
+@router.message(CompensateDaysState.waiting_for_user_id)
+async def process_compensate_user_id(event: Message, state: FSMContext, **kwargs):
+    lang = await get_lang(event)
+    val = (event.text or "").strip()
+    if is_cancel_text(val, lang):
+        await state.clear()
+        await cmd_start(event, state)
+        return
+
+    if val.isdigit():
+        internal_uid, user_data = await _resolve_target_user(val, event, lang)
+        if internal_uid is None:
+            return
+        tg_id = user_data.get("telegram_id", 0) if user_data else 0
+        await state.update_data(compensate_user_id=tg_id)
+        await state.set_state(CompensateDaysState.waiting_for_days)
+        await event.answer(
+            translate(lang, "texts.compensate_days_prompt", user_id=tg_id),
+            reply_markup=cancel_only_keyboard(),
+        )
+
+
+@router.message(CompensateDaysState.waiting_for_days)
+async def process_compensate_days(event: Message, state: FSMContext, **kwargs):
+    lang = await get_lang(event)
+    val = (event.text or "").strip()
+    if is_cancel_text(val, lang):
+        await state.clear()
+        await cmd_start(event, state)
+        return
+    if not val.isdigit():
+        await event.answer(translate(lang, "texts.compensate_days_invalid"))
+        return
+    days = int(val)
+    if days <= 0:
+        await event.answer(translate(lang, "texts.compensate_days_positive"))
+        return
+    data = await state.get_data()
+    await state.clear()
+
+    is_bulk = data.get("compensate_all_active", False)
+    if is_bulk:
+        uid_list = data.get("compensate_user_ids", [])
+        processed = 0
+        notified = 0
+        for tg_id in uid_list:
+            user = await db.get_user_by_any_id(tg_id)
+            if not user:
+                continue
+            if not await db.add_bonus_days_pending(tg_id, days):
+                continue
+            processed += 1
+            try:
+                await notify_user(
+                    tg_id,
+                    translate(
+                        await get_user_language(tg_id),
+                        "texts.compensate_days_notification",
+                        days=days,
+                    ),
+                )
+                notified += 1
+            except Exception:  # noqa: BLE001, S110
+                pass
+
+        report = await normalize_all_subscriptions_with_retry()
+        total_changes = (
+            report["expired_cleaned"]
+            + report["traffic_exceeded_cleaned"]
+            + report["missing_recovered"]
+            + report["servers_normalized"]
+            + report["subscriptions_updated"]
+        )
+
+        text = translate(
+            lang,
+            "texts.compensate_days_bulk_success",
+            days=days,
+            processed=processed,
+            notified=notified,
+            total_changes=total_changes,
+        )
+        await smart_answer(event, text, reply_markup=main_menu_keyboard(), delete_origin=True)
+    else:
+        uid: int = int(data.get("compensate_user_id", 0))
+        if uid <= 0:
+            await smart_answer(
+                event,
+                translate(lang, "texts.compensate_days_fail", user_id=uid),
+                reply_markup=main_menu_keyboard(),
+                delete_origin=True,
+            )
+            return
+
+        user = await db.get_user_by_any_id(uid)
+        if not user:
+            await smart_answer(
+                event,
+                translate(lang, "texts.user_not_found"),
+                reply_markup=main_menu_keyboard(),
+                delete_origin=True,
+            )
+            return
+
+        db_ok = await db.add_bonus_days_pending(uid, days)
+        if not db_ok:
+            await smart_answer(
+                event,
+                translate(lang, "texts.compensate_days_fail", user_id=uid),
+                reply_markup=main_menu_keyboard(),
+                delete_origin=True,
+            )
+            return
+
+        report = await normalize_all_subscriptions_with_retry()
+        total_changes = (
+            report["expired_cleaned"]
+            + report["traffic_exceeded_cleaned"]
+            + report["missing_recovered"]
+            + report["servers_normalized"]
+            + report["subscriptions_updated"]
+        )
+
+        try:
+            await notify_user(
+                uid,
+                translate(
+                    await get_user_language(uid),
+                    "texts.compensate_days_notification",
+                    days=days,
+                ),
+            )
+        except Exception:  # noqa: BLE001, S110
+            pass
+
+        text = translate(
+            lang,
+            "texts.compensate_days_success",
+            user_id=uid,
+            days=days,
+            total_changes=total_changes,
+        )
+        await smart_answer(event, text, reply_markup=main_menu_keyboard(), delete_origin=True)
+
+
+@router.callback_query(F.data == "compensate_active_subscribers")
+async def cmd_compensate_active_subscribers(event: CallbackQuery, state: FSMContext, **kwargs):
+    if not await ensure_admin_access(event):
+        return
+    lang = await get_lang(event)
+    active_subs = await db.get_subscribed_user_ids()
+    await state.update_data(compensate_all_active=True, compensate_user_ids=active_subs)
+    await smart_answer(
+        event,
+        translate(lang, "texts.compensate_days_bulk_prompt", count=len(active_subs)),
+        reply_markup=cancel_only_keyboard(),
+        delete_origin=True,
+    )
+    await state.set_state(CompensateDaysState.waiting_for_days)
 
 
 # --- Смена логина (debug) ---
@@ -12820,9 +13045,10 @@ async def cmd_debug_change_username(event: CallbackQuery, state: FSMContext, **k
     if not await ensure_admin_access(event):
         return
     await state.set_state(ChangeUsernameState.waiting_for_user_id)
+    lang = await get_lang(event)
     await smart_answer(
         event,
-        translate(Config.DEFAULT_LANGUAGE, "texts.change_username_prompt"),
+        translate(lang, "texts.change_username_prompt"),
         reply_markup=cancel_only_keyboard(),
         delete_origin=True,
     )
@@ -12837,7 +13063,7 @@ async def process_change_username_user_id(event: Message, state: FSMContext, **k
         await cmd_start(event, state)
         return
     if not val.isdigit():
-        await event.answer(translate(Config.DEFAULT_LANGUAGE, "texts.invalid_user_id_number"))
+        await event.answer(translate(lang, "texts.invalid_user_id_number"))
         return
     internal_uid = int(val)
     if not await _validate_admin_target_by_user_id(internal_uid, event, lang):
@@ -12846,7 +13072,7 @@ async def process_change_username_user_id(event: Message, state: FSMContext, **k
     await state.set_state(ChangeUsernameState.waiting_for_new_username)
     await event.answer(
         translate(
-            Config.DEFAULT_LANGUAGE,
+            lang,
             "texts.change_username_new_prompt",
             user_id=internal_uid,
         ),
@@ -12863,7 +13089,7 @@ async def process_change_username_new(event: Message, state: FSMContext, **kwarg
         await cmd_start(event, state)
         return
     if not re.match(r"^[a-zA-Z0-9_]{3,32}$", val):
-        await event.answer(translate(Config.DEFAULT_LANGUAGE, "texts.change_username_invalid"))
+        await event.answer(translate(lang, "texts.change_username_invalid"))
         return
     data = await state.get_data()
     uid = data.get("change_username_uid", 0)
@@ -12874,7 +13100,7 @@ async def process_change_username_new(event: Message, state: FSMContext, **kwarg
             await smart_answer(
                 event,
                 translate(
-                    Config.DEFAULT_LANGUAGE,
+                    lang,
                     "texts.change_username_success",
                     user_id=uid,
                     new_username=val,
@@ -12885,7 +13111,7 @@ async def process_change_username_new(event: Message, state: FSMContext, **kwarg
         else:
             await smart_answer(
                 event,
-                translate(Config.DEFAULT_LANGUAGE, "texts.change_username_fail"),
+                translate(lang, "texts.change_username_fail"),
                 reply_markup=main_menu_keyboard(),
                 delete_origin=True,
             )
@@ -12893,7 +13119,7 @@ async def process_change_username_new(event: Message, state: FSMContext, **kwarg
         logger.error(f"change_username error: {e}")
         await smart_answer(
             event,
-            translate(Config.DEFAULT_LANGUAGE, "texts.change_username_fail"),
+            translate(lang, "texts.change_username_fail"),
             reply_markup=main_menu_keyboard(),
             delete_origin=True,
         )
@@ -12905,9 +13131,10 @@ async def cmd_debug_change_password(event: CallbackQuery, state: FSMContext, **k
     if not await ensure_admin_access(event):
         return
     await state.set_state(ChangePasswordState.waiting_for_user_id)
+    lang = await get_lang(event)
     await smart_answer(
         event,
-        translate(Config.DEFAULT_LANGUAGE, "texts.change_password_prompt"),
+        translate(lang, "texts.change_password_prompt"),
         reply_markup=cancel_only_keyboard(),
         delete_origin=True,
     )
@@ -12922,7 +13149,7 @@ async def process_change_password_user_id(event: Message, state: FSMContext, **k
         await cmd_start(event, state)
         return
     if not val.isdigit():
-        await event.answer(translate(Config.DEFAULT_LANGUAGE, "texts.invalid_user_id_number"))
+        await event.answer(translate(lang, "texts.invalid_user_id_number"))
         return
     internal_uid = int(val)
     if not await _validate_admin_target_by_user_id(internal_uid, event, lang):
@@ -12931,7 +13158,7 @@ async def process_change_password_user_id(event: Message, state: FSMContext, **k
     await state.set_state(ChangePasswordState.waiting_for_new_password)
     await event.answer(
         translate(
-            Config.DEFAULT_LANGUAGE,
+            lang,
             "texts.change_password_new_prompt",
             user_id=internal_uid,
         ),
@@ -12950,7 +13177,7 @@ async def process_change_password_new(event: Message, state: FSMContext, **kwarg
     if len(val) < Config.PASSWORD_MIN_LENGTH:
         await event.answer(
             translate(
-                Config.DEFAULT_LANGUAGE,
+                lang,
                 "texts.change_password_invalid",
                 min_length=Config.PASSWORD_MIN_LENGTH,
             )
@@ -12966,7 +13193,7 @@ async def process_change_password_new(event: Message, state: FSMContext, **kwarg
             await smart_answer(
                 event,
                 translate(
-                    Config.DEFAULT_LANGUAGE,
+                    lang,
                     "texts.change_password_success",
                     user_id=uid,
                 ),
@@ -12976,7 +13203,7 @@ async def process_change_password_new(event: Message, state: FSMContext, **kwarg
         else:
             await smart_answer(
                 event,
-                translate(Config.DEFAULT_LANGUAGE, "texts.change_password_fail"),
+                translate(lang, "texts.change_password_fail"),
                 reply_markup=main_menu_keyboard(),
                 delete_origin=True,
             )
@@ -12984,7 +13211,7 @@ async def process_change_password_new(event: Message, state: FSMContext, **kwarg
         logger.error(f"change_password error: {e}")
         await smart_answer(
             event,
-            translate(Config.DEFAULT_LANGUAGE, "texts.change_password_fail"),
+            translate(lang, "texts.change_password_fail"),
             reply_markup=main_menu_keyboard(),
             delete_origin=True,
         )

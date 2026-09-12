@@ -117,6 +117,7 @@ export default function ClientPage() {
                     gap: '12px',
                   }}
                 >
+                {subLink?.vpn_url && (
                   <div
                     style={{
                       padding: '12px',
@@ -139,6 +140,8 @@ export default function ClientPage() {
                       {copied === 'vpn' ? t('buttons.copied') : t('buttons.copy')}
                     </button>
                   </div>
+                )}
+                {subLink?.json_vpn_url && (
                   <div
                     style={{
                       padding: '12px',
@@ -161,10 +164,11 @@ export default function ClientPage() {
                       {copied === 'json' ? t('buttons.copied') : t('buttons.copy')}
                     </button>
                   </div>
-                </div>
+                )}
               </div>
             </div>
-          )}
+          </div>
+        )}
 
           <div className="pinned-section fade-in delay-1">
             <h2>{t('texts.recommended_apps')}</h2>

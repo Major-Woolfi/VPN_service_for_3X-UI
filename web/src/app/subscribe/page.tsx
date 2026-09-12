@@ -531,19 +531,19 @@ export default function SubscribePage() {
                         <label style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>
                           {t('texts.traffic')}
                         </label>
-                        <div className="number-input-wrapper">
-                          <button type="button" className="number-btn" onClick={() => { setCustomTraffic(Math.max(1, customTraffic - 1)); setCustomPrice(null); }}>−</button>
+                          <div className="number-input-wrapper">
+                          <button type="button" className="number-btn" onClick={() => { setCustomTraffic(Math.max(customTariffParams?.min_gb || 1, customTraffic - 1)); setCustomPrice(null); }}>-</button>
                           <input
                             type="number"
-                            min={1}
-                            max={1000}
+                            min={customTariffParams?.min_gb || 1}
+                            max={customTariffParams?.max_gb || 1000}
                             value={customTraffic}
                             onChange={(e) => {
                               setCustomTraffic(parseInt(e.target.value) || 1);
                               setCustomPrice(null);
                             }}
                           />
-                          <button type="button" className="number-btn" onClick={() => { setCustomTraffic(Math.min(1000, customTraffic + 1)); setCustomPrice(null); }}>+</button>
+                          <button type="button" className="number-btn" onClick={() => { setCustomTraffic(Math.min(customTariffParams?.max_gb || 1000, customTraffic + 1)); setCustomPrice(null); }}>+</button>
                         </div>
                       </div>
                       <div style={{ flex: 1, minWidth: '120px' }}>
@@ -551,18 +551,18 @@ export default function SubscribePage() {
                           {t('texts.ips')}
                         </label>
                         <div className="number-input-wrapper">
-                          <button type="button" className="number-btn" onClick={() => { setCustomIp(Math.max(1, customIp - 1)); setCustomPrice(null); }}>−</button>
+                          <button type="button" className="number-btn" onClick={() => { setCustomIp(Math.max(customTariffParams?.min_ip || 1, customIp - 1)); setCustomPrice(null); }}>-</button>
                           <input
                             type="number"
-                            min={1}
-                            max={10}
+                            min={customTariffParams?.min_ip || 1}
+                            max={customTariffParams?.max_ip || 15}
                             value={customIp}
                             onChange={(e) => {
                               setCustomIp(parseInt(e.target.value) || 1);
                               setCustomPrice(null);
                             }}
                           />
-                          <button type="button" className="number-btn" onClick={() => { setCustomIp(Math.min(10, customIp + 1)); setCustomPrice(null); }}>+</button>
+                          <button type="button" className="number-btn" onClick={() => { setCustomIp(Math.min(customTariffParams?.max_ip || 15, customIp + 1)); setCustomPrice(null); }}>+</button>
                         </div>
                       </div>
                       <div style={{ flex: 1, minWidth: '120px' }}>
@@ -570,18 +570,18 @@ export default function SubscribePage() {
                           {t('texts.days')}
                         </label>
                         <div className="number-input-wrapper">
-                          <button type="button" className="number-btn" onClick={() => { setCustomDays(Math.max(1, customDays - 1)); setCustomPrice(null); }}>−</button>
+                          <button type="button" className="number-btn" onClick={() => { setCustomDays(Math.max(customTariffParams?.min_days || 1, customDays - 1)); setCustomPrice(null); }}>-</button>
                           <input
                             type="number"
-                            min={1}
-                            max={365}
+                            min={customTariffParams?.min_days || 1}
+                            max={customTariffParams?.max_days || 365}
                             value={customDays}
                             onChange={(e) => {
                               setCustomDays(parseInt(e.target.value) || 1);
                               setCustomPrice(null);
                             }}
                           />
-                          <button type="button" className="number-btn" onClick={() => { setCustomDays(Math.min(365, customDays + 1)); setCustomPrice(null); }}>+</button>
+                          <button type="button" className="number-btn" onClick={() => { setCustomDays(Math.min(customTariffParams?.max_days || 365, customDays + 1)); setCustomPrice(null); }}>+</button>
                         </div>
                       </div>
                       </div>
