@@ -12,3 +12,6 @@ web/node_modules/
 web/next-env.d.ts
 web/*.tsbuildinfo
 web/.env
+
+support/
+Support-Roadmap.md

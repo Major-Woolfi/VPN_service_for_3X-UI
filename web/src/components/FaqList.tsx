@@ -10,10 +10,16 @@ export default function FaqList() {
 
   const allFaq = useMemo(() => {
     const items: { id: number; question: string; answer: string; category: string }[] = [];
+    const categoryMap: Record<number, string> = {
+      13: 'texts.qa_category_5',
+      14: 'texts.qa_category_1',
+      15: 'texts.qa_category_1',
+    };
     for (let i = 1; i <= 15; i++) {
       const question = t(`texts.qa_question_${i}`);
       const answer = t(`texts.qa_answer_${i}`);
-      const category = t(`texts.qa_category_${i}`);
+      const categoryKey = categoryMap[i] || `texts.qa_category_${i}`;
+      const category = t(categoryKey);
       if (question && answer && question !== `texts.qa_question_${i}` && answer !== `texts.qa_answer_${i}`) {
         items.push({ id: i, question, answer, category });
       }
@@ -43,6 +49,9 @@ export default function FaqList() {
       const arr = map.get(item.category) || [];
       arr.push(item);
       map.set(item.category, arr);
+    }
+    for (const arr of map.values()) {
+      arr.sort((a, b) => a.id - b.id);
     }
     return map;
   }, [filtered]);
@@ -82,7 +91,7 @@ export default function FaqList() {
           return (
             <div key={category}>
               <h3>{category}</h3>
-              {items.map((item) => {
+              {items.map((item, index) => {
                 const isOpen = openId === item.id;
                 return (
                   <section key={item.id} className={`faq-item${isOpen ? ' open' : ''}`}>
@@ -94,7 +103,7 @@ export default function FaqList() {
                       onClick={() => toggle(item.id)}
                     >
                       <span>
-                        {item.id}. {item.question}
+                        {index + 1}. {item.question}
                       </span>
                     </button>
                       <div className="faq-answer-wrapper">

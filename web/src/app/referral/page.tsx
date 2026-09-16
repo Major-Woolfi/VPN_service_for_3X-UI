@@ -120,9 +120,7 @@ export default function ReferralPage() {
                       wordBreak: 'break-all',
                     }}
                   >
-                    {tgBotUsername
-                      ? `https://t.me/${tgBotUsername}?start=${stats.ref_code}`
-                      : t('texts.referral_link_unavailable')}
+                    {stats?.ref_link || (tgBotUsername ? `https://t.me/${tgBotUsername}?start=${stats?.ref_code || ''}` : t('texts.referral_link_unavailable'))}
                   </div>
                   <button onClick={handleCopy} className="button" style={{ whiteSpace: 'nowrap' }}>
                     {copied ? t('buttons.copied') : t('buttons.referral_copy')}

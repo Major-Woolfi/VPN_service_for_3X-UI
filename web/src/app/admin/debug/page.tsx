@@ -185,13 +185,13 @@ export default function AdminDebugPage() {
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
                       <thead>
                         <tr style={{ borderBottom: '2px solid var(--border-color)' }}>
-                          <th style={{ padding: '12px', textAlign: 'left' }}>{t('texts.admin_user_uid')}</th>
+                          <th style={{ padding: '12px', textAlign: 'left' }}>{t('texts.user_id')}</th>
                           <th style={{ padding: '12px', textAlign: 'left' }}>{t('texts.admin_user_username')}</th>
-                          <th style={{ padding: '12px', textAlign: 'left' }}>{t('texts.admin_user_telegram_id')}</th>
-                          <th style={{ padding: '12px', textAlign: 'left' }}>{t('texts.admin_user_login')}</th>
+                          <th style={{ padding: '12px', textAlign: 'left' }}>{t('texts.telegram_id_label')}</th>
+                          <th style={{ padding: '12px', textAlign: 'left' }}>{t('texts.username')}</th>
                           <th style={{ padding: '12px', textAlign: 'left' }}>{t('texts.admin_user_vpn_url')}</th>
                           <th style={{ padding: '12px', textAlign: 'left' }}>{t('texts.admin_user_trust')}</th>
-                          <th style={{ padding: '12px', textAlign: 'left' }}>{t('texts.admin_user_banned')}</th>
+                          <th style={{ padding: '12px', textAlign: 'left' }}>{t('texts.banned')}</th>
                         </tr>
                       </thead>
                       <tbody>

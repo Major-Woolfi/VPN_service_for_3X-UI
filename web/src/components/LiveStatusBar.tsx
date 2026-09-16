@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { API_BASE_URL, HEALTH_POLL_INTERVAL_MS } from '@/lib/api';
+import { API_BASE_URL, HEALTH_POLL_INTERVAL_MS, REQUEST_TIMEOUT_MS } from '@/lib/api';
 
 type Health = { status: string; version: string } | null;
 
@@ -17,8 +17,11 @@ export default function LiveStatusBar() {
     let cancelled = false;
 
     const check = async () => {
-      const aborter = new AbortController();
+      let aborter: AbortController | undefined;
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
       try {
+        aborter = new AbortController();
+        timeoutId = setTimeout(() => aborter!.abort(), REQUEST_TIMEOUT_MS);
         const res = await fetch(`${API_BASE_URL}/health`, { cache: 'no-store', signal: aborter.signal });
         if (!res.ok) throw new Error(t('texts.api_offline'));
         const data = (await res.json()) as Health;
@@ -27,10 +30,17 @@ export default function LiveStatusBar() {
           setOnline(true);
           setLastUpdate(new Date());
         }
-      } catch {
+      } catch (err) {
         if (!cancelled) {
           setOnline(false);
         }
+        if (aborter?.signal.aborted) {
+          console.error('[LiveStatusCode] health check timeout');
+        } else {
+          console.error('[LiveStatusCode] health check error:', err);
+        }
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
       }
     };
 

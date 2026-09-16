@@ -2,6 +2,7 @@
 
 import Header from '@/components/Header';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,6 +18,7 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const refCode = (useSearchParams()?.get('ref')) || '';
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -46,7 +48,7 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      const session = await registerUser({ username: sanitizedUsername, password });
+      const session = await registerUser({ username: sanitizedUsername, password, ref_code: refCode || undefined });
       if (session) {
         const userData = await login();
         if (userData) {
@@ -107,14 +109,14 @@ export default function RegisterPage() {
                     required
                   />
                   <button type="submit" className="button w-full" disabled={loading}>
-                    {loading ? t('texts.waiting') : t('texts.register_link')}
+                    {loading ? t('texts.waiting') : t('buttons.register')}
                   </button>
                 </form>
 
                 <p className="text-center text-secondary text-sm">
                   {t('texts.have_account')}{' '}
                   <Link href="/login" className="font-semibold">
-                    {t('texts.login_link')}
+                    {t('buttons.login')}
                   </Link>
                 </p>
               </div>

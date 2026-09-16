@@ -111,7 +111,7 @@ export function t(key: string, params?: Record<string, string | number>): string
 
 export function tHtml(key: string, params?: Record<string, string | number>): string {
   const text = t(key, params);
-  return text.replace(/\n/g, '<br>');
+  return text.replace(/\r?\n/g, '<br>');
 }
 
 export function getLanguageDisplayName(code: string): string {

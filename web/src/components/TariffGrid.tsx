@@ -75,7 +75,7 @@ export default function TariffGrid({ tariffs, onSelect }: { tariffs: Tariff[]; o
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontWeight: 600, fontSize: '16px' }}>{tariff.name}</div>
                 <div className="text-secondary" style={{ fontSize: '13px', marginTop: '4px' }}>
-                  {t('texts.traffic_gb', { value: tariff.traffic_gb })} · {tariff.ip_limit} {t('texts.ip_label')} · {t('texts.duration_days', { days: tariff.duration_days })}
+                  {tariff.traffic_gb === 0 ? t('texts.unlimited') : t('texts.traffic_gb', { value: tariff.traffic_gb })} · {tariff.ip_limit} {t('texts.ip_label')} · {t('texts.duration_days', { days: tariff.duration_days })}
                 </div>
                 {tariff.locations.length > 0 && (
                   <div className="text-secondary" style={{ fontSize: '13px', marginTop: '4px' }}>

@@ -678,7 +678,7 @@ export default function SubscribePage() {
                     <p className="text-secondary" style={{ fontSize: '14px', marginTop: '8px' }}>
                       {selectedTariff.price_rub} ₽ ·{' '}
                       {t('texts.duration_days', { days: selectedTariff.duration_days })} ·{' '}
-                      {t('texts.traffic_gb', { value: selectedTariff.traffic_gb })} ·{' '}
+                      {selectedTariff.traffic_gb === 0 ? t('texts.unlimited') : t('texts.traffic_gb', { value: selectedTariff.traffic_gb })} ·{' '}
                       {selectedTariff.ip_limit} {t('texts.ips')}
                     </p>
                   </div>

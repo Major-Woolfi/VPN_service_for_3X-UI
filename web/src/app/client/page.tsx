@@ -29,8 +29,9 @@ export default function ClientPage() {
       try {
         const link = await getSubscriptionLink();
         setSubLink(link);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : t('texts.error'));
+      } catch {
+        router.replace('/profile');
+        return;
       } finally {
         setLoading(false);
       }
@@ -256,7 +257,7 @@ export default function ClientPage() {
                 {t('texts.need_help_text')}{' '}
                 {supportUrl ? (
                   <a href={supportUrl} target="_blank" rel="noopener noreferrer">
-                    {t('buttons.support')}
+                    {t('buttons.contact_support')}
                   </a>
                 ) : (
                   t('texts.support_unavailable')

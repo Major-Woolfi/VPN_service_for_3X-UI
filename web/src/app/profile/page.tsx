@@ -79,7 +79,7 @@ export default function ProfilePage() {
   const expiryDate = sub?.expiry_sub_datatime || '';
   const formattedExpiry = expiryDate ? new Date(expiryDate).toLocaleDateString(lang) : '-';
   const planText = isAdminSub ? t('texts.admin_plan') : (sub?.plan_text || '-');
-  const displayTrafficTotal = isAdminSub ? t('texts.unlimited') : t('texts.traffic_gb', { value: trafficTotal });
+  const displayTrafficTotal = isAdminSub || trafficTotal === 0 ? t('texts.unlimited') : t('texts.traffic_gb', { value: trafficTotal });
   const displayIps = isAdminSub ? t('texts.unlimited') : (sub?.ip_limit || 0);
 
   const initials = user?.username?.charAt(0).toUpperCase() || '?';
@@ -166,9 +166,11 @@ export default function ProfilePage() {
                     <div style={{ height: '24px', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
                       <div style={{ height: '100%', width: `${trafficPercent}%`, background: trafficPercent > 80 ? 'var(--danger)' : 'linear-gradient(90deg, var(--accent), var(--accent-hover))', borderRadius: 'var(--radius-sm)', transition: 'width 0.3s ease' }} />
                     </div>
-                    <p style={{ marginTop: '8px', fontSize: '14px', color: 'var(--text-secondary)' }}>
-                      {t('texts.traffic_used', { percent: trafficPercent, total: trafficTotal })}
-                    </p>
+                      <p style={{ marginTop: '8px', fontSize: '14px', color: 'var(--text-secondary)' }}>
+                        {trafficTotal === 0
+                          ? t('texts.unlimited')
+                          : t('texts.traffic_used', { percent: trafficPercent, total: trafficTotal })}
+                      </p>
                   </div>
                 </div>
               </div>
@@ -218,6 +220,17 @@ export default function ProfilePage() {
                       <div style={{ padding: '12px', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)', fontFamily: 'monospace', fontSize: '14px', wordBreak: 'break-all' }}>
                         {user.partner_subscription.json_url}
                       </div>
+                      {(() => {
+                        const pUsed = user.partner_subscription?.used_gb ?? 0;
+                        const pTotal = user.partner_subscription?.traffic_gb ?? 0;
+                        const pDisplayTotal = pTotal === 0 ? t('texts.unlimited') : t('texts.traffic_gb', { value: pTotal });
+                        return (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+                            <span style={{ color: 'var(--text-secondary)' }}>{t('texts.traffic')}</span>
+                            <span>{t('texts.traffic_gb', { value: pUsed })} / {pDisplayTotal}</span>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>

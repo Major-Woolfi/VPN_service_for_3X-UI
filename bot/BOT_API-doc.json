@@ -546,10 +546,10 @@
             "description": "Partner subscription ID (named, equals nickname)",
             "type": "string"
           },
-          "ref_link_code": {
-            "description": "Referral link code (mate_{nickname})",
-            "type": "string"
-          },
+"ref_link_code": {
+                      "description": "Partner referral link code (same as user referral code)",
+                      "type": "string"
+                    },
           "ref_link": {
             "description": "Full referral link",
             "type": "string"
@@ -1345,29 +1345,6 @@
           },
           "409": {
             "description": "Telegram already linked to another account"
-          }
-        }
-      }
-    },
-    "/api/v1/auth/telegram/unlink": {
-      "post": {
-        "tags": [
-          "Auth"
-        ],
-        "summary": "Unlink Telegram account",
-        "description": "Unlink the Telegram user ID from the current web account.",
-        "operationId": "unlink_telegram",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Telegram unlinked"
-          },
-          "401": {
-            "description": "Unauthorized"
           }
         }
       }
@@ -2770,7 +2747,7 @@
           "Partners"
         ],
         "summary": "Partner profile",
-        "description": "Get partner account information: balance, commission, status, referrals.",
+        "description": "Get partner account information: balance, commission, referrals, referral code and referral link.",
         "operationId": "get_partner_profile",
         "security": [
           {
@@ -2779,14 +2756,55 @@
         ],
         "responses": {
           "200": {
-            "description": "Partner profile",
+            "description": "Partner profile data",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "partner": {
-                      "$ref": "#/components/schemas/PartnerProfile"
+                    "balance": {
+                      "description": "Current partner balance",
+                      "type": "number"
+                    },
+                    "commission_total": {
+                      "description": "Total commission earned",
+                      "type": "number"
+                    },
+                    "referrals_count": {
+                      "description": "Total referrals",
+                      "type": "integer"
+                    },
+                    "referrals_paid": {
+                      "description": "Paying referrals",
+                      "type": "integer"
+                    },
+                    "conversion_rate": {
+                      "description": "Conversion rate (paid/total * 100)",
+                      "type": "number"
+                    },
+                    "avg_commission_per_paid": {
+                      "description": "Average commission per paying referral",
+                      "type": "number"
+                    },
+                    "period_months": {
+                      "description": "Partner period in months",
+                      "type": "integer"
+                    },
+                    "subscription_id": {
+                      "description": "Partner subscription ID",
+                      "type": "string"
+                    },
+                    "expiry": {
+                      "description": "Partner status expiry date (DD.MM.YYYY)",
+                      "type": "string"
+                    },
+                    "ref_link_code": {
+                      "description": "Partner referral link code (same as user referral code)",
+                      "type": "string"
+                    },
+                    "ref_link": {
+                      "description": "Full partner referral link",
+                      "type": "string"
                     }
                   }
                 }
@@ -2795,6 +2813,9 @@
           },
           "401": {
             "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Not a partner"
           }
         }
       }
@@ -2805,7 +2826,7 @@
           "Partners"
         ],
         "summary": "Apply for partnership",
-        "description": "Submit an application to join the partner program. Requires authentication. Nickname must contain only English letters, digits and _. Referral link format: t.me/bot?start=mate_{nickname}.",
+        "description": "Submit an application to join the partner program. Requires authentication. Nickname must contain only English letters, digits and _. Partner referral link uses the same code as the user referral link (t.me/bot?start={ref_code}).",
         "operationId": "apply_partner",
         "security": [
           {
@@ -3003,7 +3024,7 @@
           "Referrals"
         ],
         "summary": "Referral statistics",
-        "description": "Referral program statistics: total referrals, paying referrals, bonuses.",
+        "description": "Referral program statistics: total referrals, paying referrals, referral link.",
         "operationId": "get_referrals_stats",
         "security": [
           {
@@ -3018,23 +3039,33 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "total_referrals": {
-                      "type": "integer"
-                    },
-                    "paid_referrals": {
-                      "type": "integer"
-                    },
                     "ref_code": {
+                      "description": "User referral code",
                       "type": "string"
                     },
-                    "bonus_days_earned": {
+                    "ref_link": {
+                      "description": "Full referral link (t.me/bot?start=code)",
+                      "type": "string"
+                    },
+                    "total_refs": {
+                      "description": "Total number of referrals",
                       "type": "integer"
                     },
-                    "referral_list": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/ReferralRecord"
-                      }
+                    "paid_refs": {
+                      "description": "Number of paying referrals",
+                      "type": "integer"
+                    },
+                    "unpaid_refs": {
+                      "description": "Number of unpaid referrals",
+                      "type": "integer"
+                    },
+                    "conversion_rate": {
+                      "description": "Conversion rate (paid/total * 100)",
+                      "type": "number"
+                    },
+                    "bonus_days_per_paid": {
+                      "description": "Bonus days earned per paying referral",
+                      "type": "integer"
                     }
                   }
                 }

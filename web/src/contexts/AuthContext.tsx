@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import type { SanitizedUser } from '@/lib/types';
 import { getMe, logoutUser, clearStoredToken } from '@/lib/api';
@@ -30,6 +30,23 @@ function clearStoredUser() {
   }
 }
 
+function clearSessionCookie() {
+  try {
+    const cookies = document.cookie.split(';');
+    for (const cookie of cookies) {
+      const eqIdx = cookie.indexOf('=');
+      const name = eqIdx > -1 ? cookie.substring(0, eqIdx).trim() : cookie.trim();
+      if (name) {
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax`;
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Strict`;
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/`;
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
+
 async function clearAuthSession() {
   try {
     const { logoutUser } = await import('@/lib/api');
@@ -38,6 +55,8 @@ async function clearAuthSession() {
     // ignore
   }
   clearStoredUser();
+  clearStoredToken();
+  clearSessionCookie();
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -46,10 +65,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isBanned, setIsBanned] = useState(false);
   const [banReason, setBanReason] = useState('');
+  const authLostRef = useRef(false);
+
+  const redirectToLogin = useCallback(() => {
+    if (authLostRef.current) return;
+    authLostRef.current = true;
+    try {
+      sessionStorage.setItem('auth_lost', '1');
+    } catch {
+      // ignore
+    }
+    router.replace('/login');
+  }, [router]);
 
   const loadUser = useCallback(async (): Promise<SanitizedUser | null> => {
     try {
       const userData = await getMe();
+      authLostRef.current = false;
       setUser(userData);
       try {
         localStorage.setItem(USER_KEY, JSON.stringify(userData));
@@ -76,19 +108,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setBanReason(message);
         clearStoredUser();
         clearStoredToken();
+        clearSessionCookie();
         setUser(null);
-        router.replace('/banned');
+        redirectToLogin();
       } else if (isAuthError) {
         clearStoredUser();
         clearStoredToken();
+        clearSessionCookie();
         setUser(null);
+        redirectToLogin();
       }
       return null;
     }
-  }, [router]);
+  }, [redirectToLogin]);
 
   useEffect(() => {
     const init = async () => {
+      try {
+        const lost = sessionStorage.getItem('auth_lost');
+        if (lost === '1') {
+          sessionStorage.removeItem('auth_lost');
+          redirectToLogin();
+          setLoading(false);
+          return;
+        }
+      } catch {
+        // ignore
+      }
       let cached: SanitizedUser | null = null;
       try {
         const stored = localStorage.getItem(USER_KEY);
@@ -103,7 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     };
     init();
-  }, [loadUser]);
+  }, [loadUser, redirectToLogin]);
 
   const login = useCallback(async (): Promise<SanitizedUser | null> => {
     return loadUser();
@@ -127,6 +173,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const userData = await getMe();
         if (userData && !cancelled) {
+          authLostRef.current = false;
           setUser(userData);
           try {
             localStorage.setItem(USER_KEY, JSON.stringify(userData));
@@ -142,10 +189,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const message = error instanceof Error ? error.message : '';
         if (
           message.toLowerCase().includes('unauthorized') ||
-          message.toLowerCase().includes('invalid session')
+          message.toLowerCase().includes('invalid session') ||
+          message.includes('401')
         ) {
           clearStoredUser();
+          clearStoredToken();
+          clearSessionCookie();
           setUser(null);
+          redirectToLogin();
         }
       }
     }, TOKEN_REFRESH_INTERVAL);
@@ -155,6 +206,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const userData = await getMe();
         if (userData && !cancelled) {
+          authLostRef.current = false;
           setUser(userData);
           try {
             localStorage.setItem(USER_KEY, JSON.stringify(userData));
@@ -176,7 +228,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, []);
+  }, [redirectToLogin]);
 
   const refreshUser = useCallback(async (): Promise<SanitizedUser | null> => {
     const userData = await loadUser();

@@ -353,7 +353,7 @@ export default function PartnerPage() {
                         <p style={{ marginTop: '16px', color: 'var(--danger)' }}>
                           {t('texts.partner_requires_telegram')}{' '}
                            <Link href="/settings" style={{ color: 'var(--accent)' }}>
-                             {t('texts.settings_link_telegram')}
+                             {t('buttons.link_telegram')}
                            </Link>
                         </p>
                       )}
@@ -426,7 +426,7 @@ export default function PartnerPage() {
                           value={bonusValue}
                           onChange={(e) => setBonusValue(e.target.value)}
                           placeholder={bonusType === 'days'
-                            ? t('texts.partner_bonus_placeholder', { min: publicInfo?.bonus_days_min || 0, max: publicInfo?.bonus_days_max || 0 })
+                            ? t('texts.partner_trust_placeholder', { min: publicInfo?.bonus_days_min || 0, max: publicInfo?.bonus_days_max || 0 })
                             : t('texts.partner_trust_placeholder', { min: publicInfo?.trust_points_min || 0, max: publicInfo?.trust_points_max || 0 })
                           }
                           required
@@ -505,18 +505,22 @@ export default function PartnerPage() {
                       borderBottom: '1px solid var(--border-color)',
                     }}
                   >
-                    <span style={{ color: 'var(--text-secondary)' }}>{t('texts.partner_status')}</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>{t('texts.status')}</span>
                     <span
                       style={{
                         color: profile.status === 'active' ? 'var(--success)' : 'var(--warning)',
                       }}
                     >
-                       {profile.status === 'active' ? t('texts.status_active') : t('texts.status_pending')}
+                       {profile.status === 'active' ? t('texts.status_active') : t('texts.pending')}
                     </span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>{t('texts.balance')}</span>
-                      <span>{profile.balance} {t('texts.currency_rub')}</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>{t('texts.referral_link')}</span>
+                    {profile?.ref_link ? (
+                      <a href={profile.ref_link} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', wordBreak: 'break-all' }}>{profile.ref_link}</a>
+                    ) : (
+                      <span style={{ color: 'var(--text-secondary)' }}>{profile?.ref_link_code || t('texts.not_specified')}</span>
+                    )}
                   </div>
                 </div>
               </div>

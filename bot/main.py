@@ -425,7 +425,6 @@ class Config:
     VPN_NAME: str = os.getenv("VPN_NAME", "VPN").strip()
 
     DEFAULT_LANGUAGE: str = os.getenv("DEFAULT_LANGUAGE", "ru").strip().lower()
-    DEFAULT_LANGUAGE_NAME: str = os.getenv("DEFAULT_LANGUAGE_NAME", "Русский").strip()
 
     BOT_TOKEN: str = os.getenv("BOT_TOKEN", "").strip()
     ADMIN_USER_IDS: list[int] = env_int_list("ADMIN_USER_IDS")
@@ -537,9 +536,9 @@ class Config:
     PARTNER_EXPIRY_GRACE_DAYS: int = env_int("PARTNER_EXPIRY_GRACE_DAYS", 7)
 
     RATE_LIMIT_COOLDOWN: float = env_float("RATE_LIMIT_COOLDOWN", 0.3)
-    API_RATE_LIMIT: int = env_int("API_RATE_LIMIT", 60)
+    API_RATE_LIMIT: int = env_int("API_RATE_LIMIT", 120)
     API_RATE_WINDOW: int = env_int("API_RATE_WINDOW", 60)
-    API_RATE_LIMIT_SENSITIVE_MAX: int = env_int("API_RATE_LIMIT_SENSITIVE_MAX", 10)
+    API_RATE_LIMIT_SENSITIVE_MAX: int = env_int("API_RATE_LIMIT_SENSITIVE_MAX", 20)
     API_RATE_LIMIT_SENSITIVE_WINDOW: int = env_int("API_RATE_LIMIT_SENSITIVE_WINDOW", 60)
 
     SUBSCRIPTION_CHECK_INTERVAL_SEC: int = env_int("SUBSCRIPTION_CHECK_INTERVAL_SEC", 3600)
@@ -785,7 +784,7 @@ def hash_session_token(token: str) -> str:
 
 # --- Session cookie helpers ---
 SESSION_COOKIE_NAME: str = "vpn_token"
-_SESSION_COOKIE_SAMESITE: str = "lax"
+_SESSION_COOKIE_SAMESITE: str = "none"
 _SESSION_COOKIE_SECURE: bool = bool(
     os.getenv("SESSION_COOKIE_SECURE", "true").lower() in ("1", "true", "yes", "on")
 )
@@ -1257,8 +1256,7 @@ def translate(language_code: str, key: str, **kwargs: Any) -> str:
         return key
     if kwargs and isinstance(text, str):
         try:
-            escaped_kwargs = {k: html.escape(str(v)) for k, v in kwargs.items()}
-            return text.format(**escaped_kwargs)
+            return text.format(**kwargs)
         except Exception:  # noqa: BLE001
             return text
     return str(text)
@@ -1363,6 +1361,8 @@ def format_traffic(traffic_gb: Any, lang: str = Config.DEFAULT_LANGUAGE) -> str:
         v = float(traffic_gb)
     except Exception:  # noqa: BLE001
         return str(traffic_gb)
+    if v <= 0:
+        return translate(lang, "texts.unlimited")
     if v >= 1024 and v % 1024 == 0:
         return translate(lang, "texts.traffic_tb", value=int(v / 1024))
     if v.is_integer():
@@ -2271,6 +2271,14 @@ class Database:
             await self.conn.execute("UPDATE users SET telegram_id = user_id WHERE telegram_id = 0")
             await self.conn.commit()
             logger.info("telegram_id миграция завершена")
+
+        await self.conn.execute(
+            "UPDATE users SET language = ? WHERE COALESCE(language, '') = ''",
+            (Config.DEFAULT_LANGUAGE,),
+        )
+        await self.conn.commit()
+        logger.info("Миграция языка: пустые значения заменены на DEFAULT_LANGUAGE")
+
         logger.info("init_db._migrate_users_table: конец")
 
     async def _migrate_json_user_ids(self) -> None:
@@ -2367,8 +2375,8 @@ class Database:
                 return True
             async with self.lock:
                 await self.conn.execute(
-                    "INSERT OR IGNORE INTO users (telegram_id) VALUES (?)",
-                    (telegram_id,),
+                    "INSERT OR IGNORE INTO users (telegram_id, language) VALUES (?, ?)",
+                    (telegram_id, Config.DEFAULT_LANGUAGE),
                 )
                 await self.conn.commit()
             return True
@@ -2882,6 +2890,9 @@ class Database:
         if await is_admin_user(user_id) or await is_admin_user(referrer_id):
             return False
         if user_id <= 0 or referrer_id <= 0 or user_id == referrer_id:
+            return False
+        referrer = await self.get_user_by_any_id(referrer_id)
+        if not referrer:
             return False
         user = await self.get_user_by_any_id(user_id)
         if not user or to_int(user.get("ref_by"), 0):
@@ -3444,12 +3455,13 @@ class Database:
             tg_id = telegram_id if telegram_id else 0
             async with self.lock:
                 cursor = await self.conn.execute(
-                    "INSERT INTO users (telegram_id, username, password_hash, web_registered_at, web_auth_method, session_token, session_expires_at, session_created_at) VALUES (?, ?, ?, ?, 'local', '', '', '')",
+                    "INSERT INTO users (telegram_id, username, password_hash, web_registered_at, web_auth_method, session_token, session_expires_at, session_created_at, language) VALUES (?, ?, ?, ?, 'local', '', '', '', ?)",
                     (
                         tg_id,
                         username.strip(),
                         password_hash,
                         now,
+                        Config.DEFAULT_LANGUAGE,
                     ),
                 )
                 user_id = cursor.lastrowid
@@ -5882,7 +5894,7 @@ def build_setup_keyboard(
         [
             [
                 {
-                    "text": translate(language, "buttons.client_app_setup"),
+                    "text": translate(language, "buttons.client_setup"),
                     "callback_data": "client_setup",
                 }
             ],
@@ -6212,7 +6224,7 @@ async def prompt_language_selection(event: Message | CallbackQuery) -> None:
 async def deny_admin_only(event: Message | CallbackQuery) -> None:
     await smart_answer(
         event,
-        translate(Config.DEFAULT_LANGUAGE, "texts.admin_only_command"),
+        translate(Config.DEFAULT_LANGUAGE, "texts.admin_only_feature"),
         reply_markup=main_menu_keyboard(),
         delete_origin=True,
     )
@@ -6387,52 +6399,79 @@ async def get_subscription_state(user_id: int) -> dict[str, Any]:
     user = await db.get_user_by_any_id(user_id)
     if not user:
         return {"status": "no_user", "panel_available": True}
+    user_data_admin = user
+    plan_text_admin_check = str(user_data_admin.get("plan_text", "") or "")
+    if "admin" in plan_text_admin_check.lower() and not await is_admin_user(user_id):
+        await db.remove_subscription(user_id)
+        base_email_admin_check = get_user_panel_email(user_id, user_data_admin)
+        try:
+            await panel.delete_client(base_email_admin_check)
+        except Exception:  # noqa: BLE001, S110
+            pass
+        logger.info(f"Автоудалена подписка Admin у не-админа {user_id}")
+        return {"status": "no_subscription", "panel_available": True}
     internal_uid = user.get("user_id", user_id)
     sub_id = normalize_sub_id(user.get("vpn_url"))
     if not sub_id:
         return {"status": "no_subscription", "panel_available": True}
-    base_email = get_user_panel_email(internal_uid, user)
-    panel_ok, clients = await panel.get_client_stats_safe(base_email)
-    if not panel_ok:
-        return {
-            "status": "panel_unavailable",
-            "panel_available": False,
-            "sub_id": sub_id,
-        }
-    if not clients:
-        return {"status": "missing_on_panel", "panel_available": True, "sub_id": sub_id}
+    if not user.get("has_subscription"):
+        return {"status": "no_subscription", "panel_available": True}
     now_ms = int(time.time() * 1000)
-    expiry_times = [to_int(c.get("expiryTime"), 0) for c in clients]
-    positive = [x for x in expiry_times if x > 0]
-    max_expiry = max(positive) if positive else 0
-
-    if max_expiry <= 0:
-        expiry_str = str(user.get("expiry_sub_datatime") or "").strip()
-        if expiry_str:
-            try:
-                expiry_dt = datetime.fromisoformat(expiry_str)
-                max_expiry = int(expiry_dt.timestamp() * 1000)
-            except Exception:  # noqa: BLE001, S110
-                pass
-
-    used_bytes = sum(
-        max(0, to_int(c.get("up"), 0)) + max(0, to_int(c.get("down"), 0)) for c in clients
-    )
+    max_expiry = 0
+    expiry_str = str(user.get("expiry_sub_datatime") or "").strip()
+    if expiry_str:
+        try:
+            expiry_dt = datetime.fromisoformat(expiry_str)
+            max_expiry = int(expiry_dt.timestamp() * 1000)
+        except Exception:  # noqa: BLE001, S110
+            pass
+    if max_expiry and max_expiry <= now_ms:
+        return {
+            "status": "expired",
+            "panel_available": True,
+            "sub_id": sub_id,
+            "max_expiry": max_expiry,
+        }
+    base_email = get_user_panel_email(internal_uid, user)
     traffic_gb = max(0.0, to_float(user.get("traffic_gb"), 0.0))
     extra_gb = max(0, to_int(user.get("extra_sub_gb"), 0))
     total_traffic_gb = traffic_gb + extra_gb
     traffic_bytes = int(total_traffic_gb * BYTES_IN_GB)
-    traffic_exhausted = traffic_bytes > 0 and used_bytes >= traffic_bytes
-    expired = bool(max_expiry and max_expiry <= now_ms)
-    status = "expired" if expired else ("traffic_exhausted" if traffic_exhausted else "active")
+    used_bytes = 0
+    used_gb = 0.0
+    clients: list[dict[str, Any]] = []
+    panel_available = True
+    if traffic_bytes > 0:
+        panel_ok, panel_clients = await panel.get_client_stats_safe(base_email)
+        if panel_ok and panel_clients:
+            clients = panel_clients
+            used_bytes = sum(
+                max(0, to_int(c.get("up"), 0)) + max(0, to_int(c.get("down"), 0))
+                for c in panel_clients
+            )
+            used_gb = used_bytes / BYTES_IN_GB
+            if used_bytes >= traffic_bytes:
+                return {
+                    "status": "traffic_exhausted",
+                    "panel_available": True,
+                    "sub_id": sub_id,
+                    "clients": clients,
+                    "max_expiry": max_expiry,
+                    "used_bytes": used_bytes,
+                    "used_gb": used_gb,
+                    "traffic_gb": total_traffic_gb,
+                    "traffic_bytes": traffic_bytes,
+                }
+        else:
+            panel_available = False
     return {
-        "status": status,
-        "panel_available": True,
+        "status": "active",
+        "panel_available": panel_available,
         "sub_id": sub_id,
         "clients": clients,
         "max_expiry": max_expiry,
         "used_bytes": used_bytes,
-        "used_gb": used_bytes / BYTES_IN_GB,
+        "used_gb": used_gb,
         "traffic_gb": total_traffic_gb,
         "traffic_bytes": traffic_bytes,
     }
@@ -6658,6 +6697,7 @@ async def _ensure_admin_subscription(admin_id: int) -> bool:
                     f"_ensure_admin_subscription: не удалось обновить Admin клиент: "
                     f"{data.get('msg')}"
                 )
+            panel._invalidate_clients_cache()
             await panel.attach_client_to_inbounds(existing_email, inbound_ids)
             logger.info(
                 f"Admin {telegram_id}: обновлён клиент '{admin_sub_id}' "
@@ -6706,6 +6746,7 @@ async def _ensure_admin_subscription(admin_id: int) -> bool:
                             f"по subId: {data.get('msg')}"
                         )
                         return False
+                    panel._invalidate_clients_cache()
                     await panel.attach_client_to_inbounds(existing_email, inbound_ids)
                     logger.info(
                         f"Admin {telegram_id}: обновлён существующий клиент '{admin_sub_id}'"
@@ -6813,8 +6854,15 @@ async def _create_subscription_unlocked(
     await db.add_user(user_id)
 
     db_user = await db.get_user_by_any_id(user_id)
-    internal_user_id = db_user["user_id"] if db_user else user_id
+    if db_user and not db_user.get("ref_by") and db_user.get("ref_code"):
+        ref_user = await db.get_user_by_ref_code(db_user.get("ref_code"))
+        if ref_user and ref_user.get("user_id") != user_id:
+            await db.set_ref_by(user_id, ref_user.get("user_id"))
+            logger.info(
+                f"Пользователь {user_id} реферал записан по ref_code: {db_user.get('ref_code')}"
+            )
 
+    internal_user_id = db_user["user_id"] if db_user else user_id
     pending = await db.get_bonus_days_pending(user_id)
     days = (
         (days_override if days_override is not None else int(plan.get("duration_days", 30)))
@@ -7479,7 +7527,7 @@ async def ban_middleware(handler: Callable, event: Any, data: dict[str, Any]) ->
                     if event.message:
                         await event.message.answer(text, reply_markup=markup)
                     await event.answer(
-                        translate(lang, "texts.account_banned_alert"),
+                        translate(lang, "texts.account_banned"),
                         show_alert=True,
                     )
             except TelegramBadRequest:
@@ -7745,6 +7793,53 @@ async def cmd_start(event: Message | CallbackQuery, state: FSMContext, **kwargs:
                         web_registered_at=datetime.now(timezone.utc).isoformat(),
                     )
                     web_user = await db.get_user_by_any_id(user_id)
+            elif bot_auth_action == "link":
+                auth_state_data = await get_bot_auth_state(state)
+                session_token_hash = (
+                    auth_state_data.get("session_token", "") if auth_state_data else ""
+                )
+                web_user = None
+                if session_token_hash:
+                    web_user = await db.get_user_by_session_token_hash(session_token_hash)
+                if web_user:
+                    await db.update_web_auth(
+                        web_user["user_id"],
+                        telegram_id=user_id,
+                    )
+                    token = secrets.token_urlsafe(32)
+                    expires = (
+                        datetime.now(timezone.utc) + timedelta(seconds=Config.SESSION_MAX_AGE)
+                    ).isoformat()
+                    await db.update_web_auth(
+                        web_user["user_id"],
+                        session_token=token,
+                        session_expires_at=expires,
+                        session_created_at=datetime.now(timezone.utc).isoformat(),
+                        web_last_login=datetime.now(timezone.utc).isoformat(),
+                        web_auth_method="telegram",
+                    )
+                    await store_telegram_verification(state, user_id)
+                    await complete_bot_auth_state(state, token)
+                    return_link = f"{Config.SITE_URL}"
+                    await smart_answer(
+                        event,
+                        translate(
+                            lang or Config.DEFAULT_LANGUAGE,
+                            "texts.telegram_login_success",
+                            return_link=return_link,
+                        ),
+                        delete_origin=True,
+                    )
+                    return
+                await smart_answer(
+                    event,
+                    translate(
+                        lang or Config.DEFAULT_LANGUAGE,
+                        "texts.telegram_login_not_linked",
+                    ),
+                    delete_origin=True,
+                )
+                return
             else:
                 await smart_answer(
                     event,
@@ -8486,10 +8581,11 @@ async def cmd_custom_show_offer(event: CallbackQuery, state: FSMContext, **kwarg
     F.data.startswith("custom:choose_payment_method:"),
 )
 async def cmd_custom_choose_payment_method(event: CallbackQuery, state: FSMContext, **kwargs):
+    lang = await get_lang(event)
     parts = event.data.split(":")
     if len(parts) < 3:
         await event.answer(
-            translate(Config.DEFAULT_LANGUAGE, "texts.request_processing_error"),
+            translate(lang, "texts.request_processing_error"),
             show_alert=True,
         )
         return
@@ -8497,13 +8593,13 @@ async def cmd_custom_choose_payment_method(event: CallbackQuery, state: FSMConte
         uid = int(parts[2])
     except ValueError:
         await event.answer(
-            translate(Config.DEFAULT_LANGUAGE, "texts.invalid_user_identifier"),
+            translate(lang, "texts.invalid_user_identifier"),
             show_alert=True,
         )
         return
     if uid != (get_event_user_id(event) or 0):
         await event.answer(
-            translate(Config.DEFAULT_LANGUAGE, "texts.wrong_user_error"),
+            translate(lang, "texts.wrong_user_error"),
             show_alert=True,
         )
         return
@@ -8512,20 +8608,20 @@ async def cmd_custom_choose_payment_method(event: CallbackQuery, state: FSMConte
         keyboard = [
             [
                 {
-                    "text": translate(Config.DEFAULT_LANGUAGE, "buttons.payment_method_test"),
+                    "text": translate(lang, "buttons.payment_method_test"),
                     "callback_data": f"custom:confirm_payment:test:{uid}",
                 }
             ],
             [
                 {
-                    "text": translate(Config.DEFAULT_LANGUAGE, "buttons.cancel"),
+                    "text": translate(lang, "buttons.cancel"),
                     "callback_data": "cancel",
                 }
             ],
         ]
         await smart_answer(
             event,
-            translate(Config.DEFAULT_LANGUAGE, "texts.choose_payment_method"),
+            translate(lang, "texts.choose_payment_method"),
             reply_markup=kb(keyboard),
             delete_origin=True,
         )
@@ -8535,14 +8631,14 @@ async def cmd_custom_choose_payment_method(event: CallbackQuery, state: FSMConte
     if Config.YOOMONEY_WALLET:
         methods.append(
             {
-                "text": translate(Config.DEFAULT_LANGUAGE, "buttons.payment_method_yoomoney"),
+                "text": translate(lang, "buttons.payment_method_yoomoney"),
                 "callback_data": f"custom:pay_yoomoney:{uid}",
             }
         )
     if Config.PAYMENT_CARD_NUMBER:
         methods.append(
             {
-                "text": translate(Config.DEFAULT_LANGUAGE, "buttons.payment_method_p2p"),
+                "text": translate(lang, "buttons.payment_method_p2p"),
                 "callback_data": f"custom:pay_p2p:{uid}",
             }
         )
@@ -8551,7 +8647,7 @@ async def cmd_custom_choose_payment_method(event: CallbackQuery, state: FSMConte
         await state.clear()
         await smart_answer(
             event,
-            translate(Config.DEFAULT_LANGUAGE, "texts.buy_unavailable"),
+            translate(lang, "texts.buy_unavailable"),
             reply_markup=main_menu_keyboard(),
             delete_origin=True,
         )
@@ -8569,14 +8665,14 @@ async def cmd_custom_choose_payment_method(event: CallbackQuery, state: FSMConte
     keyboard = [methods] + [
         [
             {
-                "text": translate(Config.DEFAULT_LANGUAGE, "buttons.cancel"),
+                "text": translate(lang, "buttons.cancel"),
                 "callback_data": "cancel",
             }
         ]
     ]
     await smart_answer(
         event,
-        translate(Config.DEFAULT_LANGUAGE, "texts.choose_payment_method"),
+        translate(lang, "texts.choose_payment_method"),
         reply_markup=kb(keyboard),
         delete_origin=True,
     )
@@ -8637,10 +8733,11 @@ async def _build_yoomoney_payment(
 async def cmd_custom_show_yoomoney(event: CallbackQuery, state: FSMContext, **kwargs):
     if not await ensure_custom_tariff_access(event, state):
         return
+    lang = await get_lang(event)
     parts = event.data.split(":")
     if len(parts) < 3:
         await event.answer(
-            translate(Config.DEFAULT_LANGUAGE, "texts.request_processing_error"),
+            translate(lang, "texts.request_processing_error"),
             show_alert=True,
         )
         return
@@ -8648,13 +8745,13 @@ async def cmd_custom_show_yoomoney(event: CallbackQuery, state: FSMContext, **kw
         uid = int(parts[2])
     except ValueError:
         await event.answer(
-            translate(Config.DEFAULT_LANGUAGE, "texts.invalid_user_identifier"),
+            translate(lang, "texts.invalid_user_identifier"),
             show_alert=True,
         )
         return
     if uid != (get_event_user_id(event) or 0):
         await event.answer(
-            translate(Config.DEFAULT_LANGUAGE, "texts.wrong_user_error"),
+            translate(lang, "texts.wrong_user_error"),
             show_alert=True,
         )
         return
@@ -8665,7 +8762,7 @@ async def cmd_custom_show_yoomoney(event: CallbackQuery, state: FSMContext, **kw
         await state.clear()
         await smart_answer(
             event,
-            translate(Config.DEFAULT_LANGUAGE, "texts.custom_tariff_payment_prepare_failed"),
+            translate(lang, "texts.custom_tariff_payment_prepare_failed"),
             reply_markup=main_menu_keyboard(),
             delete_origin=True,
         )
@@ -8676,7 +8773,7 @@ async def cmd_custom_show_yoomoney(event: CallbackQuery, state: FSMContext, **kw
         amount=amount,
         plan_name=plan_name,
         confirm_callback=f"custom:confirm_payment:yoomoney:{uid}",
-        lang=Config.DEFAULT_LANGUAGE,
+        lang=lang,
         targets_suffix="Custom #",
     )
 
@@ -8752,7 +8849,7 @@ async def cmd_custom_confirm_test(event: CallbackQuery, state: FSMContext, **kwa
         )
         setup_keyboard = build_setup_keyboard(user_lang)
     else:
-        text = translate(Config.DEFAULT_LANGUAGE, "texts.test_subscription_failed")
+        text = translate(Config.DEFAULT_LANGUAGE, "texts.failed_to_create_trial_subscription")
         setup_keyboard = main_menu_keyboard()
     await smart_answer(event, text, reply_markup=setup_keyboard, delete_origin=True)
 
@@ -8834,7 +8931,7 @@ async def cmd_custom_confirm_payment(event: CallbackQuery, state: FSMContext, **
             )
             setup_keyboard = build_setup_keyboard(user_lang)
         else:
-            text = translate(Config.DEFAULT_LANGUAGE, "texts.test_subscription_failed")
+            text = translate(Config.DEFAULT_LANGUAGE, "texts.failed_to_create_trial_subscription")
             setup_keyboard = main_menu_keyboard()
         await smart_answer(event, text, reply_markup=setup_keyboard, delete_origin=True)
         return
@@ -9052,7 +9149,7 @@ async def cmd_test_plan(event: CallbackQuery, **kwargs: Any) -> None:
             json_vpn_url=build_json_subscription_url(vpn_url),
         )
     else:
-        text = translate(Config.DEFAULT_LANGUAGE, "texts.test_subscription_failed")
+        text = translate(Config.DEFAULT_LANGUAGE, "texts.failed_to_create_trial_subscription")
         user_lang = Config.DEFAULT_LANGUAGE
     setup_keyboard = build_setup_keyboard(user_lang)
     await smart_answer(event, text, reply_markup=setup_keyboard, delete_origin=True)
@@ -9079,7 +9176,9 @@ async def cmd_trial_plan(event: CallbackQuery, **kwargs):
         await db.add_user(user_id)
         user = await db.get_user_by_any_id(user_id)
         if user.get("trial_used") or user.get("has_subscription"):
-            text = translate(Config.DEFAULT_LANGUAGE, "texts.trial_used_or_has_subscription")
+            text = translate(
+                Config.DEFAULT_LANGUAGE, "texts.trial_already_used_or_has_subscription"
+            )
             keyboard = kb(
                 [
                     [
@@ -9127,7 +9226,7 @@ async def cmd_trial_plan(event: CallbackQuery, **kwargs):
             json_vpn_url=build_json_subscription_url(vpn_url),
         )
     else:
-        text = translate(Config.DEFAULT_LANGUAGE, "texts.trial_subscription_failed")
+        text = translate(Config.DEFAULT_LANGUAGE, "texts.failed_to_create_trial_subscription")
         user_lang = Config.DEFAULT_LANGUAGE
     setup_keyboard = build_setup_keyboard(user_lang)
     await smart_answer(event, text, reply_markup=setup_keyboard, delete_origin=True)
@@ -9319,10 +9418,11 @@ async def cmd_show_p2p_payment(event: CallbackQuery, **kwargs):
 async def cmd_custom_show_p2p(event: CallbackQuery, state: FSMContext, **kwargs):
     if not await ensure_custom_tariff_access(event, state):
         return
+    lang = await get_lang(event)
     parts = event.data.split(":")
     if len(parts) < 3:
         await event.answer(
-            translate(Config.DEFAULT_LANGUAGE, "texts.request_processing_error"),
+            translate(lang, "texts.request_processing_error"),
             show_alert=True,
         )
         return
@@ -9330,13 +9430,13 @@ async def cmd_custom_show_p2p(event: CallbackQuery, state: FSMContext, **kwargs)
         uid = int(parts[2])
     except ValueError:
         await event.answer(
-            translate(Config.DEFAULT_LANGUAGE, "texts.invalid_user_identifier"),
+            translate(lang, "texts.invalid_user_identifier"),
             show_alert=True,
         )
         return
     if uid != (get_event_user_id(event) or 0):
         await event.answer(
-            translate(Config.DEFAULT_LANGUAGE, "texts.wrong_user_error"),
+            translate(lang, "texts.wrong_user_error"),
             show_alert=True,
         )
         return
@@ -9348,13 +9448,13 @@ async def cmd_custom_show_p2p(event: CallbackQuery, state: FSMContext, **kwargs)
         await state.clear()
         await smart_answer(
             event,
-            translate(Config.DEFAULT_LANGUAGE, "texts.custom_tariff_payment_prepare_failed"),
+            translate(lang, "texts.custom_tariff_payment_prepare_failed"),
             reply_markup=main_menu_keyboard(),
             delete_origin=True,
         )
         return
     text = translate(
-        Config.DEFAULT_LANGUAGE,
+        lang,
         "texts.p2p_payment_details",
         plan_name=plan_name,
         amount=amount,
@@ -9363,13 +9463,13 @@ async def cmd_custom_show_p2p(event: CallbackQuery, state: FSMContext, **kwargs)
     keyboard = [
         [
             {
-                "text": translate(Config.DEFAULT_LANGUAGE, "buttons.confirm_payment"),
+                "text": translate(lang, "buttons.confirm_payment"),
                 "callback_data": f"custom:confirm_payment:p2p:{uid}",
             }
         ],
         [
             {
-                "text": translate(Config.DEFAULT_LANGUAGE, "buttons.cancel"),
+                "text": translate(lang, "buttons.cancel"),
                 "callback_data": "cancel",
             }
         ],
@@ -9690,7 +9790,7 @@ async def cmd_mysub(event: CallbackQuery, **kwargs):
         ],
         [
             {
-                "text": translate(lang, "buttons.client_app_setup"),
+                "text": translate(lang, "buttons.client_setup"),
                 "callback_data": "client_setup",
             }
         ],
@@ -9930,7 +10030,7 @@ async def process_partner_followers_msg(message: Message, state: FSMContext):
         followers = int(text)
     except (ValueError, TypeError):
         await message.answer(
-            translate(lang, "texts.partner_invalid_followers"),
+            translate(lang, "texts.partner_invalid_bonus_value"),
         )
         return
 
@@ -10119,7 +10219,7 @@ async def process_partner_period_msg(message: Message, state: FSMContext):
         period = int(text)
     except (ValueError, TypeError):
         await message.answer(
-            translate(lang, "texts.partner_invalid_period"),
+            translate(lang, "texts.partner_invalid_bonus_value"),
         )
         return
 
@@ -10586,7 +10686,7 @@ async def process_partner_withdrawal_amount(event: CallbackQuery, state: FSMCont
     balance = user_data.get("mate_balance", 0.0) if user_data else 0.0
     if amount <= 0:
         await event.answer(
-            translate(lang, "texts.partner_amount_positive"),
+            translate(lang, "texts.amount_must_be_positive"),
             show_alert=True,
         )
         return
@@ -10790,10 +10890,10 @@ def build_partner_op_keyboard(
 ) -> InlineKeyboardMarkup:
     if op_type == "partner_withdrawal":
         accept_text = translate(lang, "buttons.partner_withdraw_accept_btn")
-        reject_text = translate(lang, "buttons.partner_withdraw_reject_btn")
+        reject_text = translate(lang, "buttons.reject_payment")
     else:
         accept_text = translate(lang, "buttons.partner_accept_btn")
-        reject_text = translate(lang, "buttons.partner_reject_btn")
+        reject_text = translate(lang, "buttons.reject_payment")
     return kb(
         [
             [
@@ -10920,7 +11020,8 @@ async def cmd_partner_reject_op(event: CallbackQuery, **kwargs):
 
 
 async def _handle_partner_new_accept(event: CallbackQuery, op: dict[str, Any], uid: int) -> None:
-    lang = Config.DEFAULT_LANGUAGE
+    lang = await get_lang(event)
+    user_lang = await get_user_language(uid)
     logger.info(f"Партнёрская заявка accept: uid={uid}, op_id={op.get('operation_id')}")
     nickname = str(op.get("nickname", ""))
     social_links = str(op.get("social_links", ""))
@@ -10929,8 +11030,16 @@ async def _handle_partner_new_accept(event: CallbackQuery, op: dict[str, Any], u
     bonus_type = str(op.get("bonus_type", ""))
     bonus_value = to_int(op.get("bonus_value", 0))
     sanitized = re.sub(r"[^a-z0-9_-]", "", nickname.lower().replace(" ", "_"))
-    ref_code = f"mate_{sanitized}"
     existing = await db.get_user_by_any_id(uid)
+    user_ref_code = (existing or {}).get("ref_code", "")
+    ref_code = user_ref_code if user_ref_code else f"mate_{sanitized}"
+    if not user_ref_code:
+        try:
+            await db.ensure_ref_code(uid)
+            user_ref_code = (await db.get_user_by_any_id(uid) or {}).get("ref_code", "")
+            ref_code = user_ref_code if user_ref_code else f"mate_{sanitized}"
+        except Exception:  # noqa: BLE001
+            ref_code = f"mate_{sanitized}"
     if (
         existing
         and existing.get("mate_ref_link_code")
@@ -10989,7 +11098,7 @@ async def _handle_partner_new_accept(event: CallbackQuery, op: dict[str, Any], u
                     )
                     await db.set_subscription(
                         uid,
-                        plan_text=translate(Config.DEFAULT_LANGUAGE, "texts.partner_plan_name"),
+                        plan_text=translate(user_lang, "texts.partner_plan_name"),
                         ip_limit=0,
                         vpn_url=sub_id or "",
                         traffic_gb=0,
@@ -11014,7 +11123,7 @@ async def _handle_partner_new_accept(event: CallbackQuery, op: dict[str, Any], u
         await event.answer(translate(lang, "texts.partner_accepted"), show_alert=True)
         await append_payment_decision_label(
             event.message,
-            translate(lang, "texts.partner_decision_accepted"),
+            translate(lang, "texts.payment_decision_accepted"),
         )
         try:
             await safe_send_message(
@@ -11033,7 +11142,8 @@ async def _handle_partner_new_accept(event: CallbackQuery, op: dict[str, Any], u
 
 
 async def _handle_partner_new_reject(event: CallbackQuery, op: dict[str, Any], uid: int) -> None:
-    lang = Config.DEFAULT_LANGUAGE
+    lang = await get_lang(event)
+    user_lang = await get_user_language(uid)
     finalized = await finalize_partner_operation(
         op.get("operation_id", ""),
         get_event_user_id(event) or 0,
@@ -11045,13 +11155,13 @@ async def _handle_partner_new_reject(event: CallbackQuery, op: dict[str, Any], u
     await event.answer(translate(lang, "texts.partner_rejected"), show_alert=True)
     await append_payment_decision_label(
         event.message,
-        translate(lang, "texts.partner_decision_rejected"),
+        translate(lang, "texts.payment_decision_rejected"),
     )
     try:
         await safe_send_message(
             bot,
             uid,
-            translate(lang, "texts.partner_rejected_notification"),
+            translate(user_lang, "texts.partner_rejected_notification"),
         )
     except Exception:  # noqa: BLE001, S110
         pass
@@ -11060,7 +11170,8 @@ async def _handle_partner_new_reject(event: CallbackQuery, op: dict[str, Any], u
 async def _handle_partner_renewal_accept(
     event: CallbackQuery, op: dict[str, Any], uid: int
 ) -> None:
-    lang = Config.DEFAULT_LANGUAGE
+    lang = await get_lang(event)
+    user_lang = await get_user_language(uid)
     months = to_int(op.get("period_months", 0)) or to_int(op.get("months", 0))
     if months <= 0:
         months = 1
@@ -11103,7 +11214,7 @@ async def _handle_partner_renewal_accept(
             bot,
             uid,
             translate(
-                lang,
+                user_lang,
                 "texts.partner_renewal_accepted",
                 months=months,
                 new_expiry=new_expiry.strftime("%d.%m.%Y"),
@@ -11124,7 +11235,8 @@ async def _handle_partner_renewal_accept(
 async def _handle_partner_renewal_reject(
     event: CallbackQuery, op: dict[str, Any], uid: int
 ) -> None:
-    lang = Config.DEFAULT_LANGUAGE
+    lang = await get_lang(event)
+    user_lang = await get_user_language(uid)
     finalized = await finalize_partner_operation(
         op.get("operation_id", ""),
         get_event_user_id(event) or 0,
@@ -11136,14 +11248,23 @@ async def _handle_partner_renewal_reject(
     await event.answer(translate(lang, "texts.partner_rejected"), show_alert=True)
     await append_payment_decision_label(
         event.message,
-        translate(lang, "texts.partner_decision_rejected"),
+        translate(lang, "texts.payment_decision_rejected"),
     )
+    try:
+        await safe_send_message(
+            bot,
+            uid,
+            translate(user_lang, "texts.partner_rejected_notification"),
+        )
+    except Exception:  # noqa: BLE001, S110
+        pass
 
 
 async def _handle_partner_withdrawal_accept(
     event: CallbackQuery, op: dict[str, Any], uid: int
 ) -> None:
-    lang = Config.DEFAULT_LANGUAGE
+    lang = await get_lang(event)
+    user_lang = await get_user_language(uid)
     amount = to_float(op.get("amount", 0))
     finalized = await finalize_partner_operation(
         op.get("operation_id", ""),
@@ -11157,14 +11278,14 @@ async def _handle_partner_withdrawal_accept(
     await event.answer(translate(lang, "texts.partner_withdraw_accepted"), show_alert=True)
     await append_payment_decision_label(
         event.message,
-        translate(lang, "texts.partner_decision_accepted"),
+        translate(lang, "texts.payment_decision_accepted"),
     )
     try:
         await safe_send_message(
             bot,
             uid,
             translate(
-                lang,
+                user_lang,
                 "texts.partner_withdraw_accepted_notification",
                 amount=amount,
             ),
@@ -11176,7 +11297,8 @@ async def _handle_partner_withdrawal_accept(
 async def _handle_partner_withdrawal_reject(
     event: CallbackQuery, op: dict[str, Any], uid: int
 ) -> None:
-    lang = Config.DEFAULT_LANGUAGE
+    lang = await get_lang(event)
+    user_lang = await get_user_language(uid)
     amount = to_float(op.get("amount", 0))
     finalized = await finalize_partner_operation(
         op.get("operation_id", ""),
@@ -11189,14 +11311,14 @@ async def _handle_partner_withdrawal_reject(
     await event.answer(translate(lang, "texts.partner_withdraw_rejected"), show_alert=True)
     await append_payment_decision_label(
         event.message,
-        translate(lang, "texts.partner_decision_rejected"),
+        translate(lang, "texts.payment_decision_rejected"),
     )
     try:
         await safe_send_message(
             bot,
             uid,
             translate(
-                lang,
+                user_lang,
                 "texts.partner_withdraw_rejected_notification",
                 amount=amount,
             ),
@@ -12188,8 +12310,12 @@ async def _end_tech_work_with_compensation(
     await tech_work_service.set_enabled(False)
 
     if broadcast and days > 0:
+        for uid in await db.get_all_user_ids():
+            if await is_admin_user(uid):
+                continue
+            await db.add_bonus_days_pending(uid, days)
         broadcast_text = translate(
-            Config.DEFAULT_LANGUAGE,
+            lang,
             "texts.tech_work_compensate_broadcast",
             days=days,
         )
@@ -12198,18 +12324,28 @@ async def _end_tech_work_with_compensation(
     restore_result = await restore_all_clients_from_backup()
     logger.info(f"Клиенты восстановлены с backup: {restore_result}")
 
-    normalization_task = asyncio.create_task(normalize_all_subscriptions_with_retry())
-    _scheduled_tasks.add(normalization_task)
-    normalization_task.add_done_callback(_scheduled_tasks.discard)
+    report = await normalize_all_subscriptions_with_retry()
+    logger.info(f"Нормализация завершена: {report}")
 
     if broadcast:
-        text = translate(
-            lang,
-            "texts.tech_work_compensate_complete",
-            days=days,
-            processed=0,
-            errors=0,
-        )
+        processed = report["subscriptions_updated"]
+        errors = report["errors"]
+        if report["all_normalized"]:
+            text = translate(
+                lang,
+                "texts.tech_work_compensate_complete",
+                days=days,
+                processed=processed,
+                errors=errors,
+            )
+        else:
+            text = translate(
+                lang,
+                "texts.tech_work_compensate_complete",
+                days=days,
+                processed=processed,
+                errors=errors,
+            )
     else:
         text = translate(lang, "texts.tech_work_compensate_skipped")
 
@@ -12276,7 +12412,7 @@ async def process_tech_work_compensate(event: Message, state: FSMContext, **kwar
         return
 
     if not val.isdigit():
-        await event.answer(translate(lang, "texts.invalid_days_number"))
+        await event.answer(translate(lang, "texts.invalid_period"))
         return
 
     days = int(val)
@@ -12327,7 +12463,7 @@ async def confirm_compensate_handler(event: CallbackQuery, state: FSMContext, **
     data = await state.get_data()
     days = to_int(data.get("pending_days"), 0)
     if days < 31 or days > 365:
-        await smart_answer(event, translate(lang, "texts.invalid_days_number"))
+        await smart_answer(event, translate(lang, "texts.invalid_period"))
         await state.clear()
         return
     await state.clear()
@@ -12557,7 +12693,7 @@ async def process_trust_amount(event: Message, state: FSMContext, **kwargs):
         return
     amount = int(val)
     if amount <= 0:
-        await event.answer(translate(lang, "texts.trust_amount_positive"))
+        await event.answer(translate(lang, "texts.amount_must_be_positive"))
         return
     if amount > TRUST_SCORE_MAX:
         await event.answer(
@@ -12618,7 +12754,7 @@ async def process_trust_amount(event: Message, state: FSMContext, **kwargs):
         admin_identity = f"ID <code>{admin_id}</code>" + (
             f", username <code>@{admin_username}</code>" if admin_username else ""
         )
-        admin_action = translate(lang, f"texts.trust_admin_action_{action}")
+        admin_action = translate(lang, f"texts.trust_action_success_{action}")
         user_lang = await get_user_language(uid)
         try:
             await notify_user(
@@ -12913,7 +13049,7 @@ async def process_compensate_days(event: Message, state: FSMContext, **kwargs):
         return
     days = int(val)
     if days <= 0:
-        await event.answer(translate(lang, "texts.compensate_days_positive"))
+        await event.answer(translate(lang, "texts.compensate_positive_days"))
         return
     data = await state.get_data()
     await state.clear()
@@ -13415,6 +13551,17 @@ async def normalize_all_subscriptions_with_retry(
                 clients = clients_cache.get(base_email)
                 if clients is None:
                     clients = await panel.find_clients_full_by_email(base_email)
+                    if not clients:
+                        db_sub_id = normalize_sub_id(
+                            user.get("vpn_url") or user.get("subscription_id") or ""
+                        )
+                        if db_sub_id:
+                            ok, sub_clients = await panel.find_clients_by_sub_id_safe(db_sub_id)
+                            if ok and sub_clients:
+                                clients = sub_clients
+                                logger.info(
+                                    f"  🔄 Найдено {len(clients)} клиентов по sub_id из БД: {db_sub_id}"
+                                )
                     clients_cache[base_email] = clients
                 if clients:
                     for c in clients:
@@ -13425,6 +13572,32 @@ async def normalize_all_subscriptions_with_retry(
                         client = await panel.get_client_by_email(email) or c.get("clientObj") or c
                         if not isinstance(client, dict):
                             continue
+
+                        db_sub_id = normalize_sub_id(
+                            user.get("vpn_url") or user.get("subscription_id") or ""
+                        )
+                        panel_sub_id = str(client.get("subId") or "")
+                        if db_sub_id and panel_sub_id != db_sub_id:
+                            logger.info(f"  🔄 Исправляем subId: {panel_sub_id} -> {db_sub_id}")
+                            client["subId"] = db_sub_id
+                            payload = panel._client_payload_for_update(client)
+                            url = (
+                                f"{panel.apibase}/panel/api/clients/update/"
+                                f"{panel._quote_path(email)}"
+                            )
+                            status, data, _ = await panel._request_json_with_reauth(
+                                "POST", url, headers=panel._headers(), json=payload
+                            )
+                            if status in (200, 201) and data.get("success"):
+                                report["subscriptions_updated"] += 1
+                                iter_changes += 1
+                                logger.info(f"  ✅ subId исправлен для {email}")
+                            else:
+                                report["panel_errors"] += 1
+                                logger.error(
+                                    f"  ❌ Не удалось исправить subId для {email}: "
+                                    f"{data.get('msg')}"
+                                )
 
                         if not client.get("enable"):
                             logger.info(f"  🔓 Включаем отключённого клиента: {email}")
@@ -13452,7 +13625,7 @@ async def normalize_all_subscriptions_with_retry(
                         to_attach = sorted(target_inbounds_set - current_inbounds_set)
                         to_detach = sorted(current_inbounds_set - target_inbounds_set)
 
-                        if to_attach or to_detach:
+                        if target_inbound_ids and (to_attach or to_detach):
                             logger.info(
                                 f"  🔄 Нормализация inbound: {current_inbounds_ints} -> {target_inbound_ids}"
                             )
@@ -13668,25 +13841,86 @@ async def normalize_all_subscriptions_with_retry(
                     inbound_ids = await panel.get_matching_inbound_ids(plan_servers)
                     if inbound_ids:
                         email = build_base_email(user.get("user_id", uid))
+                        db_sub_id = normalize_sub_id(
+                            user.get("vpn_url") or user.get("subscription_id") or ""
+                        )
                         existing = await panel.get_client_by_email(email)
                         if existing:
                             logger.info(f"  ✅ Клиент уже существует на панели: {email}")
+                            existing_sub_id = str(existing.get("subId") or "")
+                            if db_sub_id and existing_sub_id != db_sub_id:
+                                logger.info(
+                                    f"  🔄 Исправляем subId: {existing_sub_id} -> {db_sub_id}"
+                                )
+                                existing["subId"] = db_sub_id
+                                payload = panel._client_payload_for_update(existing)
+                                url = (
+                                    f"{panel.apibase}/panel/api/clients/update/"
+                                    f"{panel._quote_path(email)}"
+                                )
+                                status, data, _ = await panel._request_json_with_reauth(
+                                    "POST", url, headers=panel._headers(), json=payload
+                                )
+                                if status in (200, 201) and data.get("success"):
+                                    report["subscriptions_updated"] += 1
+                                    iter_changes += 1
+                                    logger.info(f"  ✅ subId исправлен для {email}")
+                                else:
+                                    report["panel_errors"] += 1
+                                    logger.error(
+                                        f"  ❌ Не удалось исправить subId для {email}: "
+                                        f"{data.get('msg')}"
+                                    )
                         else:
-                            client = await panel.create_client(
-                                email=email,
-                                limit_ip=restore_ip,
-                                total_gb=restore_gb_total,
-                                days=restore_days,
-                                servers=plan_servers,
-                                tg_id=uid,
-                                inbound_ids=inbound_ids,
-                            )
-                            if client:
-                                report["missing_recovered"] += 1
-                                iter_changes += 1
+                            sub_clients = None
+                            if db_sub_id:
+                                ok, sub_clients = await panel.find_clients_by_sub_id_safe(db_sub_id)
+                            if sub_clients:
+                                existing_client = sub_clients[0]
+                                ec_email = str(existing_client.get("email") or email)
+                                logger.info(
+                                    f"  🔄 subId='{db_sub_id}' найден на панели ({ec_email}), обновляем вместо create"
+                                )
+                                existing_client["email"] = ec_email
+                                existing_client["subId"] = db_sub_id
+                                existing_client["limitIp"] = restore_ip
+                                existing_client["totalGB"] = int(restore_gb_total * BYTES_IN_GB)
+                                payload = panel._client_payload_for_update(existing_client)
+                                upd_url = (
+                                    f"{panel.apibase}/panel/api/clients/update/"
+                                    f"{panel._quote_path(ec_email)}"
+                                )
+                                status, data, _ = await panel._request_json_with_reauth(
+                                    "POST", upd_url, headers=panel._headers(), json=payload
+                                )
+                                if status in (200, 201) and data.get("success"):
+                                    report["subscriptions_updated"] += 1
+                                    iter_changes += 1
+                                    logger.info(f"  ✅ Клиент {ec_email} обновлён (subId конфликт)")
+                                else:
+                                    report["errors"] += 1
+                                    logger.error(
+                                        f"  ❌ Не удалось обновить {ec_email}: {data.get('msg')}"
+                                    )
                             else:
-                                report["errors"] += 1
-                                logger.warning(f"Не удалось восстановить подписку для user {uid}")
+                                client = await panel.create_client(
+                                    email=email,
+                                    limit_ip=restore_ip,
+                                    total_gb=restore_gb_total,
+                                    days=restore_days,
+                                    servers=plan_servers,
+                                    tg_id=uid,
+                                    sub_id=db_sub_id,
+                                    inbound_ids=inbound_ids,
+                                )
+                                if client:
+                                    report["missing_recovered"] += 1
+                                    iter_changes += 1
+                                else:
+                                    report["errors"] += 1
+                                    logger.warning(
+                                        f"Не удалось восстановить подписку для user {uid}"
+                                    )
                     else:
                         report["errors"] += 1
                         logger.warning(f"Нет inbound'ов для восстановления user {uid}")
@@ -13778,15 +14012,11 @@ async def recreate_subscription_for_user(user_id: int, user: dict[str, Any]) -> 
         if not plan:
             logger.warning(f"recreate_subscription_for_user: plan not found for {user_id}")
             return False
-        servers = get_plan_servers(plan)
         success = await create_subscription(
             user_id,
-            plan.get("traffic_gb", 0),
-            plan.get("ip_limit", 1),
-            plan.get("duration_days", 30),
-            servers,
-            plan.get("price_rub", 0),
-            plan.get("id", ""),
+            plan,
+            extra_days=0,
+            earn_trust=False,
         )
         if success:
             logger.info(f"recreate_subscription_for_user: restored for {user_id}")
@@ -14164,6 +14394,7 @@ class WebRegisterRequest(BaseModel):
     username: str = Field(min_length=3, max_length=64)
     password: str = Field(min_length=Config.PASSWORD_MIN_LENGTH, max_length=128)
     tg_id: int | None = Field(default=None, gt=0)
+    ref_code: str | None = Field(default=None, max_length=32)
 
 
 class WebLoginRequest(BaseModel):
@@ -14860,6 +15091,13 @@ class BOT_FastAPI:
                         },
                     )
                 await db.ensure_ref_code_by_user_id(user["user_id"])
+                if req.ref_code:
+                    ref_user = await db.get_user_by_ref_code(req.ref_code)
+                    if ref_user and ref_user.get("user_id") != user["user_id"]:
+                        await db.set_ref_by(user["user_id"], ref_user.get("user_id"))
+                        logger.info(
+                            f"Пользователь {user['user_id']} приглашен рефералом {ref_user.get('user_id')} через веб-регистрацию"
+                        )
                 _clear_auth_failures(username, client_ip)
                 token = secrets.token_urlsafe(32)
                 expires = (
@@ -15111,38 +15349,6 @@ class BOT_FastAPI:
                 content={"message": translate(Config.DEFAULT_LANGUAGE, "texts.api_telegram_linked")}
             )
 
-        @self.app.post("/api/v1/auth/telegram/unlink")
-        async def api_auth_telegram_unlink(
-            req: dict[str, Any] = Body(default={}),  # noqa: B008
-            credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
-        ) -> JSONResponse:
-            if not credentials:
-                return JSONResponse(
-                    status_code=401,
-                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.unauthorized")},
-                )
-            user = await db.get_user_by_session_token(credentials.credentials)
-            if not user:
-                return JSONResponse(
-                    status_code=401,
-                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.invalid_session")},
-                )
-            password = str(req.get("password", "") or "")
-            if password and not pwd_context.verify(password, user.get("password_hash", "")):
-                return JSONResponse(
-                    status_code=400,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.password_incorrect")
-                    },
-                )
-            await _notify_account_change(user["user_id"], "texts.telegram_unlinked_notification")
-            await db.update_web_auth(user["user_id"], telegram_id=0)
-            return JSONResponse(
-                content={
-                    "message": translate(Config.DEFAULT_LANGUAGE, "texts.api_telegram_unlinked")
-                }
-            )
-
         @self.app.post("/api/v1/auth/telegram/login")
         async def api_auth_telegram_login(
             req: TelegramLoginRequest,
@@ -15311,6 +15517,15 @@ class BOT_FastAPI:
                         },
                         headers=_cookie_headers_for_session(auth_token),
                     )
+                created_at_str = auth_state.get("created_at", "")
+                if created_at_str:
+                    try:
+                        created_at = datetime.fromisoformat(created_at_str)
+                        elapsed = (datetime.now(timezone.utc) - created_at).total_seconds()
+                        if elapsed > 120:
+                            return JSONResponse(content={"status": "timeout"})
+                    except (ValueError, TypeError):
+                        pass
                 return JSONResponse(content={"status": "pending"})
             except Exception as e:  # noqa: BLE001
                 logger.error(f"api_auth_telegram_status: {e}")
@@ -15472,7 +15687,7 @@ class BOT_FastAPI:
                             content={
                                 "error": translate(
                                     Config.DEFAULT_LANGUAGE,
-                                    "texts.cannot_modify_admin_user",
+                                    "texts.cannot_modify_admin",
                                 )
                             },
                         )
@@ -15536,7 +15751,7 @@ class BOT_FastAPI:
                         content={
                             "error": translate(
                                 Config.DEFAULT_LANGUAGE,
-                                "texts.cannot_modify_admin_user",
+                                "texts.cannot_modify_admin",
                             )
                         },
                     )
@@ -15666,7 +15881,7 @@ class BOT_FastAPI:
                         content={
                             "error": translate(
                                 Config.DEFAULT_LANGUAGE,
-                                "texts.cannot_modify_admin_user",
+                                "texts.cannot_modify_admin",
                             )
                         },
                     )
@@ -15718,7 +15933,7 @@ class BOT_FastAPI:
                         content={
                             "error": translate(
                                 Config.DEFAULT_LANGUAGE,
-                                "texts.cannot_modify_admin_user",
+                                "texts.cannot_modify_admin",
                             )
                         },
                     )
@@ -15776,9 +15991,7 @@ class BOT_FastAPI:
                 logger.info(f"✅ API admin ban_by_uid: пользователь забанен uid={user_id}")
                 return JSONResponse(
                     content={
-                        "message": translate(
-                            Config.DEFAULT_LANGUAGE, "texts.api_user_banned_by_uid"
-                        ),
+                        "message": translate(Config.DEFAULT_LANGUAGE, "texts.api_user_banned"),
                         "success": True,
                     }
                 )
@@ -16220,8 +16433,8 @@ class BOT_FastAPI:
                 try:
                     await _ensure_admin_subscription(user["user_id"])
                     user = await db.get_user_by_any_id(user["user_id"]) or user
-                except Exception:  # noqa: BLE001, S110
-                    pass
+                except Exception as e:  # noqa: BLE001
+                    logger.error(f"api_get_profile: _ensure_admin_subscription error: {e}")
             try:
                 lang = (
                     await db.get_user_language_by_user_id(user["user_id"])
@@ -16302,6 +16515,17 @@ class BOT_FastAPI:
                             build_json_subscription_url(mate_sub_id) if mate_sub_id else ""
                         ),
                     }
+                    try:
+                        partner_email = get_user_panel_email(db_uid, user)
+                        p_ok, p_clients = await panel.get_client_stats_safe(partner_email)
+                        if p_ok and p_clients:
+                            p_used = sum(
+                                max(0, to_int(c.get("up", 0))) + max(0, to_int(c.get("down", 0)))
+                                for c in p_clients
+                            )
+                            partner_sub_data["used_gb"] = round(p_used / BYTES_IN_GB, 2)
+                    except Exception:  # noqa: BLE001, S110
+                        pass
                 try:
                     pending_ops = await get_pending_partner_operations()
                     pending_app = any(
@@ -16988,7 +17212,7 @@ class BOT_FastAPI:
                         content={
                             "error": translate(
                                 Config.DEFAULT_LANGUAGE,
-                                "texts.partner_program_disabled",
+                                "texts.partner_disabled",
                             )
                         },
                     )
@@ -16996,7 +17220,7 @@ class BOT_FastAPI:
                     return JSONResponse(
                         status_code=409,
                         content={
-                            "error": translate(Config.DEFAULT_LANGUAGE, "texts.already_a_partner")
+                            "error": translate(Config.DEFAULT_LANGUAGE, "texts.partner_already")
                         },
                     )
                 followers = to_int(req.get("followers", 0), 0)
@@ -17940,18 +18164,24 @@ class BOT_FastAPI:
             logger.warning(f"API admin reset user: user_id={user_id}")
             try:
                 target_user = await db.get_user_by_any_id(user_id)
-                if target_user:
-                    tg_id = target_user.get("telegram_id", 0)
-                    if tg_id and await is_admin_user(tg_id):
-                        return JSONResponse(
-                            status_code=403,
-                            content={
-                                "error": translate(
-                                    Config.DEFAULT_LANGUAGE,
-                                    "texts.cannot_reset_admin_user",
-                                )
-                            },
-                        )
+                if not target_user:
+                    return JSONResponse(
+                        status_code=404,
+                        content={
+                            "error": translate(Config.DEFAULT_LANGUAGE, "texts.user_not_found")
+                        },
+                    )
+                tg_id = target_user.get("telegram_id", 0)
+                if tg_id and await is_admin_user(tg_id):
+                    return JSONResponse(
+                        status_code=403,
+                        content={
+                            "error": translate(
+                                Config.DEFAULT_LANGUAGE,
+                                "texts.cannot_reset_admin_user",
+                            )
+                        },
+                    )
                 await cleanup_subscription(user_id, "admin_reset", notify_user_about_cleanup=True)
                 return JSONResponse(
                     content={

@@ -60,6 +60,9 @@ export default function LoginPage() {
             stopPolling();
             await login();
             router.replace(getNext());
+          } else if (res.status === 'timeout') {
+            stopPolling();
+            setError(t('texts.login_timeout'));
           }
         } catch {
           // ignore poll errors
@@ -200,7 +203,7 @@ export default function LoginPage() {
                       required
                     />
                     <button type="submit" className="button w-full" disabled={loading}>
-                      {loading ? t('texts.waiting') : t('texts.login_link')}
+                      {loading ? t('texts.waiting') : t('buttons.login')}
                     </button>
                   </form>
                 ) : (
@@ -252,7 +255,7 @@ export default function LoginPage() {
                 <p className="text-center text-secondary text-sm">
                   {t('texts.no_account')}{' '}
                   <Link href="/register" className="font-semibold">
-                    {t('texts.register_link')}
+                    {t('buttons.register')}
                   </Link>
                 </p>
               </div>

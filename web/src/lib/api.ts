@@ -35,8 +35,8 @@ import { t } from './i18n';
 export const API_BASE_URL = (process.env.NEXT_PUBLIC_BOT_API_URL || 'http://localhost:2005/api/v1').replace(/\/$/, '');
 export const DEFAULT_API_BASE = 'http://localhost:2005/api/v1';
 export const REQUEST_TIMEOUT_MS = 15_000;
-export const HEALTH_POLL_INTERVAL_MS = 30_000;
-export const PANEL_STATUS_POLL_INTERVAL_MS = 10_000;
+export const HEALTH_POLL_INTERVAL_MS = 10_000;
+export const PANEL_STATUS_POLL_INTERVAL_MS = 5_000;
 export const TOKEN_REFRESH_INTERVAL_MS = 5 * 60_000;
 export const TELEGRAM_POLL_INTERVAL_MS = 2_000;
 export const TELEGRAM_POLL_TIMEOUT_MS = 120_000;
@@ -139,7 +139,7 @@ export async function getPartnerPublicInfo(): Promise<PartnerPublicInfoResponse>
 }
 
 export async function getHealth() {
-  if (!rateLimit('health', 1000)) return Promise.reject(new Error(t('texts.rate_limited')));
+  if (!rateLimit('health', 2000)) return Promise.reject(new Error(t('texts.rate_limited')));
   return fetchJson(`${API_BASE_URL}/health`) as Promise<{ status: string; version: string }>;
 }
 
@@ -202,7 +202,7 @@ export async function getStatsOverview() {
 }
 
 export async function getPanelStatus(): Promise<PanelStatusResponse> {
-  if (!rateLimit('panel-status', 1000)) return Promise.reject(new Error(t('texts.rate_limited')));
+  if (!rateLimit('panel-status', 2000)) return Promise.reject(new Error(t('texts.rate_limited')));
   return fetchJson<PanelStatusResponse>(`${API_BASE_URL}/stats/panel-status`);
 }
 
@@ -233,7 +233,7 @@ export async function loginUser(req: WebLoginRequest): Promise<UserSession> {
 // ==========================================
 
 export async function getMe(): Promise<SanitizedUser> {
-  if (!rateLimit('getMe', 1000)) return Promise.reject(new Error(t('texts.rate_limited')));
+  if (!rateLimit('getMe', 2000)) return Promise.reject(new Error(t('texts.rate_limited')));
   const response = await fetchJson<SanitizedUser>(`${API_BASE_URL}/profile`);
   return response;
 }
@@ -258,13 +258,6 @@ export async function changePassword(req: WebPasswordChangeRequest) {
 
 export async function linkTelegram(req: WebTelegramLinkRequest & { password?: string }) {
   return fetchJson(`${API_BASE_URL}/auth/telegram/link`, {
-    method: 'POST',
-    body: JSON.stringify(req),
-  });
-}
-
-export async function unlinkTelegram(req: { password?: string }) {
-  return fetchJson(`${API_BASE_URL}/auth/telegram/unlink`, {
     method: 'POST',
     body: JSON.stringify(req),
   });
@@ -373,7 +366,7 @@ export async function partnerWithdraw(req: {
 // ==========================================
 
 export async function getAdminHealth(): Promise<AdminHealthResponse> {
-  if (!rateLimit('admin-health', 1000)) return Promise.reject(new Error(t('texts.rate_limited')));
+  if (!rateLimit('admin-health', 2000)) return Promise.reject(new Error(t('texts.rate_limited')));
   return fetchJson<AdminHealthResponse>(`/api/admin/health`);
 }
 
@@ -433,7 +426,7 @@ export async function debugCleanup(req: DebugCleanupRequest) {
 }
 
 export async function debugSearch(query: string): Promise<DebugSearchResponse> {
-  if (!rateLimit('debug-search', 1000)) return Promise.reject(new Error(t('texts.rate_limited')));
+  if (!rateLimit('debug-search', 2000)) return Promise.reject(new Error(t('texts.rate_limited')));
   const url = `/api/admin/debug/search?q=${encodeURIComponent(query)}`;
   return fetchJson<DebugSearchResponse>(url);
 }

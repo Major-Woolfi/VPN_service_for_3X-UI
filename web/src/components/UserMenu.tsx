@@ -130,7 +130,7 @@ export default function UserMenu() {
               {isPartner && (
                 <>
                   <div className="user-menu-divider" />
-                  <div className="user-menu-section-header">{t('texts.partners_section')}</div>
+                  <div className="user-menu-section-header">{t('texts.partners')}</div>
                   <Link href="/partner" className="user-menu-link" onClick={() => setOpen(false)}>
                     {t('buttons.partner')}
                   </Link>

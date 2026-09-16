@@ -251,7 +251,7 @@ cd VPN_service_for_3X-UI
 │  ├── Dockerfile
 │  ├── main.py
 │  └── requirements.txt
-├── deploy
+├── deploy/
 │  └── Nginx-Proxy.conf
 ├── web/
 │  ├── public/

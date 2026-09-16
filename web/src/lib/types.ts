@@ -5,6 +5,7 @@ export interface WebRegisterRequest {
   username: string;
   password: string;
   tg_id?: number;
+  ref_code?: string;
 }
 
 export interface WebLoginRequest {
@@ -72,6 +73,8 @@ export interface SanitizedUser {
     expiry: string;
     url: string;
     json_url: string;
+    used_gb?: number;
+    traffic_gb?: number;
   } | null;
   has_password: boolean;
   banned: boolean;
@@ -191,6 +194,7 @@ export interface PartnerProfileResponse {
   subscription_id: string;
   expiry: string;
   ref_link_code: string;
+  ref_link: string;
 }
 
 export interface PartnerApplyRequest {

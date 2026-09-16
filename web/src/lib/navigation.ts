@@ -84,7 +84,7 @@ export function useNavigation() {
 
   const publicLinksEnv = getPublicLinks();
   const contactLinks = [
-    { href: publicLinksEnv.support_url, label: t('buttons.support') },
+    { href: publicLinksEnv.support_url, label: t('buttons.contact_support') },
     {
       href: publicLinksEnv.telegram_bot_username
         ? `https://t.me/${publicLinksEnv.telegram_bot_username}`
