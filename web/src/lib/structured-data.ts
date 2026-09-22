@@ -1,45 +1,49 @@
-const siteName = process.env.NEXT_PUBLIC_VPN_NAME || 'VPN';
-const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || '';
+import { getSiteCopy, normalizeSiteLanguage } from "../data/legal";
 
-export function generateJsonLd() {
+const siteName = process.env.NEXT_PUBLIC_VPN_NAME || "VPN";
+const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "";
+
+export function generateJsonLd(language?: string) {
+  const normalizedLanguage = normalizeSiteLanguage(language);
+  const copy = getSiteCopy(normalizedLanguage);
   return {
-    '@context': 'https://schema.org',
-    '@graph': [
+    "@context": "https://schema.org",
+    "@graph": [
       {
-        '@type': 'Organization',
-        '@id': `${baseUrl}/#organization`,
+        "@type": "Organization",
+        "@id": `${baseUrl}/#organization`,
         name: siteName,
         url: baseUrl,
         logo: `${baseUrl}/icon.jpg`,
-        foundingDate: '2026-07-07',
+        foundingDate: "2026-07-07",
       },
       {
-        '@type': 'WebSite',
-        '@id': `${baseUrl}/#website`,
+        "@type": "WebSite",
+        "@id": `${baseUrl}/#website`,
         url: baseUrl,
         name: siteName,
-        description: 'VPN service with VLESS, VMess, Trojan, Shadowsocks, Hysteria, Reality protocols',
+        description: copy.siteDescription,
         publisher: {
-          '@id': `${baseUrl}/#organization`,
+          "@id": `${baseUrl}/#organization`,
         },
-        inLanguage: ['ru', 'en', 'pl', 'zh', 'be', 'de', 'ja'],
+        inLanguage: [normalizedLanguage],
       },
       {
-        '@type': 'WebPage',
-        '@id': `${baseUrl}/#webpage`,
+        "@type": "WebPage",
+        "@id": `${baseUrl}/#webpage`,
         url: baseUrl,
-        name: `${siteName} - Secure VPN Service`,
+        name: `${siteName} - ${copy.siteTitle}`,
         isPartOf: {
-          '@id': `${baseUrl}/#website`,
+          "@id": `${baseUrl}/#website`,
         },
         about: {
-          '@id': `${baseUrl}/#organization`,
+          "@id": `${baseUrl}/#organization`,
         },
       },
     ],
   };
 }
 
-export function generateJsonLdScript() {
-  return { __html: JSON.stringify(generateJsonLd()) };
+export function generateJsonLdScript(language?: string) {
+  return { __html: JSON.stringify(generateJsonLd(language)) };
 }

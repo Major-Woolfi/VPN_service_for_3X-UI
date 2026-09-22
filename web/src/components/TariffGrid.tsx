@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useMemo } from 'react';
-import type { Tariff } from '@/lib/types';
-import { useLanguage } from '@/contexts/LanguageContext';
+import { useMemo } from "react";
+import type { Tariff } from "@/lib/types";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 function getRowConfigs(count: number): number[][] {
   if (count === 0) return [];
@@ -38,7 +38,13 @@ function getRowConfigs(count: number): number[][] {
   return rows;
 }
 
-export default function TariffGrid({ tariffs, onSelect }: { tariffs: Tariff[]; onSelect?: (tariff: Tariff) => void }) {
+export default function TariffGrid({
+  tariffs,
+  onSelect,
+}: {
+  tariffs: Tariff[];
+  onSelect?: (tariff: Tariff) => void;
+}) {
   const { t } = useLanguage();
   const rows = useMemo(() => getRowConfigs(tariffs.length), [tariffs.length]);
 
@@ -53,7 +59,7 @@ export default function TariffGrid({ tariffs, onSelect }: { tariffs: Tariff[]; o
   }, [tariffs, rows]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       {tariffRows.map((rowTariffs, rowIdx) => (
         <div
           key={rowIdx}
@@ -64,26 +70,45 @@ export default function TariffGrid({ tariffs, onSelect }: { tariffs: Tariff[]; o
               key={tariff.id}
               className="card tariff-card"
               style={{
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                padding: '20px',
-                cursor: onSelect ? 'pointer' : 'default',
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                padding: "20px",
+                cursor: onSelect ? "pointer" : "default",
               }}
               onClick={() => onSelect?.(tariff)}
             >
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontWeight: 600, fontSize: '16px' }}>{tariff.name}</div>
-                <div className="text-secondary" style={{ fontSize: '13px', marginTop: '4px' }}>
-                  {tariff.traffic_gb === 0 ? t('texts.unlimited') : t('texts.traffic_gb', { value: tariff.traffic_gb })} · {tariff.ip_limit} {t('texts.ip_label')} · {t('texts.duration_days', { days: tariff.duration_days })}
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontWeight: 600, fontSize: "16px" }}>
+                  {tariff.name}
+                </div>
+                <div
+                  className="text-secondary"
+                  style={{ fontSize: "13px", marginTop: "4px" }}
+                >
+                  {tariff.traffic_gb === 0
+                    ? t("texts.unlimited")
+                    : t("texts.traffic_gb", { value: tariff.traffic_gb })}{" "}
+                  · {tariff.ip_limit} {t("texts.ip_label")} ·{" "}
+                  {t("texts.duration_days", { days: tariff.duration_days })}
                 </div>
                 {tariff.locations.length > 0 && (
-                  <div className="text-secondary" style={{ fontSize: '13px', marginTop: '4px' }}>
-                    {tariff.locations.join(', ')}
+                  <div
+                    className="text-secondary"
+                    style={{ fontSize: "13px", marginTop: "4px" }}
+                  >
+                    {tariff.locations.join(", ")}
                   </div>
                 )}
               </div>
-              <div style={{ fontWeight: 700, color: 'var(--accent)', fontSize: '18px', marginTop: '12px' }}>
+              <div
+                style={{
+                  fontWeight: 700,
+                  color: "var(--accent)",
+                  fontSize: "18px",
+                  marginTop: "12px",
+                }}
+              >
                 {tariff.price_rub} ₽
               </div>
             </div>
@@ -93,4 +118,3 @@ export default function TariffGrid({ tariffs, onSelect }: { tariffs: Tariff[]; o
     </div>
   );
 }
-

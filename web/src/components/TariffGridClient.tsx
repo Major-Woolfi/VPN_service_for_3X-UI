@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import TariffGrid from './TariffGrid';
-import { useRouter } from 'next/navigation';
-import type { Tariff } from '@/lib/types';
+import TariffGrid from "./TariffGrid";
+import { useRouter } from "next/navigation";
+import type { Tariff } from "@/lib/types";
 
 export default function TariffGridClient({ tariffs }: { tariffs: Tariff[] }) {
   const router = useRouter();
@@ -16,4 +16,3 @@ export default function TariffGridClient({ tariffs }: { tariffs: Tariff[] }) {
     />
   );
 }
-

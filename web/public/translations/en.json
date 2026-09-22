@@ -10,6 +10,7 @@
     "cancel": "Cancel",
     "change_password": "Change Password",
     "cleanup": "Cleanup",
+    "clear_abuse": "Clear Abuse",
     "client": "Client",
     "confirm": "Confirm",
     "contact_support": "Support",
@@ -22,6 +23,7 @@
     "forward": "Forward",
     "light_theme": "Light Theme",
     "link_telegram": "Link Telegram",
+    "load_abuse_users": "Load Abuse Users",
     "login": "Login",
     "logout": "Logout",
     "main": "Main Menu",
@@ -51,6 +53,8 @@
     "about": "About {vpnName}",
     "about_text": "{vpnName} is a VPN service based on XRay core 26.7.28+ with XHTTP transport and REALITY plugin. Protocols VLESS and Shadowsocks, post‑quantum encryption ML‑KEM‑768, xPadding obfuscation, xmux multiplexing. Speeds up to 1 Gbit/s. No logs are kept.",
     "about_text_2": "The project was founded by two enthusiasts. We are open to feedback and constantly improve the service.",
+    "abuse": "Abuse",
+    "abuse_users": "Abuse Users",
     "account": "Account",
     "account_banned_message": "Your account has been banned. Please contact support.",
     "account_banned_title": "Account Banned",
@@ -64,8 +68,8 @@
     "admin_user_username": "Username",
     "admin_user_vpn_url": "VPN URL",
     "all_users": "Total Users",
-    "alt_client": "Alternative Client",
-    "alt_client_text": "v2RayNG - stable on Android with all configs except v2 (Shadowsocks), and only in sub format. JSON subscription does not work.",
+    "alt_client": "v2RayTun (legacy)",
+    "alt_client_text": "Legacy client with potential issues. Download, restore settings from backup, configure routing, paste subscription.",
     "amount": "Amount",
     "amount_must_be_positive": "Amount must be greater than zero",
     "api_offline": "API Offline",
@@ -100,6 +104,7 @@
     "custom_tariff_param_gb": "• <strong>GB</strong> - traffic volume (1-1000)",
     "custom_tariff_param_ip": "• <strong>IP</strong> - device limit (1-15)",
     "custom_tariff_param_locations": "• <strong>LOC</strong> - selected locations:",
+    "daily_traffic_gb": "Daily Traffic (GB)",
     "days": "Days",
     "debug": "Debug",
     "debug_search": "Search Users",
@@ -114,7 +119,6 @@
     "failed_to_load_features": "Failed to load features",
     "failed_to_load_user": "Failed to load user",
     "feature_1": "Speed up to 1 Gbps",
-    "feature_2": "Locations: NL, FI, CH and WhiteList (CDN Video)",
     "feature_3": "Help with client setup",
     "feature_4": "Up to 15 devices per subscription",
     "feature_5": "Protocols: VLESS, Shadowsocks + XHTTP transport",
@@ -122,13 +126,13 @@
     "feature_7": "Regular XRay core updates",
     "features": "What can {vpnName} offer you?",
     "fio_required": "Please provide your full name",
-    "guide_available": "Full guide available in our Telegram channel:",
-    "guide_link": "Setup Guide",
+    "guide_available": "All config files are in our Telegram channel:",
+    "guide_link": "Open config post",
     "have_account": "Already have an account?",
     "how_it_works": "How it works",
     "how_it_works_text": "Invite friends via your referral link and get +{days} days of subscription for each paid referral.",
     "important": "Important",
-    "important_text": "v2RayTun and Happ work with JSON subscription but require configuration. We use XRay 26.7.28+ with XHTTP transport and REALITY plugin.",
+    "important_text": "We use XRay 26.7.28+ with XHTTP transport and REALITY plugin. INCY: download from https://github.com/INCY-DEV/incy-platforms",
     "insufficient_balance": "Insufficient balance",
     "ip_label": "IP",
     "ips": "IP Addresses",
@@ -144,8 +148,8 @@
     "login_subtitle": "Log in via Telegram or by login",
     "login_timeout": "Login timeout. Please try again.",
     "login_title": "Login to Account",
-    "main_client": "Main Client",
-    "main_client_text": "INCY - the recommended primary client, works excellently with all protocols on all devices.",
+    "main_client": "INCY",
+    "main_client_text": "Recommended client for all devices. Download from GitHub, import config from post, click Apply, configure per-app proxy (optional), paste subscription from @off_PhantomVPN_bot.",
     "main_server": "Main Server",
     "menu_login_label": "Log in or open menu",
     "menu_profile_label": "Profile {username}",
@@ -153,7 +157,7 @@
     "nav_main_navigation": "Main navigation",
     "nav_open_menu": "Open menu",
     "need_help": "Need help?",
-    "need_help_text": "We can help with INCY, v2RayNG and other clients. Just contact support.",
+    "need_help_text": "For help with INCY, v2RayTun or other clients, contact support.",
     "new_password": "New password",
     "no": "No",
     "no_account": "No account?",
@@ -244,8 +248,8 @@
     "qa_answer_11": "Usually 50-100 Mbps. Speed depends on your provider - some operators throttle VPN traffic. Modern protocols and BBR congestion control minimise this effect.",
     "qa_answer_12": "Factors affecting speed: provider plan, VPN throttling practices, client settings, channel congestion, and server distance.",
     "qa_answer_13": "Trust Score is a loyalty program that earns you points for each subscription payment. You get 5% of the payment amount for each payment (max 100 points per purchase). The more points you have, the greater your discount - the discount is calculated automatically and applied at checkout to all tariffs (both fixed and custom). The exact number of points and discount amount are shown in your profile on the website or in the bot. The system updates automatically.",
-    "qa_answer_14": "The bot is a Telegram bot for managing your subscription. From the main menu you can buy or renew a subscription, view status and get VPN links in «My Subscription», set up a client app, use the referral system, or apply to become a partner. Fixed tariffs and a custom tariff are available - you choose traffic volume, number of devices, duration and locations, and the bot calculates the price. Payment methods: bank card transfer (P2P) and YooMoney. The interface language can be switched to any of 7 supported languages. Payments are verified manually - the subscription activates automatically after payment.",
-    "qa_answer_15": "The website is a web interface for managing your subscription. The home page shows service statistics and server status. In the «Subscribe» section you choose a tariff or a custom tariff with dynamic price calculation, then pay by bank card transfer (P2P) or via YooMoney. In your profile you can view subscription status, traffic with a progress bar, trust score and VPN links, as well as set up client applications for Android, iOS, Windows, macOS, Linux, Android TV and router. In Settings you can change the language (7 options), theme, password and Telegram linking. The FAQ section contains search and categories.",
+    "qa_answer_14": "The bot is a Telegram bot for managing your subscription. From the main menu you can buy or renew a subscription, view status and get VPN links in «My Subscription», set up a client app, use the referral system, or apply to become a partner. Fixed tariffs and a custom tariff are available - you choose traffic volume, number of devices, duration and locations, and the bot calculates the price. Payment methods: bank card transfer (P2P) and YooMoney. The interface language can be switched to any of several supported languages. Payments are verified manually - the subscription activates automatically after payment.",
+    "qa_answer_15": "The website is a web interface for managing your subscription. The home page shows service statistics and server status. In the «Subscribe» section you choose a tariff or a custom tariff with dynamic price calculation, then pay by bank card transfer (P2P) or via YooMoney. In your profile you can view subscription status, traffic with a progress bar, trust score and VPN links, as well as set up client applications for Android, iOS, Windows, macOS, Linux, Android TV and router. In Settings you can change the language (several options), theme, password and Telegram linking. The FAQ section contains search and categories.",
     "qa_answer_2": "The project was founded by two enthusiasts. The technical administrator has extensive experience in network infrastructure. We are not a commercial company - we run a VPN that we use ourselves.",
     "qa_answer_3": "This is a long‑term project. We are committed to stable operation and continuous improvement. As the audience grows, we plan to expand servers and add features.",
     "qa_answer_4": "Low cost is due to the absence of marketing, office expenses, and intermediaries. Limitations are introduced for rational resource usage and are sufficient for the vast majority of users.",
@@ -309,13 +313,12 @@
     "stats": "Statistics",
     "status": "Status",
     "status_active": "Active",
-    "step_1": "Download and install INCY",
-    "step_2": "Open the Telegram bot",
-    "step_3": "Get the config from the bot",
-    "step_4": "Import the config into INCY",
-    "step_5": "Connect to the server",
-    "steps": "Step‑by‑Step Instructions",
-    "subscription_activated": "Subscription Activated",
+    "step_1": "Download INCY from GitHub: https://github.com/INCY-DEV/incy-platforms",
+    "step_2": "Import configuration from this message",
+    "step_3": "Click Apply to activate",
+    "step_4": "Configure per-app proxy (optional)",
+    "step_5": "Paste subscription link from @off_PhantomVPN_bot",
+    "steps": "INCY Steps",
     "subscription_link": "Subscription Link",
     "subscription_status": "Subscription Status",
     "support_not_configured": "Support not configured",
@@ -337,6 +340,7 @@
     "theme": "Theme",
     "total_earned": "Total Earned",
     "total_refs": "Total Referred",
+    "total_traffic_gb": "Total Traffic (GB)",
     "traffic": "Traffic",
     "traffic_gb": "{value} GB",
     "traffic_progress": "Traffic usage progress",
@@ -381,7 +385,7 @@
   },
   "legal": {
     "offer": {
-      "effectiveDate": "07.09.2026",
+      "effectiveDate": "22.09.2026",
       "sections": [
         {
           "content": "This public offer defines the terms and conditions for the provision of VPN services by {vpnName}. By using the service, you agree to the terms of use and accept this offer.",
@@ -396,7 +400,7 @@
           "title": "2. Procedure for Concluding the Contract"
         },
         {
-          "content": "3.1. The cost and duration of the service are indicated in the Telegram bot and on the website when selecting a tariff.\n3.2. Payment is made using available methods:\n- YooMoney (Quick payment)\n- P2P card transfer\n- Other methods specified in the bot or on the website\n\n3.3. Currently, payments are processed manually.\n3.4. After the transfer, to speed up processing, it is recommended to contact support within 5-10 minutes with the receipt attached.",
+          "content": "3.1. The cost and duration of the service are indicated in the Telegram bot and on the website when selecting a tariff.\n3.2. Payment is made using available methods:\n- YooMoney (Quick payment)\n- P2P card transfer\n- Other methods specified in the bot or on the website\n\n3.3. Currently, payments are processed manually.\n3.4. After the transfer, to speed up processing, it is recommended to contact support within 5–10 minutes with the receipt attached.",
           "title": "3. Cost and Payment"
         },
         {
@@ -440,11 +444,11 @@
           "title": "13. Details and Contacts"
         }
       ],
-      "subtitle": "{vpnName} - terms of service",
+      "subtitle": "{vpnName} – terms of service",
       "title": "Public Offer"
     },
     "privacy": {
-      "effectiveDate": "07.09.2026",
+      "effectiveDate": "22.09.2026",
       "sections": [
         {
           "content": "This policy describes what technical data {vpnName} processes when operating the website, bot, and VPN service. By using the service, you agree to this policy.",
@@ -495,11 +499,11 @@
           "title": "11. Contacts"
         }
       ],
-      "subtitle": "{vpnName} - user data processing",
+      "subtitle": "{vpnName} – user data processing",
       "title": "Privacy Policy"
     },
     "tos": {
-      "effectiveDate": "07.09.2026",
+      "effectiveDate": "22.09.2026",
       "sections": [
         {
           "content": "These terms govern access to and use of the {vpnName} VPN service. By using the service, you accept these terms and the public offer in full.",
@@ -566,11 +570,11 @@
           "title": "15. Final Provisions"
         },
         {
-          "content": "16.1. For all questions, contact Telegram support via the bot or website.\n16.2. Response time: usually within 1 hour.\n16.3. To speed up payment processing, it is recommended to contact support within 5-10 minutes after payment with the receipt attached (optional).\n16.4. The project team is always ready to help with technical and individual questions.",
+          "content": "16.1. For all questions, contact Telegram support via the bot or website.\n16.2. Response time: usually within 1 hour.\n16.3. To speed up payment processing, it is recommended to contact support within 5–10 minutes after payment with the receipt attached (optional).\n16.4. The project team is always ready to help with technical and individual questions.",
           "title": "16. Contacts"
         }
       ],
-      "subtitle": "{vpnName} - service usage rules",
+      "subtitle": "{vpnName} – service usage rules",
       "title": "Terms of Use"
     }
   }

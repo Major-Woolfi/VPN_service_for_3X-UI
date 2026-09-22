@@ -10,6 +10,7 @@
     "cancel": "Anuluj",
     "change_password": "Zmień hasło",
     "cleanup": "Wyczyść",
+    "clear_abuse": "Wyczyść nadużycia",
     "client": "Klient",
     "confirm": "Potwierdź",
     "contact_support": "Wsparcie",
@@ -22,6 +23,7 @@
     "forward": "Dalej",
     "light_theme": "Motyw jasny",
     "link_telegram": "Połącz Telegram",
+    "load_abuse_users": "Wczytaj użytkowników nadużywających",
     "login": "Zaloguj się",
     "logout": "Wyloguj się",
     "main": "Menu główne",
@@ -51,6 +53,8 @@
     "about": "O {vpnName}",
     "about_text": "{vpnName} to usługa VPN oparta na jądrze XRay 26.7.28+ z transportem XHTTP i wtyczką REALITY. Protokoły VLESS i Shadowsocks, szyfrowanie post‑kwantowe ML‑KEM‑768, zaciemnianie xPadding, multipleksowanie xmux. Prędkość do 1 Gbit/s. Logi nie są prowadzone.",
     "about_text_2": "Projekt założony przez dwóch entuzjastów. Jesteśmy otwarci na opinie i stale ulepszamy usługę.",
+    "abuse": "Nadużycie",
+    "abuse_users": "Użytkownicy nadużywający",
     "account": "Konto",
     "account_banned_message": "Twoje konto zostało zablokowane. Skontaktuj się z pomocą techniczną.",
     "account_banned_title": "Konto zablokowane",
@@ -64,8 +68,8 @@
     "admin_user_username": "Nazwa użytkownika",
     "admin_user_vpn_url": "URL VPN",
     "all_users": "Wszyscy użytkownicy",
-    "alt_client": "Klient alternatywny",
-    "alt_client_text": "v2RayNG - stabilnie działa na Androidzie ze wszystkimi konfiguracjami oprócz v2 (Shadowsocks), tylko w formacie sub. Subskrypcja JSON nie działa.",
+    "alt_client": "v2RayTun (przestarzały)",
+    "alt_client_text": "Przestarzały klient z potencjalnymi problemami. Pobierz, przywróć ustawienia z backupu, skonfiguruj routing, wklej link do subskrypcji.",
     "amount": "Kwota",
     "amount_must_be_positive": "Kwota musi być większa od zera",
     "api_offline": "API niedostępne",
@@ -100,6 +104,7 @@
     "custom_tariff_param_gb": "• <strong>GB</strong> - ilość ruchu (1-1000)",
     "custom_tariff_param_ip": "• <strong>IP</strong> - limit urządzeń (1-15)",
     "custom_tariff_param_locations": "• <strong>LOC</strong> - wybrane lokalizacje:",
+    "daily_traffic_gb": "Dzienny ruch (GB)",
     "days": "Dni",
     "debug": "Debug",
     "debug_search": "Szukaj użytkowników",
@@ -114,7 +119,6 @@
     "failed_to_load_features": "Nie udało się załadować funkcji",
     "failed_to_load_user": "Nie udało się załadować użytkownika",
     "feature_1": "Prędkość do 1 Gbit/s",
-    "feature_2": "Lokalizacje: NL, FI, CH oraz WhiteList (CDN Video)",
     "feature_3": "Pomoc w konfiguracji klienta",
     "feature_4": "Do 15 urządzeń na subskrypcję",
     "feature_5": "Protokoły: VLESS, Shadowsocks + transport XHTTP",
@@ -122,13 +126,13 @@
     "feature_7": "Regularne aktualizacje jądra XRay",
     "features": "Co {vpnName} może Ci zaoferować?",
     "fio_required": "Podaj imię i nazwisko odbiorcy",
-    "guide_available": "Pełny poradnik dostępny na naszym kanale Telegram:",
-    "guide_link": "Instrukcja konfiguracji",
+    "guide_available": "Wszystkie pliki konfiguracji znajdują się w naszym kanale Telegram:",
+    "guide_link": "Otwórz post z konfiguracjami",
     "have_account": "Masz już konto?",
     "how_it_works": "Jak to działa",
     "how_it_works_text": "Zaproś znajomych przez swój link polecający i otrzymaj +{days} dni subskrypcji za każdego opłaconego zaproszonego.",
     "important": "Ważne",
-    "important_text": "V2RayTun i Happ działają z subskrypcją JSON, ale wymagają konfiguracji. Używamy XRay 26.7.28+ z transportem XHTTP i pluginem REALITY.",
+    "important_text": "Używamy XRay 26.7.28+ z transportem XHTTP i pluginem REALITY. INCY: pobierz z https://github.com/INCY-DEV/incy-platforms",
     "insufficient_balance": "Niewystarczające środki",
     "ip_label": "IP",
     "ips": "Adresy IP",
@@ -144,8 +148,8 @@
     "login_subtitle": "Zaloguj się przez Telegram lub login",
     "login_timeout": "Przekroczono czas logowania. Spróbuj ponownie.",
     "login_title": "Logowanie do konta",
-    "main_client": "Główny klient",
-    "main_client_text": "INCY - zalecany główny klient, działa doskonale ze wszystkimi protokołami na wszystkich urządzeniach.",
+    "main_client": "INCY",
+    "main_client_text": "Rekomendowany klient dla wszystkich urządzeń. Pobierz z GitHub, zaimportuj config z posta, kliknij Zastosuj, skonfiguruj proxy per-app (opcjonalnie), wklej subskrypcję z @off_PhantomVPN_bot.",
     "main_server": "Główny serwer",
     "menu_login_label": "Zaloguj się lub otwórz menu",
     "menu_profile_label": "Profil {username}",
@@ -153,7 +157,7 @@
     "nav_main_navigation": "Nawigacja główna",
     "nav_open_menu": "Otwórz menu",
     "need_help": "Potrzebujesz pomocy?",
-    "need_help_text": "Pomożemy z INCY, v2RayNG i innymi klientami. Po prostu napisz do wsparcia.",
+    "need_help_text": "Wsparcie dla INCY, v2RayTun i innych klientów - skontaktuj się z pomocą techniczną.",
     "new_password": "Nowe hasło",
     "no": "Nie",
     "no_account": "Nie masz konta?",
@@ -244,8 +248,8 @@
     "qa_answer_11": "Zazwyczaj 50-100 Mbit/s. Prędkość zależy od dostawcy - niektórzy operatorzy ograniczają ruch VPN. Nowoczesne protokoły i kontrola przeciążenia BBR minimalizują ten efekt.",
     "qa_answer_12": "Na prędkość wpływają: taryfa dostawcy, praktyki ograniczania ruchu VPN, ustawienia klienta, obciążenie kanału i odległość do serwera.",
     "qa_answer_13": "Trust Score to program lojalnościowy przyznający punkty za każdą płatność subskrypcyjną. Otrzymujesz 5% kwoty płatności za każdą płatność (maks. 100 punktów za zakup). Im więcej punktów, tym większy rabat - rabat jest obliczany automatycznie i stosowany przy zapłacie na wszystkie taryfy (zarówno stałe, jak i indywidualne). Dokładna liczba punktów i wysokość rabatu są widoczne w Twoim profilu na stronie lub w bocie. System aktualizuje się automatycznie.",
-    "qa_answer_14": "Bot to Telegram-bot do zarzadzania subskrypcja. Z menu glowego mozesz kupic lub odnowic subskrypcje, zobaczyc status i otrzymac linki VPN w sekcji «Moja subskrypcja», skonfigurowac aplikacje klienckie, skorzystac z systemu polecenc lub zlodzic wniosek o partnerstwo. Dostepne sa taryfy stale i taryfa indywidualna, gdzie wybierasz wolumen ruchu, liczbe urzadzen, okres i lokalizacje - bot obliczy cene. Metody platnosci: przelew na karte (P2P) i YooMoney. Jezyk interfejsu mozna zmienic na dowolny z 7 supported jezykow. Platnosci sa weryfikowane recznie - po platnosci subskrypcja aktywuje sie automatycznie.",
-    "qa_answer_15": "Strona to aplikacja webowa do zarzadzania subskrypcja. Strona glowna wyswietla statystyki serwisu i status serwerow. W sekcji «Subskrypcja» wybierasz taryfe lub taryfe indywidualna z dynamicznym obliczaniem ceny, nastepnie platnisz przelewem na karte (P2P) lub przez YooMoney. W profilu mozesz przeglądac status subskrypcji, transfer z paskiem postepu, punkty zaufania i linki VPN, a takze konfigurowac aplikacje klienckie dla Android, iOS, Windows, macOS, Linux, Android TV i routera. W ustawieniach mozesz zmienic jezyk (7 opcji), motyw, haslo i polaczenie Telegram. Sekcja FAQ zawiera wyszukiwarka i kategorie.",
+    "qa_answer_14": "Bot to Telegram-bot do zarządzania subskrypcją. Z menu głównego możesz kupić lub odnowić subskrypcję, zobaczyć status i otrzymać linki VPN w sekcji «Moja subskrypcja», skonfigurować aplikację kliencką, skorzystać z systemu poleceń lub złożyć wniosek o partnerstwo. Dostępne są taryfy stałe i taryfa indywidualna, gdzie wybierasz wolumen ruchu, liczbę urządzeń, okres i lokalizacje - bot obliczy cenę. Metody płatności: przelew na kartę (P2P) i YooMoney. Język interfejsu można zmienić na dowolny z kilku obsługiwanych języków. Płatności są weryfikowane ręcznie - po płatności subskrypcja aktywuje się automatycznie.",
+    "qa_answer_15": "Strona to aplikacja webowa do zarządzania subskrypcją. Strona główna wyświetla statystyki serwisu i status serwerów. W sekcji «Subskrypcja» wybierasz taryfę lub taryfę indywidualną z dynamicznym obliczaniem ceny, następnie płacisz przelewem na kartę (P2P) lub przez YooMoney. W profilu możesz przeglądać status subskrypcji, transfer z paskiem postępu, punkty zaufania i linki VPN, a także konfigurować aplikacje klienckie dla Android, iOS, Windows, macOS, Linux, Android TV i routera. W ustawieniach możesz zmienić język (kilka opcji), motyw, hasło i połączenie Telegram. Sekcja FAQ zawiera wyszukiwarkę i kategorie.",
     "qa_answer_2": "Projekt założony przez dwóch entuzjastów. Administrator techniczny ma duże doświadczenie w infrastrukturze sieciowej. Nie jesteśmy firmą komercyjną - robimy VPN, z którego sami korzystamy.",
     "qa_answer_3": "To długoterminowy projekt. Jesteśmy zainteresowani stabilnym działaniem i ciągłym ulepszaniem. W miarę wzrostu liczby odbiorców planujemy rozbudowę serwerów i dodawanie funkcji.",
     "qa_answer_4": "Niska cena wynika z braku marketingu, kosztów biurowych i pośredników. Ograniczenia wprowadzono w celu racjonalnego wykorzystania zasobów. Są one wystarczające dla zdecydowanej większości użytkowników.",
@@ -309,13 +313,12 @@
     "stats": "Statystyki",
     "status": "Status",
     "status_active": "Aktywna",
-    "step_1": "Pobierz i zainstaluj INCY",
-    "step_2": "Otwórz bota Telegram",
-    "step_3": "Pobierz konfigurację od bota",
-    "step_4": "Zaimportuj konfigurację do INCY",
-    "step_5": "Połącz się z serwerem",
-    "steps": "Instrukcja krok po kroku",
-    "subscription_activated": "Subskrypcja aktywowana",
+    "step_1": "Pobierz INCY z GitHub: https://github.com/INCY-DEV/incy-platforms",
+    "step_2": "Zaimportuj konfigurację z tej wiadomości",
+    "step_3": "Kliknij Zastosuj aby aktywować",
+    "step_4": "Skonfiguruj proxy per-app (opcjonalnie)",
+    "step_5": "Wklej link do subskrypcji z @off_PhantomVPN_bot",
+    "steps": "Kroki dla INCY",
     "subscription_link": "Link do subskrypcji",
     "subscription_status": "Status subskrypcji",
     "support_not_configured": "Pomoc nie skonfigurowana",
@@ -337,6 +340,7 @@
     "theme": "Motyw",
     "total_earned": "Łącznie zarobiono",
     "total_refs": "Łącznie zaproszonych",
+    "total_traffic_gb": "Całkowity ruch (GB)",
     "traffic": "Ruch",
     "traffic_gb": "{value} GB",
     "traffic_progress": "Postęp wykorzystania ruchu",
@@ -381,7 +385,7 @@
   },
   "legal": {
     "offer": {
-      "effectiveDate": "07.09.2026",
+      "effectiveDate": "22.09.2026",
       "sections": [
         {
           "content": "Niniejsza oferta publiczna określa warunki świadczenia usług VPN przez {vpnName}. Korzystając z usługi, zgadzasz się z warunkami korzystania i przyjmujesz niniejszą ofertę.",
@@ -396,7 +400,7 @@
           "title": "2. Tryb zawarcia umowy"
         },
         {
-          "content": "3.1. Koszt i okres usługi podawane są w bocie Telegram oraz na stronie internetowej przy wyborze taryfy.\n3.2. Płatność dokonywana jest dostępnymi metodami:\n- YooMoney (szybka płatność)\n- Przelew P2P na kartę\n- Inne metody wskazane w bocie lub na stronie\n\n3.3. Obecnie płatności są obsługiwane ręcznie.\n3.4. Po przelewie w celu przyspieszenia obsługi zaleca się kontakt z pomocą w ciągu 5-10 minut z załączonym dowodem wpłaty.",
+          "content": "3.1. Koszt i okres usługi podawane są w bocie Telegram oraz na stronie internetowej przy wyborze taryfy.\n3.2. Płatność dokonywana jest dostępnymi metodami:\n- YooMoney (szybka płatność)\n- Przelew P2P na kartę\n- Inne metody wskazane w bocie lub na stronie\n\n3.3. Obecnie płatności są obsługiwane ręcznie.\n3.4. Po przelewie w celu przyspieszenia obsługi zaleca się kontakt z pomocą w ciągu 5–10 minut z załączonym dowodem wpłaty.",
           "title": "3. Koszt i płatność"
         },
         {
@@ -440,11 +444,11 @@
           "title": "13. Dane i kontakty"
         }
       ],
-      "subtitle": "{vpnName} - warunki świadczenia usług",
+      "subtitle": "{vpnName} – warunki świadczenia usług",
       "title": "Oferta publiczna"
     },
     "privacy": {
-      "effectiveDate": "07.09.2026",
+      "effectiveDate": "22.09.2026",
       "sections": [
         {
           "content": "Niniejsza polityka opisuje, jakie dane techniczne przetwarza {vpnName} podczas działania strony internetowej, bota i usługi VPN. Korzystając z usługi, zgadzasz się na niniejszą politykę.",
@@ -495,11 +499,11 @@
           "title": "11. Kontakty"
         }
       ],
-      "subtitle": "{vpnName} - przetwarzanie danych użytkowników",
+      "subtitle": "{vpnName} – przetwarzanie danych użytkowników",
       "title": "Polityka prywatności"
     },
     "tos": {
-      "effectiveDate": "07.09.2026",
+      "effectiveDate": "22.09.2026",
       "sections": [
         {
           "content": "Niniejsze warunki regulują dostęp do usługi VPN {vpnName} i korzystanie z niej. Korzystając z usługi, akceptujesz niniejsze warunki i ofertę publiczną w całości.",
@@ -566,11 +570,11 @@
           "title": "15. Postanowienia końcowe"
         },
         {
-          "content": "16.1. We wszystkich sprawach prosimy o kontakt ze wsparciem Telegram za pośrednictwem bota lub strony internetowej.\n16.2. Czas odpowiedzi: zazwyczaj w ciągu 1 godziny.\n16.3. Aby przyspieszyć obsługę płatności, zaleca się kontakt z pomocą w ciągu 5-10 minut po dokonaniu płatności z załączonym dowodem (nieobowiązkowym).\n16.4. Zespół projektu jest zawsze gotowy do pomocy w sprawach technicznych i indywidualnych.",
+          "content": "16.1. We wszystkich sprawach prosimy o kontakt ze wsparciem Telegram za pośrednictwem bota lub strony internetowej.\n16.2. Czas odpowiedzi: zazwyczaj w ciągu 1 godziny.\n16.3. Aby przyspieszyć obsługę płatności, zaleca się kontakt z pomocą w ciągu 5–10 minut po dokonaniu płatności z załączonym dowodem (nieobowiązkowym).\n16.4. Zespół projektu jest zawsze gotowy do pomocy w sprawach technicznych i indywidualnych.",
           "title": "16. Kontakty"
         }
       ],
-      "subtitle": "{vpnName} - zasady korzystania z usługi",
+      "subtitle": "{vpnName} – zasady korzystania z usługi",
       "title": "Warunki korzystania"
     }
   }

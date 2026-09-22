@@ -10,6 +10,7 @@
     "cancel": "取消",
     "change_password": "修改密码",
     "cleanup": "清理",
+    "clear_abuse": "清除滥用",
     "client": "客户端",
     "confirm": "确认",
     "contact_support": "支持",
@@ -22,6 +23,7 @@
     "forward": "前进",
     "light_theme": "浅色主题",
     "link_telegram": "绑定 Telegram",
+    "load_abuse_users": "加载滥用用户",
     "login": "登录",
     "logout": "退出",
     "main": "主菜单",
@@ -51,6 +53,8 @@
     "about": "关于 {vpnName}",
     "about_text": "{vpnName} 是基于 XRay 核心 26.7.28+ 并采用 XHTTP 传输和 REALITY 插件的 VPN 服务。协议包括 VLESS 和 Shadowsocks，后量子加密 ML‑KEM‑768，xPadding 混淆，xmux 多路复用。速度最高可达 1 Gbps。不保留日志。",
     "about_text_2": "该项目由两位爱好者创立。我们欢迎反馈并持续改进服务。",
+    "abuse": "滥用",
+    "abuse_users": "滥用用户",
     "account": "账户",
     "account_banned_message": "您的账户已被封禁。请联系支持。",
     "account_banned_title": "账户已封禁",
@@ -64,8 +68,8 @@
     "admin_user_username": "用户名",
     "admin_user_vpn_url": "VPN URL",
     "all_users": "总用户数",
-    "alt_client": "替代客户端",
-    "alt_client_text": "v2RayNG - 在Android上稳定运行，支持除v2（Shadowsocks）外的所有配置，仅适用于sub格式。JSON订阅不适用。",
+    "alt_client": "v2RayTun (旧版)",
+    "alt_client_text": "旧版客户端可能有问题。下载，从备份恢复设置，配置路由，粘贴订阅链接。",
     "amount": "金额",
     "amount_must_be_positive": "金额必须大于零",
     "api_offline": "API 离线",
@@ -100,6 +104,7 @@
     "custom_tariff_param_gb": "• <strong>GB</strong> - 流量（1-1000）",
     "custom_tariff_param_ip": "• <strong>IP</strong> - 设备限制（1-15）",
     "custom_tariff_param_locations": "• <strong>LOC</strong> - 所选位置：",
+    "daily_traffic_gb": "每日流量 (GB)",
     "days": "天",
     "debug": "调试",
     "debug_search": "搜索用户",
@@ -114,7 +119,6 @@
     "failed_to_load_features": "无法加载功能",
     "failed_to_load_user": "无法加载用户",
     "feature_1": "速度高达 1 Gbps",
-    "feature_2": "位置：NL、FI、CH 及 WhiteList（CDN 视频）",
     "feature_3": "客户端设置帮助",
     "feature_4": "每个订阅最多15台设备",
     "feature_5": "协议：VLESS、Shadowsocks + XHTTP 传输",
@@ -122,13 +126,13 @@
     "feature_7": "XRay 核心定期更新",
     "features": "{vpnName} 能为您提供什么？",
     "fio_required": "请提供收款人全名",
-    "guide_available": "完整指南可在我们的 Telegram 频道获取：",
-    "guide_link": "设置指南",
+    "guide_available": "所有配置文件都在我们的 Telegram 频道：",
+    "guide_link": "打开配置帖子",
     "have_account": "已有账户？",
     "how_it_works": "工作原理",
     "how_it_works_text": "通过您的推荐链接邀请朋友，每成功付费邀请一位，可获得 +{days} 天订阅。",
     "important": "重要",
-    "important_text": "V2RayTun 和 Happ 在 JSON 订阅上运行，但需要配置。我们使用 XRay 26.7.28+，配备 XHTTP 传输和 REALITY 插件。",
+    "important_text": "我们使用 XRay 26.7.28+，配备 XHTTP 传输和 REALITY 插件。INCY: 从 https://github.com/INCY-DEV/incy-platforms 下载",
     "insufficient_balance": "余额不足",
     "ip_label": "IP",
     "ips": "IP 地址",
@@ -144,8 +148,8 @@
     "login_subtitle": "通过 Telegram 或登录名登录",
     "login_timeout": "登录超时。请重试。",
     "login_title": "登录账户",
-    "main_client": "主要客户端",
-    "main_client_text": "INCY - 推荐的主要客户端，在所有设备上支持所有协议，性能优异。",
+    "main_client": "INCY",
+    "main_client_text": "全设备推荐客户端。从 GitHub 下载，从帖子导入配置，点击应用，配置逐应用代理 (可选)，粘贴来自 @off_PhantomVPN_bot 的订阅链接。",
     "main_server": "主服务器",
     "menu_login_label": "登录或打开菜单",
     "menu_profile_label": "个人资料 {username}",
@@ -153,7 +157,7 @@
     "nav_main_navigation": "主导航",
     "nav_open_menu": "打开菜单",
     "need_help": "需要帮助？",
-    "need_help_text": "我们可以帮助处理 INCY、v2RayNG 及其他客户端。请联系支持。",
+    "need_help_text": "如需 INCY、v2RayTun 或其他客户端的帮助，请联系支持。",
     "new_password": "新密码",
     "no": "否",
     "no_account": "没有账户？",
@@ -244,8 +248,8 @@
     "qa_answer_11": "通常为 50-100 Mbps。速度取决于您的运营商 - 一些运营商会对 VPN 流量进行限制。现代协议和 BBR 拥塞控制可最大程度地减少这种影响。",
     "qa_answer_12": "影响因素包括：运营商套餐、VPN 流量限制措施、客户端设置、信道拥塞程度以及与服务器的距离。",
     "qa_answer_13": "Trust Score 是一个忠诚度计划，每次订阅付款都会获得积分。每次付款可获得5%的付款金额（每次购买最多100分）。分数越高，折扣就越大 - 折扣自动计算并在结账时应用于所有套餐（固定和自定义）。准确的分数和折扣金额显示在您的网站或机器人个人资料中。系统会自动更新。",
-    "qa_answer_14": "机器人是管理您的订阅的 Telegram 机器人。从主菜单，您可以购买或续订订阅、在“我的订阅”中查看状态和获取 VPN 链接、设置客户端应用程序、使用推荐系统或申请成为合伙人。固定套餐和自定义套餐均可用 - 您选择流量、设备数、期限和位置，机器人将计算价格。支付方式: 银行卡转账 (P2P) 和 YooMoney。界面语言可以切换为任意 7 种支持的语言。付款经过手动验证 - 付款后订阅会自动激活。",
-    "qa_answer_15": "网站是管理您的订阅的 Web 界面。主页显示服务统计和服务器状态。在“订阅”部分，您选择套餐或带有动态价格计算的自定义套餐，然后通过银行卡转账 (P2P) 或通过 YooMoney 支付。在个人资料中，您可以查看订阅状态、带进度条的流量、信任分和 VPN 链接，以及为 Android、iOS、Windows、macOS、Linux、Android TV 和路由器设置客户端应用程序。在设置中，您可以更改语言 (7 种选择)、主题、密码和 Telegram 链接。FAQ 部分包含搜索和分类。",
+    "qa_answer_14": "机器人是管理您的订阅的 Telegram 机器人。从主菜单，您可以购买或续订订阅、在“我的订阅”中查看状态和获取 VPN 链接、设置客户端应用程序、使用推荐系统或申请成为合伙人。固定套餐和自定义套餐均可用 - 您选择流量、设备数、期限和位置，机器人将计算价格。支付方式: 银行卡转账 (P2P) 和 YooMoney。界面语言可以切换为多种支持的语言。付款经过手动验证 - 付款后订阅会自动激活。",
+    "qa_answer_15": "网站是管理您的订阅的 Web 界面。主页显示服务统计和服务器状态。在“订阅”部分，您选择套餐或带有动态价格计算的自定义套餐，然后通过银行卡转账 (P2P) 或通过 YooMoney 支付。在个人资料中，您可以查看订阅状态、带进度条的流量、信任分和 VPN 链接，以及为 Android、iOS、Windows、macOS、Linux、Android TV 和路由器设置客户端应用程序。在设置中，您可以更改语言（多种选项）、主题、密码和 Telegram 链接。FAQ 部分包含搜索和分类。",
     "qa_answer_2": "该项目由两位爱好者创立。技术管理员在网络基础设施方面拥有丰富经验。我们不是商业公司 - 我们运营的是自己也在使用的 VPN。",
     "qa_answer_3": "这是一个长期项目。我们致力于稳定运行和持续改进。随着用户群的增长，我们计划扩展服务器并增加功能。",
     "qa_answer_4": "低价源于没有营销、办公费用和中间商。为合理使用资源而设定了限制，这些限制对绝大多数用户来说足够。",
@@ -309,13 +313,12 @@
     "stats": "统计",
     "status": "状态",
     "status_active": "有效",
-    "step_1": "下载并安装 INCY",
-    "step_2": "打开 Telegram 机器人",
-    "step_3": "通过机器人获取配置",
-    "step_4": "将配置导入 INCY",
-    "step_5": "连接到服务器",
-    "steps": "分步说明",
-    "subscription_activated": "订阅已激活",
+    "step_1": "从 GitHub 下载 INCY: https://github.com/INCY-DEV/incy-platforms",
+    "step_2": "从本消息导入配置",
+    "step_3": "点击 应用 激活",
+    "step_4": "配置逐应用代理 (可选)",
+    "step_5": "粘贴来自 @off_PhantomVPN_bot 的订阅链接",
+    "steps": "INCY 步骤",
     "subscription_link": "订阅链接",
     "subscription_status": "订阅状态",
     "support_not_configured": "支持未配置",
@@ -337,6 +340,7 @@
     "theme": "主题",
     "total_earned": "总收入",
     "total_refs": "总推荐数",
+    "total_traffic_gb": "总流量 (GB)",
     "traffic": "流量",
     "traffic_gb": "{value} GB",
     "traffic_progress": "流量使用进度",
@@ -381,7 +385,7 @@
   },
   "legal": {
     "offer": {
-      "effectiveDate": "07.09.2026",
+      "effectiveDate": "22.09.2026",
       "sections": [
         {
           "content": "本公开要约规定了 {vpnName} 提供 VPN 服务的条件。使用本服务即表示您同意使用条款并接受本要约。",
@@ -396,7 +400,7 @@
           "title": "2. 合同订立程序"
         },
         {
-          "content": "3.1. 服务费用和期限在 Telegram 机器人及网站选择套餐时注明。\n3.2. 可通过以下可用方式付款：\n- YooMoney（快速支付）\n- P2P 银行卡转账\n- 机器人或网站中指定的其他方式\n\n3.3. 目前支付由人工处理。\n3.4. 转账后，为加快处理速度，建议在 5-10 分钟内联系支持并附上收据。",
+          "content": "3.1. 服务费用和期限在 Telegram 机器人及网站选择套餐时注明。\n3.2. 可通过以下可用方式付款：\n- YooMoney（快速支付）\n- P2P 银行卡转账\n- 机器人或网站中指定的其他方式\n\n3.3. 目前支付由人工处理。\n3.4. 转账后，为加快处理速度，建议在 5–10 分钟内联系支持并附上收据。",
           "title": "3. 费用与支付"
         },
         {
@@ -440,11 +444,11 @@
           "title": "13. 联系信息"
         }
       ],
-      "subtitle": "{vpnName} - 服务条款",
+      "subtitle": "{vpnName} – 服务条款",
       "title": "公开要约"
     },
     "privacy": {
-      "effectiveDate": "07.09.2026",
+      "effectiveDate": "22.09.2026",
       "sections": [
         {
           "content": "本政策描述了 {vpnName} 在运营网站、机器人和 VPN 服务时处理哪些技术数据。使用本服务即表示您同意本政策。",
@@ -495,11 +499,11 @@
           "title": "11. 联系方式"
         }
       ],
-      "subtitle": "{vpnName} - 用户数据处理",
+      "subtitle": "{vpnName} – 用户数据处理",
       "title": "隐私政策"
     },
     "tos": {
-      "effectiveDate": "07.09.2026",
+      "effectiveDate": "22.09.2026",
       "sections": [
         {
           "content": "本条款规定了 {vpnName} VPN 服务的访问和使用。使用本服务即表示您完全接受本条款和公开要约。",
@@ -566,11 +570,11 @@
           "title": "15. 最终条款"
         },
         {
-          "content": "16.1. 如有任何问题，请通过机器人或网站联系 Telegram 支持。\n16.2. 回复时间：通常在 1 小时内。\n16.3. 为加快支付处理，建议付款后 5-10 分钟内联系支持并附上收据（可选）。\n16.4. 项目团队随时准备帮助解决技术和个别问题。",
+          "content": "16.1. 如有任何问题，请通过机器人或网站联系 Telegram 支持。\n16.2. 回复时间：通常在 1 小时内。\n16.3. 为加快支付处理，建议付款后 5–10 分钟内联系支持并附上收据（可选）。\n16.4. 项目团队随时准备帮助解决技术和个别问题。",
           "title": "16. 联系方式"
         }
       ],
-      "subtitle": "{vpnName} - 服务使用规则",
+      "subtitle": "{vpnName} – 服务使用规则",
       "title": "使用条款"
     }
   }

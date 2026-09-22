@@ -1,8 +1,12 @@
-'use client';
+"use client";
 
-import { useEffect, useState, useRef } from 'react';
-import { useLanguage } from '@/contexts/LanguageContext';
-import { API_BASE_URL, HEALTH_POLL_INTERVAL_MS, REQUEST_TIMEOUT_MS } from '@/lib/api';
+import { useEffect, useState, useRef } from "react";
+import { useLanguage } from "@/contexts/LanguageContext";
+import {
+  API_BASE_URL,
+  HEALTH_POLL_INTERVAL_MS,
+  REQUEST_TIMEOUT_MS,
+} from "@/lib/api";
 
 type Health = { status: string; version: string } | null;
 
@@ -15,15 +19,22 @@ export default function LiveStatusBar() {
 
   useEffect(() => {
     let cancelled = false;
+    let aborter = new AbortController();
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
     const check = async () => {
-      let aborter: AbortController | undefined;
-      let timeoutId: ReturnType<typeof setTimeout> | undefined;
+      if (typeof document !== "undefined" && document.hidden) return;
+
+      if (timeoutId) clearTimeout(timeoutId);
+      aborter = new AbortController();
+      timeoutId = setTimeout(() => aborter.abort(), REQUEST_TIMEOUT_MS);
+
       try {
-        aborter = new AbortController();
-        timeoutId = setTimeout(() => aborter!.abort(), REQUEST_TIMEOUT_MS);
-        const res = await fetch(`${API_BASE_URL}/health`, { cache: 'no-store', signal: aborter.signal });
-        if (!res.ok) throw new Error(t('texts.api_offline'));
+        const res = await fetch(`${API_BASE_URL}/health`, {
+          cache: "no-store",
+          signal: aborter.signal,
+        });
+        if (!res.ok) throw new Error(t("texts.api_offline"));
         const data = (await res.json()) as Health;
         if (!cancelled) {
           setHealth(data);
@@ -34,22 +45,30 @@ export default function LiveStatusBar() {
         if (!cancelled) {
           setOnline(false);
         }
-        if (aborter?.signal.aborted) {
-          console.error('[LiveStatusCode] health check timeout');
+        if (aborter.signal.aborted) {
+          console.error("[LiveStatusCode] health check timeout");
         } else {
-          console.error('[LiveStatusCode] health check error:', err);
+          console.error("[LiveStatusCode] health check error:", err);
         }
-      } finally {
-        if (timeoutId) clearTimeout(timeoutId);
       }
     };
 
     check();
     const interval = setInterval(check, HEALTH_POLL_INTERVAL_MS);
 
+    const onVisibilityChange = () => {
+      if (!document.hidden) {
+        check();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
     return () => {
       cancelled = true;
+      aborter.abort();
+      if (timeoutId) clearTimeout(timeoutId);
       clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [t]);
 
@@ -59,35 +78,43 @@ export default function LiveStatusBar() {
     <div
       ref={containerRef}
       style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '8px',
-        padding: '6px 12px',
-        background: 'var(--bg-tertiary)',
-        border: '1px solid var(--border-color)',
-        borderRadius: 'var(--radius-sm)',
-        fontSize: '12px',
-        color: 'var(--text-secondary)',
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "8px",
+        padding: "6px 12px",
+        background: "var(--bg-tertiary)",
+        border: "1px solid var(--border-color)",
+        borderRadius: "var(--radius-sm)",
+        fontSize: "12px",
+        color: "var(--text-secondary)",
       }}
     >
       <span
         style={{
-          width: '8px',
-          height: '8px',
-          borderRadius: '50%',
-          background: online ? 'var(--success)' : 'var(--danger)',
-          boxShadow: online ? '0 0 6px var(--success)' : '0 0 6px var(--danger)',
-          animation: online ? 'pulse 2s infinite' : 'none',
+          width: "8px",
+          height: "8px",
+          borderRadius: "50%",
+          background: online ? "var(--success)" : "var(--danger)",
+          boxShadow: online
+            ? "0 0 6px var(--success)"
+            : "0 0 6px var(--danger)",
+          animation: online ? "pulse 2s infinite" : "none",
         }}
       />
-      <span>{online ? t('texts.api_online') : t('texts.api_offline')}</span>
-      {health?.version && <span style={{ color: 'var(--text-muted)' }}>v{health.version}</span>}
+      <span>{online ? t("texts.api_online") : t("texts.api_offline")}</span>
+      {health?.version && (
+        <span style={{ color: "var(--text-muted)" }}>v{health.version}</span>
+      )}
       {lastUpdate && (
-        <span style={{ color: 'var(--text-muted)' }}>
-           · {lastUpdate.toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+        <span style={{ color: "var(--text-muted)" }}>
+          ·{" "}
+          {lastUpdate.toLocaleTimeString(lang, {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          })}
         </span>
       )}
     </div>
   );
 }
-

@@ -1,62 +1,72 @@
-import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
-import './globals.css';
-import BackToTop from '@/components/BackToTop';
-import ThemeInit from '@/components/ThemeInit';
-import { AuthProvider } from '@/contexts/AuthContext';
-import { ThemeProvider } from '@/contexts/ThemeContext';
-import { LanguageProvider } from '@/contexts/LanguageContext';
-import { FeaturesProvider } from '@/contexts/FeaturesContext';
-import ScrollAnimations from '@/components/ScrollAnimations';
-import AuthCallback from '@/components/AuthCallback';
-import { cookies, headers } from 'next/headers';
-import { getSiteCopy, normalizeSiteLanguage } from '@/data/legal';
-import { generateJsonLdScript } from '@/lib/structured-data';
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
+import BackToTop from "@/components/BackToTop";
+import ThemeInit from "@/components/ThemeInit";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
+import { LanguageProvider } from "@/contexts/LanguageContext";
+import { FeaturesProvider } from "@/contexts/FeaturesContext";
+import ScrollAnimations from "@/components/ScrollAnimations";
+import AuthCallback from "@/components/AuthCallback";
+import { cookies, headers } from "next/headers";
+import { getSiteCopy, normalizeSiteLanguage } from "@/data/legal";
+import { generateJsonLdScript } from "@/lib/structured-data";
+import { getServerLanguages } from "@/lib/i18n-server";
 
 const inter = Inter({
-  subsets: ['cyrillic', 'latin'],
-  variable: '--font-inter',
+  subsets: ["cyrillic", "latin"],
+  variable: "--font-inter",
 });
 
-const siteName = process.env.NEXT_PUBLIC_VPN_NAME || 'vpn';
+const siteName = process.env.NEXT_PUBLIC_VPN_NAME || "vpn";
 
 export async function generateMetadata(): Promise<Metadata> {
   const cookieStore = await cookies();
   const headerStore = await headers();
   const lang = normalizeSiteLanguage(
-    cookieStore.get('vpn_language')?.value || headerStore.get('accept-language') || undefined,
+    cookieStore.get("vpn_language")?.value ||
+      headerStore.get("accept-language") ||
+      undefined,
   );
   const copy = getSiteCopy(lang);
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local";
+  const languageAlternates = Object.fromEntries(
+    getServerLanguages().map((language) => [
+      language,
+      `${siteUrl}/${language}`,
+    ]),
+  );
 
   return {
-    metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://vpn.local'),
+    metadataBase: new URL(siteUrl),
     title: {
       default: siteName,
       template: `%s | ${siteName}`,
     },
     description: copy.siteDescription,
     keywords: [
-      'vpn',
-      'xray',
-      'vless',
-      'vmess',
-      'trojan',
-      'shadowsocks',
-      'hysteria',
-      'reality',
+      "vpn",
+      "xray",
+      "vless",
+      "vmess",
+      "trojan",
+      "shadowsocks",
+      "hysteria",
+      "reality",
     ],
     authors: [{ name: siteName }],
     creator: siteName,
     openGraph: {
-      type: 'website',
+      type: "website",
       locale: lang,
-      url: process.env.NEXT_PUBLIC_SITE_URL || 'https://vpn.local',
+      url: process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local",
       siteName,
       title: `${siteName} - ${copy.siteTitle}`,
       description: copy.twitterDescription,
       images: [
         {
-          url: '/icon.jpg',
+          url: "/icon.jpg",
           width: 512,
           height: 512,
           alt: siteName,
@@ -64,35 +74,33 @@ export async function generateMetadata(): Promise<Metadata> {
       ],
     },
     alternates: {
-      languages: {
-        ru: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://vpn.local'}/ru`,
-        en: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://vpn.local'}/en`,
-        pl: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://vpn.local'}/pl`,
-        zh: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://vpn.local'}/zh`,
-        be: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://vpn.local'}/be`,
-        de: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://vpn.local'}/de`,
-        ja: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://vpn.local'}/ja`,
-      },
+      languages: languageAlternates,
     },
     twitter: {
-      card: 'summary',
+      card: "summary",
       title: siteName,
       description: copy.twitterDescription,
-      images: ['/icon.jpg'],
+      images: ["/icon.jpg"],
     },
     icons: {
-      icon: [{ url: '/icon.jpg', type: 'image/jpeg' }],
-      apple: '/icon.jpg',
+      icon: [{ url: "/icon.jpg", type: "image/jpeg" }],
+      apple: "/icon.jpg",
     },
-    manifest: '/manifest.json',
+    manifest: "/manifest.json",
   };
 }
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const cookieStore = await cookies();
   const headerStore = await headers();
   const lang = normalizeSiteLanguage(
-    cookieStore.get('vpn_language')?.value || headerStore.get('accept-language') || undefined,
+    cookieStore.get("vpn_language")?.value ||
+      headerStore.get("accept-language") ||
+      undefined,
   );
 
   return (
@@ -105,10 +113,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta name="robots" content="index, follow" />
         <meta name="theme-color" content="#0a0a0a" />
-        <link rel="canonical" href={process.env.NEXT_PUBLIC_SITE_URL || 'https://vpn.local'} />
+        <link
+          rel="canonical"
+          href={process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local"}
+        />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={generateJsonLdScript()}
+          dangerouslySetInnerHTML={generateJsonLdScript(lang)}
         />
       </head>
       <body className="min-h-full flex flex-col font-sans">
@@ -129,4 +140,3 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     </html>
   );
 }
-

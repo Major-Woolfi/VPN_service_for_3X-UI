@@ -1,41 +1,68 @@
 // Серверный i18n - переводы импортируются из auto-generated файла
-// Используется в Server Components
+// Используется в Server Components; fallback берётся из доступных языков
 
-import { SERVER_LANGUAGES } from './i18n-generated';
+import { SERVER_LANGUAGES } from "./i18n-generated";
+import type { TranslationData } from "./i18n-types";
 
-const DEFAULT_LANG = process.env.NEXT_PUBLIC_DEFAULT_LANGUAGE || 'ru';
-const FALLBACK_LANG = SERVER_LANGUAGES[DEFAULT_LANG] ? DEFAULT_LANG : 'ru';
-const VPN_NAME = process.env.NEXT_PUBLIC_VPN_NAME || 'vpn';
+function getDefaultLanguage(): string {
+  const configured = process.env.NEXT_PUBLIC_DEFAULT_LANGUAGE;
+  if (configured && SERVER_LANGUAGES[configured]) return configured;
 
-interface TranslationData {
-  meta: { code: string; name: string };
-  buttons: Record<string, string>;
-  texts: Record<string, string>;
+  const firstLanguage = Object.keys(SERVER_LANGUAGES)[0];
+  if (!firstLanguage) throw new Error("No languages configured");
+  return firstLanguage;
 }
 
-function resolveNested(obj: Record<string, unknown>, path: string): string | undefined {
-  const parts = path.split('.');
+const FALLBACK_LANG = getDefaultLanguage();
+const VPN_NAME = process.env.NEXT_PUBLIC_VPN_NAME || "vpn";
+
+function resolveNested(
+  obj: Record<string, unknown>,
+  path: string,
+): string | undefined {
+  const parts = path.split(".");
   let current: unknown = obj;
   for (const part of parts) {
     if (current === undefined || current === null) return undefined;
     current = (current as Record<string, unknown>)[part];
   }
-  return typeof current === 'string' ? current : undefined;
+  return typeof current === "string" ? current : undefined;
 }
 
-function replacePlaceholders(text: string, params?: Record<string, string | number>): string {
+function replacePlaceholders(
+  text: string,
+  params?: Record<string, string | number>,
+): string {
   // Глобальная замена {vpnName}
   let result = text.replace(/\{vpnName\}/g, VPN_NAME);
 
   // Замена пользовательских плейсхолдеров
   if (params) {
     Object.entries(params).forEach(([k, v]) => {
-      const escapedK = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      result = result.replace(new RegExp(`\\{${escapedK}\\}`, 'g'), String(v));
+      const escapedK = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      result = result.replace(new RegExp(`\\{${escapedK}\\}`, "g"), String(v));
     });
   }
 
   return result;
+}
+
+function resolveTranslation(
+  data: TranslationData | undefined,
+  key: string,
+): string | undefined {
+  if (!data) return undefined;
+
+  if (key.startsWith("buttons.")) {
+    return resolveNested(data.buttons, key.replace("buttons.", ""));
+  }
+  if (key.startsWith("texts.")) {
+    return resolveNested(data.texts, key.replace("texts.", ""));
+  }
+  if (key.startsWith("legal.")) {
+    return resolveNested(data.legal || {}, key.replace("legal.", ""));
+  }
+  return undefined;
 }
 
 export function tServer(
@@ -43,19 +70,12 @@ export function tServer(
   key: string,
   params?: Record<string, string | number>,
 ): string {
-  const data = SERVER_LANGUAGES[lang] || SERVER_LANGUAGES[FALLBACK_LANG] || ({} as TranslationData);
+  const text =
+    resolveTranslation(SERVER_LANGUAGES[lang], key) ||
+    resolveTranslation(SERVER_LANGUAGES[FALLBACK_LANG], key) ||
+    key;
 
-  let text: string | undefined;
-  if (key.startsWith('buttons.')) {
-    text = resolveNested(data.buttons, key.replace('buttons.', ''));
-  } else if (key.startsWith('texts.')) {
-    text = resolveNested(data.texts, key.replace('texts.', ''));
-  } else if (key.startsWith('legal.')) {
-    text = resolveNested((data as any).legal || {}, key.replace('legal.', ''));
-  }
-  text = text || key;
-
-  return replacePlaceholders(text!, params);
+  return replacePlaceholders(text, params);
 }
 
 export function getServerLanguageName(code: string): string {
@@ -66,13 +86,43 @@ export function getServerLanguages(): string[] {
   return Object.keys(SERVER_LANGUAGES);
 }
 
-export function detectLanguage(acceptLanguage?: string): string {
-  if (!acceptLanguage) return FALLBACK_LANG;
-  const lang = acceptLanguage.split(',')[0].split('-')[0].toLowerCase();
-  return SERVER_LANGUAGES[lang] ? lang : FALLBACK_LANG;
+function getLanguageQuality(params: string[]): number | undefined {
+  const qualityParam = params.find((param) => /^\s*q\s*=/i.test(param));
+  if (!qualityParam) return 1;
+
+  const quality = Number(
+    qualityParam.slice(qualityParam.indexOf("=") + 1).trim(),
+  );
+  if (!Number.isFinite(quality) || quality <= 0 || quality > 1)
+    return undefined;
+  return quality;
 }
 
-export function resolveLanguage(cookieLang?: string, acceptLanguage?: string): string {
+export function detectLanguage(acceptLanguage?: string): string {
+  if (!acceptLanguage?.trim()) return FALLBACK_LANG;
+
+  let bestLanguage = FALLBACK_LANG;
+  let bestQuality = 0;
+
+  for (const entry of acceptLanguage.split(",")) {
+    const parts = entry.split(";");
+    const language = parts[0]?.trim().split(/[-_]/)[0]?.toLowerCase();
+    if (!language || !SERVER_LANGUAGES[language]) continue;
+
+    const quality = getLanguageQuality(parts.slice(1));
+    if (quality === undefined || quality <= bestQuality) continue;
+
+    bestLanguage = language;
+    bestQuality = quality;
+  }
+
+  return bestLanguage;
+}
+
+export function resolveLanguage(
+  cookieLang?: string,
+  acceptLanguage?: string,
+): string {
   if (cookieLang && SERVER_LANGUAGES[cookieLang]) return cookieLang;
   return detectLanguage(acceptLanguage);
 }

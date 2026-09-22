@@ -10,6 +10,7 @@
     "cancel": "Abbrechen",
     "change_password": "Passwort ändern",
     "cleanup": "Bereinigen",
+    "clear_abuse": "Missbrauch löschen",
     "client": "Klient",
     "confirm": "Bestätigen",
     "contact_support": "Support",
@@ -22,6 +23,7 @@
     "forward": "Weiter",
     "light_theme": "Helles Thema",
     "link_telegram": "Telegram verknüpfen",
+    "load_abuse_users": "Missbrauch-Nutzer laden",
     "login": "Anmelden",
     "logout": "Abmelden",
     "main": "Hauptmenü",
@@ -51,6 +53,8 @@
     "about": "Über {vpnName}",
     "about_text": "{vpnName} ist ein VPN-Dienst auf Basis des XRay-Kerns 26.7.28+ mit XHTTP-Transport und REALITY-Plugin. Protokolle VLESS und Shadowsocks, Post‑Quanten‑Verschlüsselung ML‑KEM‑768, xPadding‑Verschleierung, xmux‑Multiplexing. Geschwindigkeiten bis zu 1 Gbit/s. Es werden keine Protokolle geführt.",
     "about_text_2": "Das Projekt wurde von zwei Enthusiasten gegründet. Wir sind offen für Feedback und verbessern den Dienst ständig.",
+    "abuse": "Missbrauch",
+    "abuse_users": "Missbrauch-Nutzer",
     "account": "Konto",
     "account_banned_message": "Ihr Konto wurde gesperrt. Bitte wenden Sie sich an den Support.",
     "account_banned_title": "Konto gesperrt",
@@ -64,8 +68,8 @@
     "admin_user_username": "Benutzername",
     "admin_user_vpn_url": "VPN-URL",
     "all_users": "Alle Benutzer",
-    "alt_client": "Alternativer Client",
-    "alt_client_text": "v2RayNG - stabil auf Android mit allen Konfigurationen außer v2 (Shadowsocks), nur im Sub-Format. JSON-Abonnement funktioniert nicht.",
+    "alt_client": "v2RayTun (legacy)",
+    "alt_client_text": "Legacy-Client mit möglichen Problemen. Herunterladen, Einstellungen aus Backup wiederherstellen, Routing konfigurieren, Abonnement-Link einfügen.",
     "amount": "Betrag",
     "amount_must_be_positive": "Der Betrag muss größer als null sein",
     "api_offline": "API offline",
@@ -100,6 +104,7 @@
     "custom_tariff_param_gb": "• <strong>GB</strong> - Traffic‑Volumen (1-1000)",
     "custom_tariff_param_ip": "• <strong>IP</strong> - Gerätelimit (1-15)",
     "custom_tariff_param_locations": "• <strong>LOC</strong> - ausgewählte Standorte:",
+    "daily_traffic_gb": "Täglicher Traffic (GB)",
     "days": "Tage",
     "debug": "Debug",
     "debug_search": "Benutzer suchen",
@@ -114,7 +119,6 @@
     "failed_to_load_features": "Funktionen konnten nicht geladen werden",
     "failed_to_load_user": "Benutzer konnte nicht geladen werden",
     "feature_1": "Geschwindigkeit bis zu 1 Gbit/s",
-    "feature_2": "Standorte: NL, FI, CH und WhiteList (CDN Video)",
     "feature_3": "Hilfe bei der Client‑Einrichtung",
     "feature_4": "Bis zu 15 Geräte pro Abonnement",
     "feature_5": "Protokolle: VLESS, Shadowsocks + XHTTP‑Transport",
@@ -122,13 +126,13 @@
     "feature_7": "Regelmäßige XRay‑Kernupdates",
     "features": "Was kann {vpnName} Ihnen bieten?",
     "fio_required": "Bitte geben Sie Ihren vollständigen Namen an",
-    "guide_available": "Die vollständige Anleitung finden Sie in unserem Telegram‑Kanal:",
-    "guide_link": "Einrichtungsanleitung",
+    "guide_available": "Alle Konfigurationsdateien sind in unserem Telegram-Kanal:",
+    "guide_link": "Config-Post öffnen",
     "have_account": "Bereits ein Konto?",
     "how_it_works": "Wie es funktioniert",
     "how_it_works_text": "Laden Sie Freunde über Ihren Empfehlungslink ein und erhalten Sie +{days} Tage Abonnement für jede bezahlte Einladung.",
     "important": "Wichtig",
-    "important_text": "V2RayTun und Happ funktionieren mit JSON-Abonnement, benötigen jedoch Konfiguration. Wir nutzen XRay 26.7.28+ mit XHTTP-Transport und REALITY-Plugin.",
+    "important_text": "Wir nutzen XRay 26.7.28+ mit XHTTP-Transport und REALITY-Plugin. INCY: herunterladen von https://github.com/INCY-DEV/incy-platforms",
     "insufficient_balance": "Unzureichendes Guthaben",
     "ip_label": "IP",
     "ips": "IP-Adressen",
@@ -144,8 +148,8 @@
     "login_subtitle": "Melden Sie sich über Telegram oder per Login an",
     "login_timeout": "Anmeldezeitüberschreitung. Bitte versuchen Sie es erneut.",
     "login_title": "Anmeldung",
-    "main_client": "Hauptclient",
-    "main_client_text": "INCY - der empfohlene Hauptclient, funktioniert hervorragend mit allen Protokollen auf allen Geräten.",
+    "main_client": "INCY",
+    "main_client_text": "Empfohlener Client für alle Geräte. Von GitHub herunterladen, Config aus Post importieren, Apply klicken, pro-App-Proxy konfigurieren (optional), Abonnement-Link von @off_PhantomVPN_bot einfügen.",
     "main_server": "Hauptserver",
     "menu_login_label": "Anmelden oder Menü öffnen",
     "menu_profile_label": "Profil {username}",
@@ -153,7 +157,7 @@
     "nav_main_navigation": "Hauptnavigation",
     "nav_open_menu": "Menü öffnen",
     "need_help": "Brauchen Sie Hilfe?",
-    "need_help_text": "Wir helfen bei INCY, v2RayNG und anderen Clients. Schreiben Sie einfach an den Support.",
+    "need_help_text": "Für Hilfe mit INCY, v2RayTun oder anderen Clients wenden Sie sich an den Support.",
     "new_password": "Neues Passwort",
     "no": "Nein",
     "no_account": "Kein Konto?",
@@ -244,8 +248,8 @@
     "qa_answer_11": "Normalerweise 50-100 Mbit/s. Die Geschwindigkeit hängt von Ihrem Anbieter ab - einige Betreiber drosseln VPN‑Traffic. Moderne Protokolle und BBR‑Staukontrolle minimieren diesen Effekt.",
     "qa_answer_12": "Einflussfaktoren: Anbieter‑Tarif, Drosselungspraxis, Client‑Einstellungen, Kanalauslastung und Entfernung zum Server.",
     "qa_answer_13": "Trust Score ist ein Treueprogramm, das Ihnen Punkte für jede Zahlung einbringt. Sie erhalten 5% des Zahlungsbetrags für jede Zahlung (maximal 100 Punkte pro Kauf). Je mehr Punkte Sie haben, desto höher ist Ihr Rabatt - der Rabatt wird automatisch berechnet und bei der Zahlung auf alle Tarife angewendet (sowohl feste als auch individuelle). Die genaue Punktzahl und der Rabattbetrag werden in Ihrem Profil auf der Website oder im Bot angezeigt. Das System aktualisiert sich automatisch.",
-    "qa_answer_14": "Der Bot ist ein Telegram-Bot zur Verwaltung Ihres Abonnements. Uber das Hauptmenü konnen Sie ein Abonnement kaufen oder verlanger, den Status anzeigen und VPN-Links in «Mein Abonnement» erhalten, eine Client-Anwendung einrichten, das Referral-System nutzen oder sich als Partner bewerben. Feste Tarife und individuelle Tarife sind verfugbar - Sie wahlen den Traffic-Volumen, Anzahl der Gerate, Laufzeit und Standorte und der Bot berechnet den Preis. Zahlungsmethoden: Kartentransfer (P2P) und YooMoney. Die Schnittstellensprache kann auf eine der 7 unterstutzten Sprachen geandert werden. Zahlungen werden manuell geprüft - das Abonnement wird nach der Zahlung automatisch aktiviert.",
-    "qa_answer_15": "Die Website ist eine Web-Anwendung zur Verwaltung Ihres Abonnements. Die Startseite zeigt Dienststatistik und Serverstatus an. Im Abschnitt «Abonnement» wahlen Sie einen Tarif oder einen individuellen Tarif mit dynamischer Preisberechnung, dann zahlen Sie per Kartentransfer (P2P) oder uber YooMoney. In Ihrem Profil konnen Sie den Abonnementstatus, den Traffic mit Fortschrittsbalken, Vertrauenspunkte und VPN-Links anzeigen sowie Client-Anwendungen fur Android, iOS, Windows, macOS, Linux, Android TV und Router einrichten. In den Einstellungen konnen Sie Sprache (7 Optionen), Themen, Passwort und Telegram-Verknupfung aendern. Der FAQ-Bereich enthalt Suchfunktion und Kategorien.",
+    "qa_answer_14": "Der Bot ist ein Telegram-Bot zur Verwaltung Ihres Abonnements. Über das Hauptmenü können Sie ein Abonnement kaufen oder verlängern, den Status anzeigen und VPN-Links im Bereich «Meine Abonnement» erhalten, eine Client-Anwendung einrichten, das Empfehlungssystem nutzen oder sich als Partner bewerben. Feste Tarife und individuelle Tarife sind verfügbar - Sie wählen das Verkehrsvolumen, die Anzahl der Geräte, die Laufzeit und die Standorte, und der Bot berechnet den Preis. Zahlungsmethoden: Kartentransfer (P2P) und YooMoney. Die Schnittstellensprache kann auf eine der mehreren unterstützten Sprachen geändert werden. Zahlungen werden manuell geprüft - das Abonnement wird nach der Zahlung automatisch aktiviert.",
+    "qa_answer_15": "Die Website ist eine Web-Anwendung zur Verwaltung Ihres Abonnements. Die Startseite zeigt Dienststatistiken und Serverstatus an. Im Bereich «Abonnement» wählen Sie einen Tarif oder einen individuellen Tarif mit dynamischer Preisberechnung und zahlen dann per Kartentransfer (P2P) oder über YooMoney. In Ihrem Profil können Sie den Abonnementstatus, den Datenverkehr mit Fortschrittsbalken, Vertrauenspunkte und VPN-Links anzeigen sowie Client-Anwendungen für Android, iOS, Windows, macOS, Linux, Android TV und Router einrichten. In den Einstellungen können Sie die Sprache (mehrere Optionen), das Thema, das Passwort und die Telegram-Verknüpfung ändern. Der FAQ-Bereich enthält Suchfunktion und Kategorien.",
     "qa_answer_2": "Das Projekt wurde von zwei Enthusiasten gegründet. Der technische Administrator verfügt über langjährige Erfahrung in der Netzwerkinfrastruktur. Wir sind kein kommerzielles Unternehmen - wir betreiben einen VPN, den wir selbst nutzen.",
     "qa_answer_3": "Dies ist ein langfristiges Projekt. Wir sind an einem stabilen Betrieb und kontinuierlichen Verbesserungen interessiert. Mit wachsender Zielgruppe planen wir die Erweiterung der Server und das Hinzufügen von Funktionen.",
     "qa_answer_4": "Der niedrige Preis ist auf den Verzicht auf Marketing, Bürokosten und Zwischenhändler zurückzuführen. Beschränkungen wurden für eine rationelle Ressourcennutzung eingeführt und sind für die überwiegende Mehrheit der Benutzer ausreichend.",
@@ -309,13 +313,12 @@
     "stats": "Statistik",
     "status": "Status",
     "status_active": "Aktiv",
-    "step_1": "Laden Sie INCY herunter und installieren Sie es",
-    "step_2": "Öffnen Sie den Telegram‑Bot",
-    "step_3": "Holen Sie sich die Konfiguration über den Bot",
-    "step_4": "Importieren Sie die Konfiguration in INCY",
-    "step_5": "Verbinden Sie sich mit dem Server",
-    "steps": "Schritt‑für‑Schritt‑Anleitung",
-    "subscription_activated": "Abonnement aktiviert",
+    "step_1": "INCY von GitHub herunterladen: https://github.com/INCY-DEV/incy-platforms",
+    "step_2": "Konfiguration aus dieser Nachricht importieren",
+    "step_3": "Auf \"Anwenden\" klicken zur Aktivierung",
+    "step_4": "Pro-App-Proxy konfigurieren (optional)",
+    "step_5": "Abonnement-Link von @off_PhantomVPN_bot einfügen",
+    "steps": "INCY-Schritte",
     "subscription_link": "Abonnement‑Link",
     "subscription_status": "Abonnementstatus",
     "support_not_configured": "Support nicht konfiguriert",
@@ -337,6 +340,7 @@
     "theme": "Design",
     "total_earned": "Insgesamt verdient",
     "total_refs": "Insgesamt geworben",
+    "total_traffic_gb": "Gesamt-Traffic (GB)",
     "traffic": "Traffic",
     "traffic_gb": "{value} GB",
     "traffic_progress": "Fortschritt der Traffic‑Nutzung",
@@ -381,7 +385,7 @@
   },
   "legal": {
     "offer": {
-      "effectiveDate": "07.09.2026",
+      "effectiveDate": "22.09.2026",
       "sections": [
         {
           "content": "Dieses öffentliche Angebot definiert die Bedingungen für die Erbringung von VPN‑Diensten durch {vpnName}. Durch die Nutzung des Dienstes stimmen Sie den Nutzungsbedingungen zu und akzeptieren dieses Angebot.",
@@ -396,7 +400,7 @@
           "title": "2. Vertragsschluss"
         },
         {
-          "content": "3.1. Die Kosten und die Laufzeit der Dienstleistung werden im Telegram‑Bot und auf der Website bei der Tarifauswahl angegeben.\n3.2. Die Zahlung erfolgt mit verfügbaren Methoden:\n- YooMoney (Schnellzahlung)\n- P2P‑Kartenüberweisung\n- Andere im Bot oder auf der Website angegebene Methoden\n\n3.3. Derzeit werden Zahlungen manuell bearbeitet.\n3.4. Nach der Überweisung wird empfohlen, den Support innerhalb von 5-10 Minuten mit dem Beleg zu kontaktieren, um die Bearbeitung zu beschleunigen.",
+          "content": "3.1. Die Kosten und die Laufzeit der Dienstleistung werden im Telegram‑Bot und auf der Website bei der Tarifauswahl angegeben.\n3.2. Die Zahlung erfolgt mit verfügbaren Methoden:\n- YooMoney (Schnellzahlung)\n- P2P‑Kartenüberweisung\n- Andere im Bot oder auf der Website angegebene Methoden\n\n3.3. Derzeit werden Zahlungen manuell bearbeitet.\n3.4. Nach der Überweisung wird empfohlen, den Support innerhalb von 5–10 Minuten mit dem Beleg zu kontaktieren, um die Bearbeitung zu beschleunigen.",
           "title": "3. Kosten und Zahlung"
         },
         {
@@ -440,11 +444,11 @@
           "title": "13. Kontaktdaten"
         }
       ],
-      "subtitle": "{vpnName} - Dienstleistungsbedingungen",
+      "subtitle": "{vpnName} – Dienstleistungsbedingungen",
       "title": "Öffentliches Angebot"
     },
     "privacy": {
-      "effectiveDate": "07.09.2026",
+      "effectiveDate": "22.09.2026",
       "sections": [
         {
           "content": "Diese Richtlinie beschreibt, welche technischen Daten {vpnName} beim Betrieb der Website, des Bots und des VPN‑Dienstes verarbeitet. Durch die Nutzung des Dienstes stimmen Sie dieser Richtlinie zu.",
@@ -495,11 +499,11 @@
           "title": "11. Kontakte"
         }
       ],
-      "subtitle": "{vpnName} - Verarbeitung von Nutzerdaten",
+      "subtitle": "{vpnName} – Verarbeitung von Nutzerdaten",
       "title": "Datenschutzrichtlinie"
     },
     "tos": {
-      "effectiveDate": "07.09.2026",
+      "effectiveDate": "22.09.2026",
       "sections": [
         {
           "content": "Diese Bedingungen regeln den Zugang zu und die Nutzung des {vpnName}-VPN-Dienstes. Mit der Nutzung des Dienstes akzeptieren Sie diese Bedingungen und das öffentliche Angebot vollständig.",
@@ -566,11 +570,11 @@
           "title": "15. Schlussbestimmungen"
         },
         {
-          "content": "16.1. Bei Fragen wenden Sie sich bitte über den Bot oder die Website an den Telegram‑Support.\n16.2. Antwortzeit: in der Regel innerhalb von 1 Stunde.\n16.3. Um die Zahlungsabwicklung zu beschleunigen, wird empfohlen, den Support innerhalb von 5-10 Minuten nach der Zahlung mit dem Beleg (optional) zu kontaktieren.\n16.4. Das Projektteam ist stets bereit, bei technischen und individuellen Fragen zu helfen.",
+          "content": "16.1. Bei Fragen wenden Sie sich bitte über den Bot oder die Website an den Telegram‑Support.\n16.2. Antwortzeit: in der Regel innerhalb von 1 Stunde.\n16.3. Um die Zahlungsabwicklung zu beschleunigen, wird empfohlen, den Support innerhalb von 5–10 Minuten nach der Zahlung mit dem Beleg (optional) zu kontaktieren.\n16.4. Das Projektteam ist stets bereit, bei technischen und individuellen Fragen zu helfen.",
           "title": "16. Kontakte"
         }
       ],
-      "subtitle": "{vpnName} - Nutzungsregeln",
+      "subtitle": "{vpnName} – Nutzungsregeln",
       "title": "Nutzungsbedingungen"
     }
   }

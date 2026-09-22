@@ -1,7 +1,19 @@
-'use client';
+"use client";
 
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
-import { getCurrentLang, t as translate, tHtml as translateHtml, setCurrentLang as setCurrentLangGlobal } from '@/lib/i18n';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  type ReactNode,
+} from "react";
+import {
+  getCurrentLang,
+  t as translate,
+  tHtml as translateHtml,
+  setCurrentLang as setCurrentLangGlobal,
+} from "@/lib/i18n";
 
 interface LanguageContextType {
   lang: string;
@@ -10,7 +22,9 @@ interface LanguageContextType {
   tHtml: (key: string, params?: Record<string, string | number>) => string;
 }
 
-const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
+const LanguageContext = createContext<LanguageContextType | undefined>(
+  undefined,
+);
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [lang, setLang] = useState(() => getCurrentLang());
@@ -22,27 +36,34 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
         setLang(customEvent.detail.lang);
       }
     };
-    window.addEventListener('vpn-languagechange', handler);
-    return () => window.removeEventListener('vpn-languagechange', handler);
+    window.addEventListener("vpn-languagechange", handler);
+    return () => window.removeEventListener("vpn-languagechange", handler);
   }, []);
 
   const setLangWrapper = useCallback((newLang: string) => {
-    setCurrentLangGlobal(newLang);
-    setLang(newLang);
+    if (setCurrentLangGlobal(newLang)) {
+      setLang(newLang);
+    }
   }, []);
 
-  const t = useCallback((key: string, params?: Record<string, string | number>) => {
-    return translate(key, params);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lang]);
+  const t = useCallback(
+    (key: string, params?: Record<string, string | number>) => {
+      return translate(key, params);
+    },
+    [],
+  );
 
-  const tHtml = useCallback((key: string, params?: Record<string, string | number>) => {
-    return translateHtml(key, params);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lang]);
+  const tHtml = useCallback(
+    (key: string, params?: Record<string, string | number>) => {
+      return translateHtml(key, params);
+    },
+    [],
+  );
 
   return (
-    <LanguageContext.Provider value={{ lang, setLang: setLangWrapper, t, tHtml }}>
+    <LanguageContext.Provider
+      value={{ lang, setLang: setLangWrapper, t, tHtml }}
+    >
       {children}
     </LanguageContext.Provider>
   );
@@ -51,8 +72,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 export function useLanguage() {
   const context = useContext(LanguageContext);
   if (!context) {
-    throw new Error('useLanguage must be used within LanguageProvider');
+    throw new Error("useLanguage must be used within LanguageProvider");
   }
   return context;
 }
-

@@ -30,7 +30,7 @@ export interface WebTelegramLinkRequest {
 
 export interface UserSession {
   user_id: number;
-  web_id: string | null;
+  web_id: number;
   token: string;
 }
 
@@ -45,29 +45,29 @@ export interface SanitizedUser {
   discount_percent: number;
   subscription: SubscriptionData;
   referral: ReferralData;
-  partner: PartnerData;
+  partner: Partial<PartnerData>;
   is_partner: boolean;
   pending_partner_application: boolean;
   trial_used: boolean;
   join_date: string;
   web_id: number | null;
-  web_auth_method: string | null;
   is_admin: boolean;
-  is_mate: boolean;
-  mate_balance: number;
-  mate_commission_total: number;
-  mate_status: string;
-  mate_followers: number;
-  mate_avg_reach: number;
-  mate_period_months: number;
-  mate_ref_link_code: string;
-  mate_subscription_id: string;
-  mate_expiry: string;
+  has_pending_payment: boolean;
+  web_auth_method?: string | null;
+  is_mate?: boolean;
+  mate_balance?: number;
+  mate_commission_total?: number;
+  mate_status?: string;
+  mate_followers?: number;
+  mate_avg_reach?: number;
+  mate_period_months?: number;
+  mate_ref_link_code?: string;
+  mate_subscription_id?: string;
+  mate_expiry?: string;
   admin_subscription: {
     url: string;
     json_url: string;
   } | null;
-  has_pending_payment: boolean;
   partner_subscription: {
     sub_id: string;
     expiry: string;
@@ -77,8 +77,8 @@ export interface SanitizedUser {
     traffic_gb?: number;
   } | null;
   has_password: boolean;
-  banned: boolean;
-  ban_reason: string;
+  banned?: boolean;
+  ban_reason?: string;
 }
 
 export interface SubscriptionData {
@@ -88,7 +88,7 @@ export interface SubscriptionData {
   extra_sub_gb?: number;
   ip_limit?: number;
   vpn_url?: string;
-  plan_servers?: ServerInfo[];
+  plan_servers?: string[];
   used_gb?: number;
   max_expiry?: number;
   expiry_sub_datatime?: string;
@@ -120,13 +120,14 @@ export interface PartnerData {
 
 // === Subscription ===
 export interface CreateSubscriptionRequest {
+  user_id?: number;
   plan_id: string;
   plan_name?: string;
+  price_rub?: number;
   ip_limit?: number;
   traffic_gb?: number;
   servers?: string[];
   duration_days?: number;
-  price_rub?: number;
 }
 
 export interface ExtendSubscriptionRequest {
@@ -141,7 +142,7 @@ export interface SubscriptionLinkResponse {
   plan_text: string;
   traffic_gb: number;
   ip_limit: number;
-  plan_servers: ServerInfo[];
+  plan_servers: string[];
 }
 
 // === Tariff ===
@@ -236,6 +237,24 @@ export interface CustomTariffCalculateResponse {
   locations_cost: number;
 }
 
+export interface CustomTariffPlan {
+  id: string;
+  name: string;
+  price_rub: number;
+  ip_limit: number;
+  traffic_gb: number;
+  duration_days: number;
+  servers: string[];
+  active: boolean;
+}
+
+export interface CustomTariffGenerateResponse {
+  plan: CustomTariffPlan;
+  total_price: number;
+  formatted_name: string;
+  price_rub: number;
+}
+
 // === Locations ===
 export interface Location {
   code: string;
@@ -303,6 +322,35 @@ export interface DebugSearchResponse {
 }
 
 // === Payments ===
+export type PaymentMethod = "card" | "yoomoney" | "manual";
+
+export interface CreateCheckoutRequest {
+  plan_id: string;
+  method?: PaymentMethod;
+  custom_plan?: {
+    name?: string;
+    price_rub?: number;
+    traffic_gb: number;
+    ip_limit: number;
+    duration_days: number;
+    servers?: string[];
+  };
+}
+
+export interface CheckoutPaymentDetails {
+  card_number?: string;
+}
+
+export interface CheckoutResponse {
+  checkout_url: string;
+  payment_id: string;
+  payment_method: PaymentMethod;
+  amount_rub: number;
+  original_amount_rub: number;
+  discount_percent: number;
+  payment_details?: CheckoutPaymentDetails | null;
+}
+
 export interface PendingPayment {
   id: string;
   user_id: number;
@@ -394,9 +442,7 @@ export interface PartnerPublicInfoResponse {
 
 // === Features / Config ===
 export interface FeaturesResponse {
-  payment_methods: string[];
-  payment_card?: string;
-  yoomoney?: string;
+  payment_methods: PaymentMethod[];
   panel_types: {
     main: boolean;
     json: boolean;
@@ -404,7 +450,12 @@ export interface FeaturesResponse {
   features: {
     custom_tariff: boolean;
     partner: boolean;
+    trust_score: boolean;
     telegram_login: boolean;
+    main_panel: boolean;
+    json_panel: boolean;
+    card_payment: boolean;
+    yoomoney_payment: boolean;
   };
   public_links: Record<string, string>;
 }

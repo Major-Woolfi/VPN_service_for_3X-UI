@@ -1,6 +1,6 @@
 {
   "offer": {
-    "effectiveDate": "07.09.2026",
+    "effectiveDate": "22.09.2026",
     "sections": [
       {
         "content": "Dieses öffentliche Angebot definiert die Bedingungen für die Erbringung von VPN‑Diensten durch {vpnName}. Durch die Nutzung des Dienstes stimmen Sie den Nutzungsbedingungen zu und akzeptieren dieses Angebot.",
@@ -63,7 +63,7 @@
     "title": "Öffentliches Angebot"
   },
   "privacy": {
-    "effectiveDate": "07.09.2026",
+    "effectiveDate": "22.09.2026",
     "sections": [
       {
         "content": "Diese Richtlinie beschreibt, welche technischen Daten {vpnName} beim Betrieb der Website, des Bots und des VPN‑Dienstes verarbeitet. Durch die Nutzung des Dienstes stimmen Sie dieser Richtlinie zu.",
@@ -118,7 +118,7 @@
     "title": "Datenschutzrichtlinie"
   },
   "tos": {
-    "effectiveDate": "07.09.2026",
+    "effectiveDate": "22.09.2026",
     "sections": [
       {
         "content": "Diese Bedingungen regeln den Zugang zu und die Nutzung des {vpnName}-VPN-Dienstes. Mit der Nutzung des Dienstes akzeptieren Sie diese Bedingungen und das öffentliche Angebot vollständig.",

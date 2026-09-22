@@ -1,6 +1,6 @@
 {
   "offer": {
-    "effectiveDate": "07.09.2026",
+    "effectiveDate": "22.09.2026",
     "sections": [
       {
         "content": "本公开要约规定了 {vpnName} 提供 VPN 服务的条件。使用本服务即表示您同意使用条款并接受本要约。",
@@ -63,7 +63,7 @@
     "title": "公开要约"
   },
   "privacy": {
-    "effectiveDate": "07.09.2026",
+    "effectiveDate": "22.09.2026",
     "sections": [
       {
         "content": "本政策描述了 {vpnName} 在运营网站、机器人和 VPN 服务时处理哪些技术数据。使用本服务即表示您同意本政策。",
@@ -118,7 +118,7 @@
     "title": "隐私政策"
   },
   "tos": {
-    "effectiveDate": "07.09.2026",
+    "effectiveDate": "22.09.2026",
     "sections": [
       {
         "content": "本条款规定了 {vpnName} VPN 服务的访问和使用。使用本服务即表示您完全接受本条款和公开要约。",

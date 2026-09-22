@@ -1,16 +1,18 @@
-import { cookies, headers } from 'next/headers';
-import Header from '@/components/Header';
-import { tServer, resolveLanguage } from '@/lib/i18n-server';
-import { getSiteCopy } from '@/data/legal';
+import { cookies, headers } from "next/headers";
+import Header from "@/components/Header";
+import { tServer, resolveLanguage } from "@/lib/i18n-server";
+import { getSiteCopy } from "@/data/legal";
+import { SafeHTML } from "@/components/SafeHTML";
 
 export default async function PrivacyPage() {
   const cookieStore = await cookies();
   const headerStore = await headers();
   const lang = resolveLanguage(
-    cookieStore.get('vpn_language')?.value,
-    headerStore.get('accept-language') || undefined,
+    cookieStore.get("vpn_language")?.value,
+    headerStore.get("accept-language") || undefined,
   );
-  const t = (key: string, params?: Record<string, string | number>) => tServer(lang, key, params);
+  const t = (key: string, params?: Record<string, string | number>) =>
+    tServer(lang, key, params);
   const copy = getSiteCopy(lang);
 
   return (
@@ -27,17 +29,27 @@ export default async function PrivacyPage() {
 
           <div className="pinned-section fade-in">
             <div className="pinned-content">
-              <div style={{ marginTop: '16px', lineHeight: '1.6' }}>
-                <p style={{ color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                  <strong>{t('texts.effective_date', { date: copy.legal.privacy.effectiveDate })}</strong>
+              <div style={{ marginTop: "16px", lineHeight: "1.6" }}>
+                <p
+                  style={{
+                    color: "var(--text-secondary)",
+                    marginBottom: "16px",
+                  }}
+                >
+                  <strong>
+                    {t("texts.effective_date", {
+                      date: copy.legal.privacy.effectiveDate,
+                    })}
+                  </strong>
                 </p>
                 {copy.legal.privacy.sections.map((section, idx) => (
                   <div key={idx}>
-                    <h2 style={{ marginTop: idx === 0 ? '0' : '24px' }}>{section.title}</h2>
-                    <p
-                      style={{ color: 'var(--text-secondary)' }}
-                      dangerouslySetInnerHTML={{ __html: section.content }}
-                    />
+                    <h2 style={{ marginTop: idx === 0 ? "0" : "24px" }}>
+                      {section.title}
+                    </h2>
+                    <p style={{ color: "var(--text-secondary)" }}>
+                      <SafeHTML html={section.content} />
+                    </p>
                   </div>
                 ))}
               </div>
@@ -48,4 +60,3 @@ export default async function PrivacyPage() {
     </>
   );
 }
-

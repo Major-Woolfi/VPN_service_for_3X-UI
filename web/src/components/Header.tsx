@@ -1,32 +1,33 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import UserMenu from './UserMenu';
-import { useLanguage } from '@/contexts/LanguageContext';
-import { useNavigation } from '@/lib/navigation';
+import Link from "next/link";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import UserMenu from "./UserMenu";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { useNavigation } from "@/lib/navigation";
 
-export default function Header({ currentPage = '' }: { currentPage?: string }) {
+export default function Header({ currentPage = "" }: { currentPage?: string }) {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const { t } = useLanguage();
-  const { publicLinks, authorizedLinks, adminLinks, contactLinks } = useNavigation();
+  const { publicLinks, authorizedLinks, adminLinks, contactLinks } =
+    useNavigation();
 
   useEffect(() => {
     const handler = () => {
       router.refresh();
     };
-    window.addEventListener('vpn-languagechange', handler);
-    return () => window.removeEventListener('vpn-languagechange', handler);
+    window.addEventListener("vpn-languagechange", handler);
+    return () => window.removeEventListener("vpn-languagechange", handler);
   }, [router]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMenuOpen(false);
+      if (e.key === "Escape") setMenuOpen(false);
     };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   return (
@@ -38,19 +39,23 @@ export default function Header({ currentPage = '' }: { currentPage?: string }) {
             className="nav-logo"
             type="button"
             aria-expanded={menuOpen}
-            aria-label={t('texts.nav_open_menu')}
+            aria-label={t("texts.nav_open_menu")}
             onClick={() => setMenuOpen((open) => !open)}
           >
-            <span className="hamburger" aria-hidden="true"><span /><span /><span /></span>
+            <span className="hamburger" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </span>
           </button>
         </div>
-        <nav className="nav-middle" aria-label={t('texts.nav_main_navigation')}>
+        <nav className="nav-middle" aria-label={t("texts.nav_main_navigation")}>
           {publicLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
-              className={`nav-link ${currentPage === link.href ? 'nav-link-active' : ''}`}
-              aria-current={currentPage === link.href ? 'page' : undefined}
+              className={`nav-link ${currentPage === link.href ? "nav-link-active" : ""}`}
+              aria-current={currentPage === link.href ? "page" : undefined}
             >
               {link.label}
             </Link>
@@ -61,19 +66,32 @@ export default function Header({ currentPage = '' }: { currentPage?: string }) {
         </div>
       </header>
 
-      <aside id="site-navigation" className={`side-nav ${menuOpen ? 'open' : ''}`} aria-label="Navigation">
+      <aside
+        id="site-navigation"
+        className={`side-nav ${menuOpen ? "open" : ""}`}
+        aria-label={t("texts.nav_main_navigation")}
+      >
         <div className="side-nav-header">
-          <strong>{process.env.NEXT_PUBLIC_VPN_NAME || 'VPN'}</strong>
-          <button type="button" className="side-nav-close" onClick={() => setMenuOpen(false)} aria-label={t('texts.nav_close_menu')}>×</button>
+          <strong>
+            {process.env.NEXT_PUBLIC_VPN_NAME || t("texts.vpn_service")}
+          </strong>
+          <button
+            type="button"
+            className="side-nav-close"
+            onClick={() => setMenuOpen(false)}
+            aria-label={t("texts.nav_close_menu")}
+          >
+            ×
+          </button>
         </div>
         <ul>
-          <li className="nav-section-header">{t('texts.public_section')}</li>
+          <li className="nav-section-header">{t("texts.public_section")}</li>
           {publicLinks.map((link) => (
             <li key={link.href}>
               <Link
                 href={link.href}
-                className={currentPage === link.href ? 'nav-link-active' : ''}
-                aria-current={currentPage === link.href ? 'page' : undefined}
+                className={currentPage === link.href ? "nav-link-active" : ""}
+                aria-current={currentPage === link.href ? "page" : undefined}
                 onClick={() => setMenuOpen(false)}
               >
                 {link.label}
@@ -81,13 +99,15 @@ export default function Header({ currentPage = '' }: { currentPage?: string }) {
             </li>
           ))}
           <li className="nav-divider" aria-hidden="true" />
-          <li className="nav-section-header">{t('texts.authorized_section')}</li>
+          <li className="nav-section-header">
+            {t("texts.authorized_section")}
+          </li>
           {authorizedLinks.map((link) => (
             <li key={link.href}>
               <Link
                 href={link.href}
-                className={currentPage === link.href ? 'nav-link-active' : ''}
-                aria-current={currentPage === link.href ? 'page' : undefined}
+                className={currentPage === link.href ? "nav-link-active" : ""}
+                aria-current={currentPage === link.href ? "page" : undefined}
                 onClick={() => setMenuOpen(false)}
               >
                 {link.label}
@@ -97,13 +117,17 @@ export default function Header({ currentPage = '' }: { currentPage?: string }) {
           <li className="nav-divider" aria-hidden="true" />
           {adminLinks.length > 0 && (
             <>
-              <li className="nav-section-header">{t('texts.admin_section')}</li>
+              <li className="nav-section-header">{t("texts.admin_section")}</li>
               {adminLinks.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className={currentPage === link.href ? 'nav-link-active' : ''}
-                    aria-current={currentPage === link.href ? 'page' : undefined}
+                    className={
+                      currentPage === link.href ? "nav-link-active" : ""
+                    }
+                    aria-current={
+                      currentPage === link.href ? "page" : undefined
+                    }
                     onClick={() => setMenuOpen(false)}
                   >
                     {link.label}
@@ -115,7 +139,9 @@ export default function Header({ currentPage = '' }: { currentPage?: string }) {
           )}
           {contactLinks.length > 0 && (
             <>
-              <li className="nav-section-header">{t('texts.contact_section')}</li>
+              <li className="nav-section-header">
+                {t("texts.contact_section")}
+              </li>
               {contactLinks.map((social) => (
                 <li key={social.href}>
                   <a
@@ -135,11 +161,10 @@ export default function Header({ currentPage = '' }: { currentPage?: string }) {
 
       <button
         id="nav-overlay"
-        className={`overlay ${menuOpen ? 'open' : ''}`}
-        aria-label={t('texts.nav_close_menu')}
+        className={`overlay ${menuOpen ? "open" : ""}`}
+        aria-label={t("texts.nav_close_menu")}
         onClick={() => setMenuOpen(false)}
       />
     </>
   );
 }
-

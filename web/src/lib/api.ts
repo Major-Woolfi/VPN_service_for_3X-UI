@@ -28,12 +28,17 @@ import type {
   StatsOverviewResponse,
   PanelStatusResponse,
   CreateSubscriptionRequest,
+  CreateCheckoutRequest,
+  CheckoutResponse,
   CustomTariffParams,
-} from './types';
-import { t } from './i18n';
+  CustomTariffGenerateResponse,
+} from "./types";
+import { t } from "./i18n";
 
-export const API_BASE_URL = (process.env.NEXT_PUBLIC_BOT_API_URL || 'http://localhost:2005/api/v1').replace(/\/$/, '');
-export const DEFAULT_API_BASE = 'http://localhost:2005/api/v1';
+export const API_BASE_URL = (
+  process.env.NEXT_PUBLIC_BOT_API_URL || "http://localhost:2005/api/v1"
+).replace(/\/$/, "");
+export const DEFAULT_API_BASE = API_BASE_URL;
 export const REQUEST_TIMEOUT_MS = 15_000;
 export const HEALTH_POLL_INTERVAL_MS = 10_000;
 export const PANEL_STATUS_POLL_INTERVAL_MS = 5_000;
@@ -41,16 +46,39 @@ export const TOKEN_REFRESH_INTERVAL_MS = 5 * 60_000;
 export const TELEGRAM_POLL_INTERVAL_MS = 2_000;
 export const TELEGRAM_POLL_TIMEOUT_MS = 120_000;
 
-const _rateLimits: Record<string, number> = {};
+const RATE_LIMIT_STORAGE_KEY = "vpn_rate_limits";
+
+function readRateLimits(): Record<string, number> {
+  if (typeof localStorage === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(RATE_LIMIT_STORAGE_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw) as Record<string, number>;
+  } catch {
+    return {};
+  }
+}
+
+function writeRateLimits(limits: Record<string, number>): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(RATE_LIMIT_STORAGE_KEY, JSON.stringify(limits));
+  } catch {
+    // ignore
+  }
+}
+
 function rateLimit(key: string, minIntervalMs: number): boolean {
   const now = Date.now();
-  const last = _rateLimits[key] || 0;
+  const limits = readRateLimits();
+  const last = limits[key] || 0;
   if (now - last < minIntervalMs) return false;
-  _rateLimits[key] = now;
+  limits[key] = now;
+  writeRateLimits(limits);
   return true;
 }
 
-const TOKEN_STORAGE_KEY = 'vpn_token';
+const TOKEN_STORAGE_KEY = "vpn_token";
 
 export function getStoredToken(): string | null {
   try {
@@ -80,9 +108,12 @@ export function clearStoredToken(): void {
 // Вспомогательные функции
 // ==========================================
 
-export async function fetchJson<T>(url: string, options: RequestInit = {}): Promise<T> {
+export async function fetchJson<T>(
+  url: string,
+  options: RequestInit = {},
+): Promise<T> {
   let controller: AbortSignal;
-  if (typeof AbortSignal.timeout === 'function') {
+  if (typeof AbortSignal.timeout === "function") {
     controller = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
   } else {
     const abortController = new AbortController();
@@ -92,9 +123,11 @@ export async function fetchJson<T>(url: string, options: RequestInit = {}): Prom
   const signal = options.signal || controller;
   const isExternal = /^https?:\/\//i.test(url);
   const token = getStoredToken();
-  const baseHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+  const baseHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
   if (token) {
-    baseHeaders['Authorization'] = `Bearer ${token}`;
+    baseHeaders["Authorization"] = `Bearer ${token}`;
   }
   const headers: Record<string, string> = {
     ...baseHeaders,
@@ -103,27 +136,30 @@ export async function fetchJson<T>(url: string, options: RequestInit = {}): Prom
   const res = await fetch(url, {
     signal,
     ...options,
-    credentials: isExternal ? 'include' : 'same-origin',
+    credentials: isExternal ? "include" : "same-origin",
     headers,
   });
   if (!res.ok) {
-    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    const payload = (await res.json().catch(() => ({}))) as Record<
+      string,
+      unknown
+    >;
     const detail = payload.detail as unknown;
     const messages: string[] = Array.isArray(detail)
       ? detail
           .map((item) => {
             const entry = item as Record<string, unknown>;
-            if (typeof entry.msg === 'string') return entry.msg;
-            if (typeof entry === 'string') return entry;
-            return '';
+            if (typeof entry.msg === "string") return entry.msg;
+            if (typeof entry === "string") return entry;
+            return "";
           })
           .filter(Boolean)
-      : typeof detail === 'string'
+      : typeof detail === "string"
         ? [detail]
         : [];
     const message =
-      (typeof payload.error === 'string' && payload.error) ||
-      messages.join(', ') ||
+      (typeof payload.error === "string" && payload.error) ||
+      messages.join(", ") ||
       `HTTP ${res.status}`;
     throw new Error(message);
   }
@@ -135,39 +171,53 @@ export async function fetchJson<T>(url: string, options: RequestInit = {}): Prom
 // ==========================================
 
 export async function getPartnerPublicInfo(): Promise<PartnerPublicInfoResponse> {
-  return fetchJson<PartnerPublicInfoResponse>(`${API_BASE_URL}/partner/public-info`);
+  return fetchJson<PartnerPublicInfoResponse>(
+    `${API_BASE_URL}/partner/public-info`,
+  );
 }
 
 export async function getHealth() {
-  if (!rateLimit('health', 2000)) return Promise.reject(new Error(t('texts.rate_limited')));
-  return fetchJson(`${API_BASE_URL}/health`) as Promise<{ status: string; version: string }>;
+  if (!rateLimit("health", 2000))
+    return Promise.reject(new Error(t("texts.rate_limited")));
+  return fetchJson(`${API_BASE_URL}/health`) as Promise<{
+    status: string;
+    version: string;
+  }>;
 }
 
-export async function getFeatures(): Promise<import('./types').FeaturesResponse> {
+export async function getFeatures(): Promise<
+  import("./types").FeaturesResponse
+> {
   return fetchJson(`${API_BASE_URL}/config/features`);
 }
 
-export async function startTelegramAuth(): Promise<{ url: string; state: string }> {
+export async function startTelegramAuth(): Promise<{
+  url: string;
+  state: string;
+}> {
   return fetchJson(`${API_BASE_URL}/auth/telegram/start`, {
-    method: 'POST',
+    method: "POST",
   });
 }
 
 export async function pollTelegramAuth(
-  state: string
+  state: string,
 ): Promise<{ status: string; token?: string }> {
   const res = await fetchJson<{ status: string; token?: string }>(
-    `${API_BASE_URL}/auth/telegram/status/${encodeURIComponent(state)}`
+    `${API_BASE_URL}/auth/telegram/status/${encodeURIComponent(state)}`,
   );
-  if (res.status === 'completed' && res.token) {
+  if (res.status === "completed" && res.token) {
     setStoredToken(res.token);
   }
   return res;
 }
 
-export async function startTelegramLink(): Promise<{ url: string; state: string }> {
+export async function startTelegramLink(): Promise<{
+  url: string;
+  state: string;
+}> {
   return fetchJson(`${API_BASE_URL}/auth/telegram/link-start`, {
-    method: 'POST',
+    method: "POST",
   });
 }
 
@@ -182,7 +232,9 @@ export async function getTariffs(): Promise<Tariff[]> {
 
 export async function getLocations(): Promise<Location[]> {
   try {
-    const data = await fetchJson<LocationsResponse>(`${API_BASE_URL}/locations`);
+    const data = await fetchJson<LocationsResponse>(
+      `${API_BASE_URL}/locations`,
+    );
     return data.locations || [];
   } catch {
     return [];
@@ -190,7 +242,9 @@ export async function getLocations(): Promise<Location[]> {
 }
 
 export async function verifySubscription(sub_id: string) {
-  return fetchJson(`${API_BASE_URL}/subscription/verify/${encodeURIComponent(sub_id)}`) as Promise<{
+  return fetchJson(
+    `${API_BASE_URL}/subscription/verify/${encodeURIComponent(sub_id)}`,
+  ) as Promise<{
     valid: boolean;
     max_expiry: number;
     clients_count: number;
@@ -202,15 +256,21 @@ export async function getStatsOverview() {
 }
 
 export async function getPanelStatus(): Promise<PanelStatusResponse> {
-  if (!rateLimit('panel-status', 2000)) return Promise.reject(new Error(t('texts.rate_limited')));
+  if (!rateLimit("panel-status", 2000))
+    return Promise.reject(new Error(t("texts.rate_limited")));
   return fetchJson<PanelStatusResponse>(`${API_BASE_URL}/stats/panel-status`);
 }
 
-export async function registerUser(req: WebRegisterRequest): Promise<UserSession> {
-  const session = await fetchJson<UserSession>(`${API_BASE_URL}/auth/register`, {
-    method: 'POST',
-    body: JSON.stringify(req),
-  });
+export async function registerUser(
+  req: WebRegisterRequest,
+): Promise<UserSession> {
+  const session = await fetchJson<UserSession>(
+    `${API_BASE_URL}/auth/register`,
+    {
+      method: "POST",
+      body: JSON.stringify(req),
+    },
+  );
   if (session?.token) {
     setStoredToken(session.token);
   }
@@ -219,7 +279,7 @@ export async function registerUser(req: WebRegisterRequest): Promise<UserSession
 
 export async function loginUser(req: WebLoginRequest): Promise<UserSession> {
   const session = await fetchJson<UserSession>(`${API_BASE_URL}/auth/login`, {
-    method: 'POST',
+    method: "POST",
     body: JSON.stringify(req),
   });
   if (session?.token) {
@@ -233,88 +293,101 @@ export async function loginUser(req: WebLoginRequest): Promise<UserSession> {
 // ==========================================
 
 export async function getMe(): Promise<SanitizedUser> {
-  if (!rateLimit('getMe', 2000)) return Promise.reject(new Error(t('texts.rate_limited')));
+  if (!rateLimit("getMe", 2000))
+    return Promise.reject(new Error(t("texts.rate_limited")));
   const response = await fetchJson<SanitizedUser>(`${API_BASE_URL}/profile`);
   return response;
 }
 
-export async function getPartnerPendingStatus(): Promise<{ has_pending_application: boolean }> {
+export async function getPartnerPendingStatus(): Promise<{
+  has_pending_application: boolean;
+}> {
   return fetchJson(`${API_BASE_URL}/partner/pending-status`);
 }
 
 export async function logoutUser() {
   clearStoredToken();
   return fetchJson(`${API_BASE_URL}/auth/logout`, {
-    method: 'POST',
+    method: "POST",
   });
 }
 
 export async function changePassword(req: WebPasswordChangeRequest) {
   return fetchJson(`${API_BASE_URL}/auth/change-password`, {
-    method: 'POST',
+    method: "POST",
     body: JSON.stringify(req),
   });
 }
 
-export async function linkTelegram(req: WebTelegramLinkRequest & { password?: string }) {
+export async function linkTelegram(
+  req: WebTelegramLinkRequest & { password?: string },
+) {
   return fetchJson(`${API_BASE_URL}/auth/telegram/link`, {
-    method: 'POST',
+    method: "POST",
     body: JSON.stringify(req),
   });
 }
 
 export async function telegramLogin(req: TelegramLoginRequest) {
   return fetchJson<UserSession>(`${API_BASE_URL}/auth/telegram/login`, {
-    method: 'POST',
+    method: "POST",
     body: JSON.stringify(req),
   });
 }
 
 export async function changeLanguage(language: string) {
   return fetchJson(`${API_BASE_URL}/profile/language`, {
-    method: 'PATCH',
+    method: "PATCH",
     body: JSON.stringify({ language }),
   });
 }
 
 export async function createSubscription(req: CreateSubscriptionRequest) {
   return fetchJson(`${API_BASE_URL}/subscription/create`, {
-    method: 'POST',
+    method: "POST",
     body: JSON.stringify(req),
   });
 }
 
 export async function renewSubscription(req: CreateSubscriptionRequest) {
   return fetchJson(`${API_BASE_URL}/subscription/renew`, {
-    method: 'POST',
+    method: "POST",
     body: JSON.stringify(req),
   });
 }
 
 export async function trialSubscription() {
   return fetchJson(`${API_BASE_URL}/subscription/trial`, {
-    method: 'POST',
+    method: "POST",
   });
 }
 
-export async function getSubscriptionLink(signal?: AbortSignal): Promise<SubscriptionLinkResponse> {
-  return fetchJson<SubscriptionLinkResponse>(`${API_BASE_URL}/subscription/link`, { signal });
+export async function getSubscriptionLink(
+  signal?: AbortSignal,
+): Promise<SubscriptionLinkResponse> {
+  return fetchJson<SubscriptionLinkResponse>(
+    `${API_BASE_URL}/subscription/link`,
+    { signal },
+  );
 }
 
 export async function addTraffic(gb: number) {
   return fetchJson(`${API_BASE_URL}/subscription/add-traffic`, {
-    method: 'POST',
+    method: "POST",
     body: JSON.stringify({ gb }),
   });
 }
 
 export async function createCheckout(
-  req: { plan_id: string; method: string; custom_plan?: { name: string; price_rub: number; ip_limit: number; traffic_gb: number; duration_days: number; servers?: string[] } },
-): Promise<{ checkout_url: string; payment_id: string }> {
-  return fetchJson(`${API_BASE_URL}/payments/create-checkout`, {
-    method: 'POST',
-    body: JSON.stringify(req),
-  });
+  req: CreateCheckoutRequest,
+): Promise<CheckoutResponse> {
+  return fetchJson<CheckoutResponse>(
+    `${API_BASE_URL}/payments/create-checkout`,
+    {
+      method: "POST",
+      body: JSON.stringify(req),
+    },
+  );
 }
 
 export async function getReferralStats(): Promise<ReferralStatsResponse> {
@@ -331,16 +404,19 @@ export async function getPartnerStats(): Promise<PartnerStatsResponse> {
 
 export async function partnerApply(req: PartnerApplyRequest) {
   return fetchJson(`${API_BASE_URL}/partner/apply`, {
-    method: 'POST',
+    method: "POST",
     body: JSON.stringify(req),
   });
 }
 
-export async function generateCustomTariff(
-  req: { traffic_gb: number; ip_limit: number; duration_days: number; servers?: string[] }
-): Promise<{ plan: { id: string; name: string; price_rub: number; ip_limit: number; traffic_gb: number; duration_days: number }; total_price: number }> {
+export async function generateCustomTariff(req: {
+  traffic_gb: number;
+  ip_limit: number;
+  duration_days: number;
+  servers?: string[];
+}): Promise<CustomTariffGenerateResponse> {
   return fetchJson(`${API_BASE_URL}/tariffs/custom/generate`, {
-    method: 'POST',
+    method: "POST",
     body: JSON.stringify(req),
   });
 }
@@ -356,7 +432,7 @@ export async function partnerWithdraw(req: {
   bank: string;
 }) {
   return fetchJson(`${API_BASE_URL}/partner/withdraw`, {
-    method: 'POST',
+    method: "POST",
     body: JSON.stringify(req),
   });
 }
@@ -366,67 +442,83 @@ export async function partnerWithdraw(req: {
 // ==========================================
 
 export async function getAdminHealth(): Promise<AdminHealthResponse> {
-  if (!rateLimit('admin-health', 2000)) return Promise.reject(new Error(t('texts.rate_limited')));
+  if (!rateLimit("admin-health", 2000))
+    return Promise.reject(new Error(t("texts.rate_limited")));
   return fetchJson<AdminHealthResponse>(`/api/admin/health`);
 }
 
 export async function getAdminPanelStatus(): Promise<PanelStatusResponse> {
+  if (!rateLimit("panel-status", 2000))
+    return Promise.reject(new Error(t("texts.rate_limited")));
   return fetchJson<PanelStatusResponse>(`/api/admin/panel-status`);
 }
 
-export async function getUsers(page = 1, limit = 50): Promise<UserListResponse> {
-  return fetchJson<UserListResponse>(`/api/admin/users?page=${page}&limit=${limit}`);
+export async function getUsers(
+  page = 1,
+  limit = 50,
+): Promise<UserListResponse> {
+  return fetchJson<UserListResponse>(
+    `/api/admin/users?page=${page}&limit=${limit}`,
+  );
 }
 
 export interface PublicLinks {
   site_url?: string;
   support_url?: string;
-  qna_url: string;
-  privacy_policy_url: string;
-  public_offer_url: string;
+  qna_url?: string;
+  privacy_policy_url?: string;
+  public_offer_url?: string;
   tiktok_url?: string;
   youtube_url?: string;
-  telegram_channel_username?: string;
-  telegram_bot_username?: string;
+  telegram_url?: string;
   setup_guide_url?: string;
   client_app_url?: string;
-  terms_of_service_url: string;
+  terms_of_service_url?: string;
+  telegram_bot_username?: string;
+  telegram_channel_username?: string;
   telegram_chat_url?: string;
   email_url?: string;
-  payment_card?: string;
-  yoomoney?: string;
 }
 
-export function getPublicLinks(): PublicLinks {
+export function getPublicLinksFromFeatures(
+  features: import("./types").FeaturesResponse | null,
+): PublicLinks {
+  const links: Record<string, string> = features?.public_links ?? {};
+  const get = (key: string): string | undefined => {
+    const v = links[key];
+    return typeof v === "string" && v.trim() ? v : undefined;
+  };
   return {
-    site_url: process.env.NEXT_PUBLIC_SITE_URL,
-    support_url: process.env.NEXT_PUBLIC_TELEGRAM_SUPPORT,
-    qna_url: '/qa',
-    privacy_policy_url: '/privacy',
-    public_offer_url: '/offer',
-    tiktok_url: process.env.NEXT_PUBLIC_TIKTOK_URL,
-    youtube_url: process.env.NEXT_PUBLIC_YOUTUBE_URL,
-    telegram_channel_username: process.env.NEXT_PUBLIC_TELEGRAM_CHANNEL_USERNAME,
-    telegram_bot_username: process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME,
-    setup_guide_url: process.env.NEXT_PUBLIC_SETUP_GUIDE_URL,
-    client_app_url: process.env.NEXT_PUBLIC_CLIENT_APP_URL,
-    terms_of_service_url: '/tos',
-    telegram_chat_url: process.env.NEXT_PUBLIC_TELEGRAM_CHAT,
-    email_url: process.env.NEXT_PUBLIC_EMAIL_URL,
-    payment_card: process.env.NEXT_PUBLIC_PAYMENT_CARD_NUMBER,
-    yoomoney: process.env.NEXT_PUBLIC_YOOMONEY_WALLET,
+    site_url: get("site_url") || process.env.NEXT_PUBLIC_SITE_URL,
+    support_url: get("support_url"),
+    qna_url: get("qna_url") || "/qa",
+    privacy_policy_url: get("privacy_policy_url") || "/privacy",
+    public_offer_url: get("public_offer_url") || "/offer",
+    tiktok_url: get("tiktok_url"),
+    youtube_url: get("youtube_url"),
+    telegram_url: get("telegram_url"),
+    setup_guide_url: get("setup_guide_url"),
+    client_app_url: get("client_app_url"),
+    terms_of_service_url: get("terms_of_service_url") || "/tos",
+    telegram_bot_username:
+      process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || undefined,
+    telegram_channel_username:
+      process.env.NEXT_PUBLIC_TELEGRAM_CHANNEL_USERNAME || undefined,
+    telegram_chat_url: process.env.NEXT_PUBLIC_TELEGRAM_CHAT || undefined,
+    email_url: process.env.NEXT_PUBLIC_EMAIL_URL || undefined,
   };
 }
 
 export async function debugCleanup(req: DebugCleanupRequest) {
   return fetchJson(`/api/admin/debug`, {
-    method: 'POST',
+    method: "POST",
     body: JSON.stringify(req),
   });
 }
 
 export async function debugSearch(query: string): Promise<DebugSearchResponse> {
-  if (!rateLimit('debug-search', 2000)) return Promise.reject(new Error(t('texts.rate_limited')));
+  if (!rateLimit("debug-search", 2000))
+    return Promise.reject(new Error(t("texts.rate_limited")));
   const url = `/api/admin/debug/search?q=${encodeURIComponent(query)}`;
   return fetchJson<DebugSearchResponse>(url);
 }
@@ -441,7 +533,7 @@ export async function getAbuseUsers(): Promise<AbuseUsersResponse> {
 
 export async function clearAbuse(req: ClearAbuseRequest) {
   return fetchJson(`/api/admin/users/${req.user_id}/clear-abuse`, {
-    method: 'POST',
+    method: "POST",
     body: JSON.stringify(req),
   });
 }

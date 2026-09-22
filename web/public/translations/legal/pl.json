@@ -1,6 +1,6 @@
 {
   "offer": {
-    "effectiveDate": "07.09.2026",
+    "effectiveDate": "22.09.2026",
     "sections": [
       {
         "content": "Niniejsza oferta publiczna określa warunki świadczenia usług VPN przez {vpnName}. Korzystając z usługi, zgadzasz się z warunkami korzystania i przyjmujesz niniejszą ofertę.",
@@ -63,7 +63,7 @@
     "title": "Oferta publiczna"
   },
   "privacy": {
-    "effectiveDate": "07.09.2026",
+    "effectiveDate": "22.09.2026",
     "sections": [
       {
         "content": "Niniejsza polityka opisuje, jakie dane techniczne przetwarza {vpnName} podczas działania strony internetowej, bota i usługi VPN. Korzystając z usługi, zgadzasz się na niniejszą politykę.",
@@ -118,7 +118,7 @@
     "title": "Polityka prywatności"
   },
   "tos": {
-    "effectiveDate": "07.09.2026",
+    "effectiveDate": "22.09.2026",
     "sections": [
       {
         "content": "Niniejsze warunki regulują dostęp do usługi VPN {vpnName} i korzystanie z niej. Korzystając z usługi, akceptujesz niniejsze warunki i ofertę publiczną w całości.",

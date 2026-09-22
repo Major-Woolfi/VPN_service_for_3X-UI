@@ -1,26 +1,20 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { useLanguage } from '@/contexts/LanguageContext';
-import { pollTelegramAuth, TELEGRAM_POLL_TIMEOUT_MS } from '@/lib/api';
-
-function hasAuthParams(): boolean {
-  if (typeof window === 'undefined') return false;
-  const params = new URLSearchParams(window.location.search);
-  return !!(params.get('auth') || params.get('state'));
-}
+import { useEffect, useRef, useState, useCallback } from "react";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { pollTelegramAuth, TELEGRAM_POLL_TIMEOUT_MS } from "@/lib/api";
 
 export default function AuthCallback() {
   const { t } = useLanguage();
-  const [status, setStatus] = useState<'processing' | 'done' | 'error'>('done');
+  const [status, setStatus] = useState<"processing" | "done" | "error">("done");
   const processedRef = useRef(false);
 
   const resolveTarget = useCallback((state: string | null) => {
-    let target = '/profile';
-    if (typeof window === 'undefined') return target;
+    let target = "/profile";
+    if (typeof window === "undefined") return target;
 
     const params = new URLSearchParams(window.location.search);
-    const next = params.get('next');
+    const next = params.get("next");
     if (next) {
       target = next;
     } else if (state) {
@@ -37,38 +31,37 @@ export default function AuthCallback() {
     return target;
   }, []);
 
-  const completeAuth = useCallback((state: string | null) => {
-    setStatus('done');
-    const target = resolveTarget(state);
-    window.location.replace(target);
-  }, [resolveTarget]);
+  const completeAuth = useCallback(
+    (state: string | null) => {
+      setStatus("done");
+      const target = resolveTarget(state);
+      window.location.replace(target);
+    },
+    [resolveTarget],
+  );
 
   useEffect(() => {
     if (processedRef.current) return;
     processedRef.current = true;
 
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
 
     const params = new URLSearchParams(window.location.search);
-    const state = params.get('state');
+    const state = params.get("state");
 
-    if (!state) {
-      setStatus('done');
-      return;
-    }
-
-    setStatus('processing');
+    if (!state) return;
 
     let cancelled = false;
     const poll = async () => {
+      setStatus("processing");
       try {
         const res = await pollTelegramAuth(state);
         if (cancelled) return;
-        if (res.status === 'completed') {
+        if (res.status === "completed") {
           completeAuth(state);
-        } else if (res.status === 'expired') {
-          setStatus('error');
-          window.location.replace('/login?error=auth_expired');
+        } else if (res.status === "expired") {
+          setStatus("error");
+          window.location.replace("/login?error=auth_expired");
         }
       } catch {
         // ignore poll errors
@@ -80,8 +73,8 @@ export default function AuthCallback() {
     const timeout = setTimeout(() => {
       clearInterval(interval);
       if (!cancelled) {
-        setStatus('error');
-        window.location.replace('/login?error=auth_timeout');
+        setStatus("error");
+        window.location.replace("/login?error=auth_timeout");
       }
     }, TELEGRAM_POLL_TIMEOUT_MS);
 
@@ -92,21 +85,25 @@ export default function AuthCallback() {
     };
   }, [completeAuth, resolveTarget]);
 
-  if (status === 'done') return null;
+  if (status === "done") return null;
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'var(--bg-primary)',
-      color: 'var(--text-primary)',
-      fontSize: '14px',
-      zIndex: 9999,
-    }}>
-      {status === 'processing' ? t('texts.authenticating') : t('texts.auth_error')}
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "var(--bg-primary)",
+        color: "var(--text-primary)",
+        fontSize: "14px",
+        zIndex: 9999,
+      }}
+    >
+      {status === "processing"
+        ? t("texts.authenticating")
+        : t("texts.auth_error")}
     </div>
   );
 }

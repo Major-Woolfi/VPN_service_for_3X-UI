@@ -19,7 +19,7 @@ from collections.abc import Callable
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, ClassVar, Self, TypeVar
+from typing import Any, ClassVar, Literal, Self, TypeVar
 from urllib.parse import quote, urlencode
 
 import aiofiles
@@ -41,7 +41,7 @@ from aiogram.types import (
     Message,
 )
 from aiogram.utils.callback_answer import CallbackAnswerMiddleware
-from dotenv import load_dotenv
+from dotenv import load_dotenv, set_key
 from fastapi import (
     Body,
     Depends,
@@ -59,9 +59,12 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel, Field
 
+FILE_LOCK_TIMEOUT_SEC = 10.0
+
 # --- Настройка окружения ---
 BASE_DIR: Path = Path(__file__).parent
-load_dotenv(BASE_DIR / ".env")
+ENV_FILE: Path = BASE_DIR / ".env"
+load_dotenv(ENV_FILE)
 
 # --- Настройка логирования ---
 LOGS_DIR: Path = BASE_DIR / "logs"
@@ -91,7 +94,43 @@ if not logger.handlers:
         logger.warning(f"Не удалось инициализировать файловый логгер: {e}")
     logger.info("=== Логгер инициализирован ===")
 
+
+_SECRET_ENV_KEYS: tuple[str, ...] = (
+    "BOT_API_KEY",
+    "BOT_ADMIN_KEY",
+    "SESSION_SECRET",
+    "JWT_SECRET_KEY",
+)
+_SECRET_PLACEHOLDERS: set[str] = {"", "...", "change-this-to-a-random-secret-string"}
+
+
+def _generate_missing_secrets() -> None:
+    missing = [
+        name
+        for name in _SECRET_ENV_KEYS
+        if str(os.getenv(name, "")).strip() in _SECRET_PLACEHOLDERS
+    ]
+    if not missing:
+        return
+
+    try:
+        for name in missing:
+            value = secrets.token_urlsafe(48)
+            set_key(str(ENV_FILE), name, value)
+            os.environ[name] = value
+        try:
+            os.chmod(ENV_FILE, 0o600)
+        except (PermissionError, OSError):
+            pass
+        logger.info(f"Сгенерированы отсутствующие секреты: {', '.join(missing)}")
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Не удалось сгенерировать секреты: {e}")
+
+
+_generate_missing_secrets()
+
 # --- Константы ---
+ADMIN_LEGACY_SUB_ID: str = "Admin"
 
 # --- Типы для строгой типизации ---
 T = TypeVar("T")
@@ -310,10 +349,7 @@ async def retry_async(
             else:
                 logger.exception(f"Все {max_retries} попытки исчерпаны")
 
-    if last_exception:
-        raise last_exception
-
-    raise BotError("Неизвестная ошибка в retry_async")
+    raise last_exception
 
 
 # --- Валидация данных ---
@@ -429,6 +465,8 @@ class Config:
     BOT_TOKEN: str = os.getenv("BOT_TOKEN", "").strip()
     ADMIN_USER_IDS: list[int] = env_int_list("ADMIN_USER_IDS")
     ADMIN_AUTO_SUBSCRIBE_DAYS: int = env_int("ADMIN_AUTO_SUBSCRIBE_DAYS", 3650)
+    ADMIN_SUB_EMAIL: str = os.getenv("ADMIN_SUB_EMAIL", "").strip()
+    ADMIN_SUB_ID: str = os.getenv("ADMIN_SUB_ID", "Admin").strip()
 
     FASTAPI_HOST: str = os.getenv("FASTAPI_HOST", "0.0.0.0").strip()
     FASTAPI_PORT: int = env_int("FASTAPI_PORT", 2005)
@@ -498,12 +536,15 @@ class Config:
 
     REF_BONUS_DAYS: int = env_int("REF_BONUS_DAYS", 7)
 
+    TRUST_SCORE_ENABLED: bool = str_to_bool(os.getenv("TRUST_SCORE_ENABLED", "true"))
     TRUST_SCORE_MIN: int = env_int("TRUST_SCORE_MIN", 0)
     TRUST_SCORE_MAX: int = env_int("TRUST_SCORE_MAX", 100)
-
     TECH_WORK_BACKUP_INBOUND: str = os.getenv("TECH_WORK_BACKUP_INBOUND", "").strip()
     TRUST_SCORE_EARN_PERCENT: int = env_int("TRUST_SCORE_EARN_PERCENT", 5)
-    TRUST_SCORE_MAX_DISCOUNT_PERCENT: int = env_int("TRUST_SCORE_MAX_DISCOUNT_PERCENT", 50)
+    TRUST_SCORE_DISCOUNT_PERCENT_PER_POINT: float = env_float(
+        "TRUST_SCORE_DISCOUNT_PERCENT_PER_POINT",
+        0.5,
+    )
     TRUST_SCORE_PENALTY_TRAFFIC_EXHAUSTED: int = env_int("TRUST_SCORE_PENALTY_TRAFFIC_EXHAUSTED", 5)
     TRUST_SCORE_PENALTY_PAYMENT_REJECTED: int = env_int("TRUST_SCORE_PENALTY_PAYMENT_REJECTED", 10)
 
@@ -600,6 +641,19 @@ class Config:
         if len(cls.JWT_SECRET_KEY) < 32:
             errors.append("JWT_SECRET_KEY должен быть уникальной строкой не короче 32 символов")
 
+        if cls.TRUST_SCORE_MIN < 0:
+            errors.append("TRUST_SCORE_MIN не может быть отрицательным")
+        if cls.TRUST_SCORE_MAX <= cls.TRUST_SCORE_MIN:
+            errors.append("TRUST_SCORE_MAX должен быть больше TRUST_SCORE_MIN")
+        if cls.TRUST_SCORE_EARN_PERCENT < 0:
+            errors.append("TRUST_SCORE_EARN_PERCENT не может быть отрицательным")
+        if not 0 <= cls.TRUST_SCORE_DISCOUNT_PERCENT_PER_POINT <= 100:
+            errors.append("TRUST_SCORE_DISCOUNT_PERCENT_PER_POINT должен быть от 0 до 100")
+        if cls.TRUST_SCORE_PENALTY_TRAFFIC_EXHAUSTED < 0:
+            errors.append("TRUST_SCORE_PENALTY_TRAFFIC_EXHAUSTED не может быть отрицательным")
+        if cls.TRUST_SCORE_PENALTY_PAYMENT_REJECTED < 0:
+            errors.append("TRUST_SCORE_PENALTY_PAYMENT_REJECTED не может быть отрицательным")
+
         if not os.getenv("SESSION_COOKIE_SECURE"):
             logger.warning("SESSION_COOKIE_SECURE использует значение по умолчанию (true)")
 
@@ -613,6 +667,15 @@ class Config:
 
         if not cls.ADMIN_USER_IDS:
             errors.append("ADMIN_USER_IDS не установлен")
+
+        if not re.fullmatch(r"[A-Za-z0-9_-]{3,64}", cls.ADMIN_SUB_ID):
+            errors.append("ADMIN_SUB_ID должен содержать 3-64 символов A-Za-z0-9, _ или -")
+
+        if cls.ADMIN_SUB_EMAIL and (
+            len(cls.ADMIN_SUB_EMAIL) > 254
+            or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", cls.ADMIN_SUB_EMAIL)
+        ):
+            errors.append("ADMIN_SUB_EMAIL должен быть корректным email-адресом")
 
         if errors:
             error_msg = "Ошибка конфигурации:\n" + "\n".join(f"  • {e}" for e in errors)
@@ -689,6 +752,7 @@ class Features:
         return {
             "custom_tariff": Features.custom_tariff_available(),
             "partner": Features.partner_available(),
+            "trust_score": Config.TRUST_SCORE_ENABLED,
             "telegram_login": bool(BOT_USERNAME),
             "main_panel": bool(Config.SUB_PANEL_BASE),
             "json_panel": bool(Config.JSON_SUB_PANEL_BASE),
@@ -767,6 +831,7 @@ except Exception as e:  # noqa: BLE001
     logger.warning(f"Не удалось создать DATA_DIR: {e}")
 
 ADMIN_USER_ID_SET = set(Config.ADMIN_USER_IDS)
+_admin_sub_lock: asyncio.Lock = asyncio.Lock()
 BYTES_IN_GB = 1073741824
 SECONDS_IN_DAY = 86400
 SECONDS_IN_HOUR = 3600
@@ -924,7 +989,7 @@ class TechWorkService:
     def get_backup_inbound_id(self) -> int | None:
         if not Config.TECH_WORK_BACKUP_INBOUND:
             return None
-        return None
+        return to_int(Config.TECH_WORK_BACKUP_INBOUND, 0) or None
 
     def get_original_inbounds(self, email: str) -> list[int] | None:
         return self._original_inbounds.get(email)
@@ -1270,10 +1335,10 @@ def is_cancel_text(text: str, lang: str) -> bool:
     if normalized == "/cancel":
         return True
     try:
-        cancel_label = translate(lang, "buttons.cancel").lower()
+        cancel_label = translate(lang, "buttons.cancel").strip().lower()
     except Exception:  # noqa: BLE001
-        cancel_label = "отмена"
-    return normalized == cancel_label or normalized in {"отмена", "cancel"}
+        cancel_label = ""
+    return normalized == "/cancel" or bool(cancel_label) and normalized == cancel_label
 
 
 def format_number(value: float) -> str:
@@ -1423,10 +1488,41 @@ def build_json_subscription_url(sub_id: Any) -> str:
     return build_subscription_url(sub_id, json_format=True)
 
 
+def build_subscription_link_blocks_from_urls(
+    lang: str,
+    sub_url: str,
+    json_url: str,
+) -> str:
+    blocks: list[str] = []
+    if sub_url:
+        blocks.append(
+            translate(
+                lang,
+                "texts.subscription_link_sub",
+                vpn_url=html.escape(sub_url),
+            )
+        )
+    if json_url:
+        blocks.append(
+            translate(
+                lang,
+                "texts.subscription_link_json",
+                json_vpn_url=html.escape(json_url),
+            )
+        )
+    return "\n\n".join(blocks)
+
+
+def build_subscription_link_blocks(sub_id: Any, lang: str) -> str:
+    sub_url = build_subscription_url(sub_id) if Config.SUB_PANEL_BASE else ""
+    json_url = build_json_subscription_url(sub_id) if Config.JSON_SUB_PANEL_BASE else ""
+    return build_subscription_link_blocks_from_urls(lang, sub_url, json_url)
+
+
 def get_ref_link(ref_code: str) -> str:
     if BOT_USERNAME:
         return f"https://t.me/{BOT_USERNAME}?start={ref_code}"
-    return f"https://t.me/?start={ref_code}"
+    return ""
 
 
 async def is_admin_user(user_id: int) -> bool:
@@ -1935,31 +2031,34 @@ def build_custom_plan_from_payment(
 
 
 # --- Очки доверия ---
+TRUST_SCORE_ENABLED = Config.TRUST_SCORE_ENABLED
 TRUST_SCORE_MIN = Config.TRUST_SCORE_MIN
 TRUST_SCORE_MAX = Config.TRUST_SCORE_MAX
 TRUST_SCORE_EARN_PERCENT = Config.TRUST_SCORE_EARN_PERCENT
-TRUST_SCORE_MAX_DISCOUNT_PERCENT = Config.TRUST_SCORE_MAX_DISCOUNT_PERCENT
+TRUST_SCORE_DISCOUNT_PERCENT_PER_POINT = Config.TRUST_SCORE_DISCOUNT_PERCENT_PER_POINT
 TRUST_SCORE_PENALTY_TRAFFIC_EXHAUSTED = Config.TRUST_SCORE_PENALTY_TRAFFIC_EXHAUSTED
 TRUST_SCORE_PENALTY_PAYMENT_REJECTED = Config.TRUST_SCORE_PENALTY_PAYMENT_REJECTED
 
 
 def calculate_discount_percent(trust_score: int) -> int:
-    if trust_score <= 0:
+    if not TRUST_SCORE_ENABLED or trust_score <= 0:
         return 0
     return min(
-        TRUST_SCORE_MAX_DISCOUNT_PERCENT,
-        (trust_score * TRUST_SCORE_MAX_DISCOUNT_PERCENT) // TRUST_SCORE_MAX,
+        100,
+        int(trust_score * TRUST_SCORE_DISCOUNT_PERCENT_PER_POINT),
     )
 
 
 def apply_trust_discount(price: float, trust_score: int) -> tuple[float, int]:
-    if trust_score <= 0:
+    if not TRUST_SCORE_ENABLED or trust_score <= 0:
         return price, 0
     disc = calculate_discount_percent(trust_score)
     return price - (price * disc / 100.0), disc
 
 
 async def apply_trust_score_delta(user_id: int, delta: int) -> tuple[bool, int, int, int]:
+    if not TRUST_SCORE_ENABLED:
+        return False, 0, 0, 0
     user = await db.get_user_by_any_id(user_id)
     if not user:
         return False, 0, 0, 0
@@ -1976,6 +2075,8 @@ async def apply_trust_score_delta(user_id: int, delta: int) -> tuple[bool, int, 
 
 
 def build_trust_change_line(delta: int, before: int, after: int) -> str:
+    if not TRUST_SCORE_ENABLED:
+        return ""
     if delta > 0:
         return translate(
             Config.DEFAULT_LANGUAGE,
@@ -2305,7 +2406,6 @@ class Database:
                     tg = await self._resolve_to_tg_id(uid)
                     if tg and tg != uid:
                         item["tg_id"] = tg
-                        item["user_id"] = tg
                         changed = True
                 if changed:
                     tmp = f"{path}.tmp"
@@ -2928,7 +3028,18 @@ class Database:
         if not user:
             return False
         internal_uid = user.get("user_id", user_id)
-        return await self.update_user(internal_uid, ref_rewarded=1)
+        try:
+            async with self.lock:
+                cursor = await self.conn.execute(
+                    """UPDATE users SET ref_rewarded = 1
+                    WHERE user_id = ? AND COALESCE(ref_rewarded, 0) = 0""",
+                    (internal_uid,),
+                )
+                await self.conn.commit()
+                return cursor.rowcount > 0
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"mark_ref_rewarded {user_id}: {e}")
+            return False
 
     @log_error
     async def count_referrals(self, user_id: int) -> int:
@@ -2989,6 +3100,8 @@ class Database:
 
     @log_error
     async def get_trust_score(self, user_id: int) -> int:
+        if not TRUST_SCORE_ENABLED:
+            return 0
         user = await self.get_user_by_id(user_id)
         if not user:
             user = await self.get_user_by_telegram_id(user_id)
@@ -2998,6 +3111,8 @@ class Database:
 
     @log_error
     async def add_trust_score(self, user_id: int, points: int) -> bool:
+        if not TRUST_SCORE_ENABLED:
+            return False
         if await is_admin_user(user_id):
             return False
         await self.add_user(user_id)
@@ -3035,7 +3150,6 @@ class Database:
             logger.error(f"_set_trust_score_raw {user_id}: {e}")
             return False
 
-    @log_error
     @log_error
     async def ensure_ref_code(self, user_id: int) -> str | None:
         if await is_admin_user(user_id):
@@ -3262,6 +3376,33 @@ class Database:
             return True
         except Exception as e:  # noqa: BLE001
             logger.error(f"update_partner_balance {user_id}: {e}")
+            return False
+
+    @log_error
+    async def debit_partner_balance(self, user_id: int, amount: float) -> bool:
+        if not self.conn or amount <= 0:
+            return False
+        user = await self.get_user_by_any_id(user_id)
+        if not user:
+            logger.error(f"debit_partner_balance: пользователь не найден user_id={user_id}")
+            return False
+        internal_uid = user.get("user_id", user_id)
+        try:
+            async with self.lock:
+                cursor = await self.conn.execute(
+                    """UPDATE users SET mate_balance = mate_balance - ?
+                    WHERE user_id = ? AND mate_balance >= ?""",
+                    (amount, internal_uid, amount),
+                )
+                await self.conn.commit()
+                if cursor.rowcount == 0:
+                    logger.warning(
+                        f"debit_partner_balance {user_id}: недостаточно средств amount={amount}"
+                    )
+                    return False
+                return True
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"debit_partner_balance {user_id}: {e}")
             return False
 
     @log_error
@@ -3970,11 +4111,29 @@ class _InterProcessFileLock:
     def _acquire(self) -> None:
         if getattr(self, "_fh", None) is not None:
             return
-        fh = open(self.lock_path, "a+")  # noqa: SIM115
+        fh = open(self.lock_path, "a+b")  # noqa: SIM115
         self._fh = fh
         try:
+            fh.seek(0, os.SEEK_END)
+            if fh.tell() == 0:
+                fh.write(b"\0")
+                fh.flush()
+            fh.seek(0)
             if _fcntl:
-                _fcntl.flock(fh.fileno(), _fcntl.LOCK_EX)
+                deadline = time.monotonic() + FILE_LOCK_TIMEOUT_SEC
+                while True:
+                    try:
+                        _fcntl.flock(fh.fileno(), _fcntl.LOCK_EX | _fcntl.LOCK_NB)
+                        return
+                    except OSError:
+                        if time.monotonic() >= deadline:
+                            try:
+                                fh.close()
+                            except OSError:
+                                pass
+                            self._fh = None  # type: ignore[attr-defined]
+                            raise TimeoutError(f"Не удалось получить блокировку {self.lock_path}")
+                        time.sleep(0.1)
             elif _msvcrt:
                 _msvcrt.locking(fh.fileno(), _msvcrt.LK_LOCK, 1)
         except OSError:
@@ -3987,6 +4146,7 @@ class _InterProcessFileLock:
         if fh is None:
             return
         try:
+            fh.seek(0)
             if _fcntl:
                 _fcntl.flock(fh.fileno(), _fcntl.LOCK_UN)
             elif _msvcrt:
@@ -4556,9 +4716,12 @@ class PanelAPI:
         self.password: str = Config.PANEL_PASSWORD
         self.verifyssl: bool = Config.VERIFY_SSL
         self.session: aiohttp.ClientSession | None = None
+        self.connector: aiohttp.TCPConnector | None = None
         self.token: str | None = Config.PANEL_TOKEN or None
         self.logged_in: bool = bool(self.token)
         self.lock: asyncio.Lock = asyncio.Lock()
+        self._reauth_future: asyncio.Future[bool] | None = None
+        self._start_close_lock: asyncio.Lock = asyncio.Lock()
         self._clients_cache: dict[str, Any] | None = None
         self._clients_cache_ts: float = 0.0
         self._clients_cache_ttl: float = 5.0
@@ -4650,17 +4813,8 @@ class PanelAPI:
         return email == base_email
 
     @staticmethod
-    def _needs_reauth(status: int, data: dict[str, Any]) -> bool:
-        if status in (401, 403):
-            return True
-        if status == 500:
-            return False
-        if status >= 400 and data.get("success") is False:
-            logger.warning(
-                f"Неизвестная ошибка аутентификации: статус={status}, msg={data.get('msg', '')}"
-            )
-            return True
-        return False
+    def _needs_reauth(status: int, _data: dict[str, Any]) -> bool:
+        return status in (401, 403)
 
     @staticmethod
     def _normalize_client_row(row: dict[str, Any]) -> dict[str, Any]:
@@ -4683,8 +4837,7 @@ class PanelAPI:
         self, method: str, url: str, **kwargs: Any
     ) -> tuple[int, dict[str, Any], str]:
         if not self.session:
-            logger.error(f"_request_json: сессия не инициализирована для {url}")
-            return 0, {}, ""
+            raise PanelError(f"PanelAPI session is not initialized for {url}")
         try:
             async with self.session.request(method, url, **kwargs) as resp:
                 text = await resp.text()
@@ -4706,11 +4859,30 @@ class PanelAPI:
         self, method: str, url: str, **kwargs: Any
     ) -> tuple[int, dict[str, Any], str]:
         status, data, text = await self._request_json(method, url, **kwargs)
-        if self._needs_reauth(status, data):
-            logger.warning("Требуется реавторизация")
-            await self.login()
-            status, data, text = await self._request_json(method, url, **kwargs)
-        return status, data, text
+        if not self._needs_reauth(status, data):
+            return status, data, text
+
+        logger.warning("Требуется реавторизация")
+        reauth_future = self._reauth_future
+        if reauth_future is None:
+            reauth_future = asyncio.get_running_loop().create_future()
+            self._reauth_future = reauth_future
+            try:
+                success = await self.login()
+                reauth_future.set_result(success)
+            except BaseException as e:
+                if not reauth_future.done():
+                    reauth_future.set_exception(e)
+                raise
+            finally:
+                if self._reauth_future is reauth_future:
+                    self._reauth_future = None
+        else:
+            success = await reauth_future
+
+        if not success:
+            raise PanelError("Не удалось авторизоваться в панели")
+        return await self._request_json(method, url, **kwargs)
 
     async def add_client_traffic(self, base_email: str, add_gb: int) -> bool:
         if add_gb <= 0:
@@ -4768,14 +4940,22 @@ class PanelAPI:
 
     @log_error
     async def close(self) -> None:
-        if self.session:
-            try:
-                await self.session.close()
-                logger.info("PanelAPI сессия закрыта")
-            except Exception as e:  # noqa: BLE001
-                logger.warning(f"Ошибка закрытия PanelAPI: {e}")
-            finally:
-                self.session = None
+        async with self._start_close_lock:
+            if self.session:
+                try:
+                    await self.session.close()
+                    logger.info("PanelAPI сессия закрыта")
+                except Exception as e:  # noqa: BLE001
+                    logger.warning(f"Ошибка закрытия PanelAPI: {e}")
+                finally:
+                    self.session = None
+            if self.connector:
+                try:
+                    await self.connector.close()
+                except Exception as e:  # noqa: BLE001
+                    logger.warning(f"Ошибка закрытия connector PanelAPI: {e}")
+                finally:
+                    self.connector = None
 
     @log_error
     async def create_client(
@@ -5329,19 +5509,19 @@ class PanelAPI:
         return None
 
     @log_error
-    async def login(self) -> None:
+    async def login(self) -> bool:
         async with self.lock:
             if not self.session:
                 logger.error("login: сессия не инициализирована")
-                return
+                return False
             if self.token:
                 self.logged_in = True
                 logger.info("Используется PANEL_TOKEN")
-                return
+                return True
             if not self.username or not self.password:
                 self.logged_in = False
                 logger.warning("login: PANEL_LOGIN или PANEL_PASSWORD не настроены")
-                return
+                return False
             try:
                 async with self.session.post(
                     f"{self.apibase}/login",
@@ -5355,14 +5535,16 @@ class PanelAPI:
                     if resp.status == 200 and data.get("success"):
                         self.logged_in = True
                         logger.info("Авторизация в панели успешна")
-                    else:
-                        self.logged_in = False
-                        logger.error(
-                            f"Ошибка авторизации: status={resp.status}, msg={data.get('msg')}, body={raw_text[:500]}"
-                        )
+                        return True
+                    self.logged_in = False
+                    logger.error(
+                        f"Ошибка авторизации: status={resp.status}, msg={data.get('msg')}, body={raw_text[:500]}"
+                    )
+                    return False
             except Exception as e:  # noqa: BLE001
                 self.logged_in = False
                 logger.error(f"Ошибка авторизации: {type(e).__name__}: {e}")
+                return False
 
     async def reset_client_traffic(self, base_email: str) -> bool:
         await self.ensure_auth()
@@ -5402,20 +5584,26 @@ class PanelAPI:
 
     @log_error
     async def start(self) -> None:
-        try:
-            connector = aiohttp.TCPConnector(ssl=self.verifyssl)
-            self.session = aiohttp.ClientSession(
-                connector=connector,
-                timeout=aiohttp.ClientTimeout(total=Config.PANEL_HTTP_TIMEOUT_SEC),
-                cookie_jar=aiohttp.CookieJar(),
-            )
-            if not self.token:
-                await self.login()
-            else:
-                logger.info("Используется PANEL_TOKEN")
-        except Exception as e:
-            logger.critical(f"Ошибка запуска PanelAPI: {e}")
-            raise
+        async with self._start_close_lock:
+            try:
+                if self.session or self.connector:
+                    await self.close()
+                connector = aiohttp.TCPConnector(ssl=self.verifyssl, limit_per_host=10)
+                session = aiohttp.ClientSession(
+                    connector=connector,
+                    timeout=aiohttp.ClientTimeout(total=Config.PANEL_HTTP_TIMEOUT_SEC),
+                    cookie_jar=aiohttp.CookieJar(),
+                )
+                self.connector = connector
+                self.session = session
+                if not self.token and not await self.login():
+                    raise PanelError("Не удалось авторизоваться в панели")
+                if self.token:
+                    logger.info("Используется PANEL_TOKEN")
+            except Exception as e:
+                await self.close()
+                logger.critical(f"Ошибка запуска PanelAPI: {e}")
+                raise
 
 
 async def _validate_admin_target_user(uid: int, event: Message, lang: str) -> bool:
@@ -5871,7 +6059,9 @@ def inactive_subscription_actions_keyboard() -> InlineKeyboardMarkup:
     return kb(rows)
 
 
-def build_language_keyboard() -> InlineKeyboardMarkup:
+def build_language_keyboard(
+    language: str = Config.DEFAULT_LANGUAGE,
+) -> InlineKeyboardMarkup:
     rows = [
         [{"text": get_language_display_name(code), "callback_data": f"lang:{code}"}]
         for code in get_available_languages()
@@ -5879,7 +6069,7 @@ def build_language_keyboard() -> InlineKeyboardMarkup:
     rows.append(
         [
             {
-                "text": translate(Config.DEFAULT_LANGUAGE, "buttons.cancel"),
+                "text": translate(language, "buttons.cancel"),
                 "callback_data": "start",
             }
         ]
@@ -5894,14 +6084,14 @@ def build_setup_keyboard(
         [
             [
                 {
-                    "text": translate(language, "buttons.client_setup"),
-                    "callback_data": "client_setup",
+                    "text": translate(language, "buttons.main"),
+                    "callback_data": "start",
                 }
             ],
             [
                 {
-                    "text": translate(language, "buttons.main"),
-                    "callback_data": "start",
+                    "text": translate(language, "buttons.client_setup"),
+                    "callback_data": "client_setup",
                 }
             ],
         ]
@@ -6099,7 +6289,9 @@ def build_subscription_cleanup_message(
     trust_delta: int = 0,
     lang: str = Config.DEFAULT_LANGUAGE,
 ) -> str:
-    if trust_before is not None and trust_after is not None:
+    if not TRUST_SCORE_ENABLED:
+        trust_line = ""
+    elif trust_before is not None and trust_after is not None:
         trust_line = build_trust_change_line(trust_delta, trust_before, trust_after)
     elif reason == "traffic_exhausted":
         trust_line = translate(
@@ -6198,8 +6390,6 @@ def get_event_user_id(event: Any) -> int | None:
 
 
 async def get_user_language(user_id: int) -> str:
-    if await is_admin_user(user_id):
-        return Config.DEFAULT_LANGUAGE
     user = await db.get_user_by_any_id(user_id)
     lang = str(user.get("language", "") if user else "").strip().lower()
     return lang if lang in LANGUAGES else Config.DEFAULT_LANGUAGE
@@ -6213,10 +6403,11 @@ async def get_lang(event: Any) -> str:
 
 
 async def prompt_language_selection(event: Message | CallbackQuery) -> None:
+    lang = await get_lang(event)
     await smart_answer(
         event,
-        translate(Config.DEFAULT_LANGUAGE, "texts.language_prompt"),
-        reply_markup=build_language_keyboard(),
+        translate(lang, "texts.language_prompt"),
+        reply_markup=build_language_keyboard(lang),
         delete_origin=True,
     )
 
@@ -6507,7 +6698,11 @@ async def cleanup_subscription(
     trust_after: int | None = None
     trust_delta = 0
 
-    if not await is_admin_user(tg_id) and reason == "traffic_exhausted":
+    if (
+        Config.TRUST_SCORE_ENABLED
+        and not await is_admin_user(tg_id)
+        and reason == "traffic_exhausted"
+    ):
         trust_before = await db.get_trust_score(internal_uid)
         changed, before, after, delta = await apply_trust_score_delta(  # noqa: RUF059
             internal_uid, -TRUST_SCORE_PENALTY_TRAFFIC_EXHAUSTED
@@ -6644,153 +6839,156 @@ async def ensure_startup_admin_accounts() -> None:
 
 
 async def _ensure_admin_subscription(admin_id: int) -> bool:
-    try:
-        user_data = await db.get_user_by_any_id(admin_id)
-        if not user_data:
-            return False
-        telegram_id = to_int(user_data.get("telegram_id"), 0) or admin_id
-        admin_email = f"admin@{Config.VPN_NAME.lower()}.com"
-        admin_sub_id = "Admin"
-        days = Config.ADMIN_AUTO_SUBSCRIBE_DAYS
-        traffic_gb = 0
-        ip_limit = 0
-        servers: list[str] = []
-        inbound_ids = await panel.get_matching_inbound_ids(servers) or []
-        if not inbound_ids:
-            logger.error(
-                f"_ensure_admin_subscription {admin_id}: нет доступных inbound'ов на панели"
-            )
-            return False
-
-        # Ищем уже существующего канонического Admin-клиента: сначала по subId
-        # (он единый для всех админов), затем по каноническому email.
-        existing = None
-        existing_email = admin_email
-        ok, sub_clients = await panel.find_clients_by_sub_id_safe(admin_sub_id)
-        if ok and sub_clients:
-            c0 = sub_clients[0]
-            existing_email = str(c0.get("email") or admin_email)
-            existing = await panel.get_client_by_email(existing_email) or c0
-        if not existing:
-            existing = await panel.get_client_by_email(admin_email)
-            if existing:
-                existing_email = admin_email
-
-        if existing:
-            # Уже есть канонический клиент Admin - обновляем его
-            # (безлимит + привязка ко всем inbound'ам), не создавая дубля.
-            client = dict(existing)
-            client["email"] = existing_email
-            client["enable"] = True
-            client["limitIp"] = ip_limit
-            client["totalGB"] = 0
-            client["subId"] = admin_sub_id
-            client["tgId"] = max(0, int(telegram_id))
-            client["inboundIds"] = inbound_ids
-            payload = panel._client_payload_for_update(client)
-            url = f"{panel.apibase}/panel/api/clients/update/{panel._quote_path(existing_email)}"
-            status, data, _ = await panel._request_json_with_reauth(
-                "POST", url, headers=panel._headers(), json=payload
-            )
-            if not (status in (200, 201) and data.get("success")):
+    async with _admin_sub_lock:
+        try:
+            user_data = await db.get_user_by_any_id(admin_id)
+            if not user_data:
+                return False
+            telegram_id = to_int(user_data.get("telegram_id"), 0) or admin_id
+            admin_email = f"admin@{Config.VPN_NAME.lower()}.com"
+            admin_sub_id = "Admin"
+            days = Config.ADMIN_AUTO_SUBSCRIBE_DAYS
+            traffic_gb = 0
+            ip_limit = 0
+            servers: list[str] = []
+            inbound_ids = await panel.get_matching_inbound_ids(servers) or []
+            if not inbound_ids:
                 logger.error(
-                    f"_ensure_admin_subscription: не удалось обновить Admin клиент: "
-                    f"{data.get('msg')}"
+                    f"_ensure_admin_subscription {admin_id}: нет доступных inbound'ов на панели"
                 )
-            panel._invalidate_clients_cache()
-            await panel.attach_client_to_inbounds(existing_email, inbound_ids)
-            logger.info(
-                f"Admin {telegram_id}: обновлён клиент '{admin_sub_id}' "
-                f"(привязка ко всем inbound'ам)"
-            )
-        else:
-            client = await panel.create_client(
-                email=admin_email,
-                limit_ip=ip_limit,
-                total_gb=traffic_gb,
-                days=days,
-                servers=servers,
-                tg_id=telegram_id,
-                sub_id=admin_sub_id,
-            )
-            if not client:
-                # subId уже занят другим клиентом - обновляем существующий.
-                logger.warning(
-                    f"_ensure_admin_subscription {admin_id}: subId '{admin_sub_id}' "
-                    f"уже занят, обновляем существующего клиента"
+                return False
+
+            # Ищем уже существующего канонического Admin-клиента: сначала по subId
+            # (он единый для всех админов), затем по каноническому email.
+            existing = None
+            existing_email = admin_email
+            ok, sub_clients = await panel.find_clients_by_sub_id_safe(admin_sub_id)
+            if ok and sub_clients:
+                c0 = sub_clients[0]
+                existing_email = str(c0.get("email") or admin_email)
+                existing = await panel.get_client_by_email(existing_email) or c0
+            if not existing:
+                existing = await panel.get_client_by_email(admin_email)
+                if existing:
+                    existing_email = admin_email
+
+            if existing:
+                # Уже есть канонический клиент Admin - обновляем его
+                # (безлимит + привязка ко всем inbound'ам), не создавая дубля.
+                client = dict(existing)
+                client["email"] = existing_email
+                client["enable"] = True
+                client["limitIp"] = ip_limit
+                client["totalGB"] = 0
+                client["subId"] = admin_sub_id
+                client["tgId"] = max(0, int(telegram_id))
+                client["inboundIds"] = inbound_ids
+                payload = panel._client_payload_for_update(client)
+                url = (
+                    f"{panel.apibase}/panel/api/clients/update/{panel._quote_path(existing_email)}"
                 )
-                ok2, sub_clients2 = await panel.find_clients_by_sub_id_safe(admin_sub_id)
-                if ok2 and sub_clients2:
-                    c1 = sub_clients2[0]
-                    existing_email = str(c1.get("email") or admin_email)
-                    existing = await panel.get_client_by_email(existing_email) or c1
-                    client = dict(existing)
-                    client["email"] = existing_email
-                    client["enable"] = True
-                    client["limitIp"] = ip_limit
-                    client["totalGB"] = 0
-                    client["subId"] = admin_sub_id
-                    client["tgId"] = max(0, int(telegram_id))
-                    client["inboundIds"] = inbound_ids
-                    payload = panel._client_payload_for_update(client)
-                    url = (
-                        f"{panel.apibase}/panel/api/clients/update/"
-                        f"{panel._quote_path(existing_email)}"
+                status, data, _ = await panel._request_json_with_reauth(
+                    "POST", url, headers=panel._headers(), json=payload
+                )
+                if not (status in (200, 201) and data.get("success")):
+                    logger.error(
+                        f"_ensure_admin_subscription: не удалось обновить Admin клиент: "
+                        f"{data.get('msg')}"
                     )
-                    status, data, _ = await panel._request_json_with_reauth(
-                        "POST", url, headers=panel._headers(), json=payload
+                panel._invalidate_clients_cache()
+                await panel.attach_client_to_inbounds(existing_email, inbound_ids)
+                logger.info(
+                    f"Admin {telegram_id}: обновлён клиент '{admin_sub_id}' "
+                    f"(привязка ко всем inbound'ам)"
+                )
+            else:
+                client = await panel.create_client(
+                    email=admin_email,
+                    limit_ip=ip_limit,
+                    total_gb=traffic_gb,
+                    days=days,
+                    servers=servers,
+                    tg_id=telegram_id,
+                    sub_id=admin_sub_id,
+                )
+                if not client:
+                    # subId уже занят другим клиентом - обновляем существующий.
+                    logger.warning(
+                        f"_ensure_admin_subscription {admin_id}: subId '{admin_sub_id}' "
+                        f"уже занят, обновляем существующего клиента"
                     )
-                    if not (status in (200, 201) and data.get("success")):
+                    ok2, sub_clients2 = await panel.find_clients_by_sub_id_safe(admin_sub_id)
+                    if ok2 and sub_clients2:
+                        c1 = sub_clients2[0]
+                        existing_email = str(c1.get("email") or admin_email)
+                        existing = await panel.get_client_by_email(existing_email) or c1
+                        client = dict(existing)
+                        client["email"] = existing_email
+                        client["enable"] = True
+                        client["limitIp"] = ip_limit
+                        client["totalGB"] = 0
+                        client["subId"] = admin_sub_id
+                        client["tgId"] = max(0, int(telegram_id))
+                        client["inboundIds"] = inbound_ids
+                        payload = panel._client_payload_for_update(client)
+                        url = (
+                            f"{panel.apibase}/panel/api/clients/update/"
+                            f"{panel._quote_path(existing_email)}"
+                        )
+                        status, data, _ = await panel._request_json_with_reauth(
+                            "POST", url, headers=panel._headers(), json=payload
+                        )
+                        if not (status in (200, 201) and data.get("success")):
+                            logger.error(
+                                f"_ensure_admin_subscription: не удалось обновить Admin клиент "
+                                f"по subId: {data.get('msg')}"
+                            )
+                            return False
+                        panel._invalidate_clients_cache()
+                        await panel.attach_client_to_inbounds(existing_email, inbound_ids)
+                        logger.info(
+                            f"Admin {telegram_id}: обновлён существующий клиент '{admin_sub_id}'"
+                        )
+                    else:
                         logger.error(
-                            f"_ensure_admin_subscription: не удалось обновить Admin клиент "
-                            f"по subId: {data.get('msg')}"
+                            f"_ensure_admin_subscription {admin_id}: не удалось создать Admin клиент"
                         )
                         return False
-                    panel._invalidate_clients_cache()
-                    await panel.attach_client_to_inbounds(existing_email, inbound_ids)
-                    logger.info(
-                        f"Admin {telegram_id}: обновлён существующий клиент '{admin_sub_id}'"
-                    )
                 else:
-                    logger.error(
-                        f"_ensure_admin_subscription {admin_id}: не удалось создать Admin клиент"
+                    logger.info(
+                        f"Admin {telegram_id}: создан клиент '{admin_sub_id}' (все inbound'ы, безлимит)"
                     )
-                    return False
-            else:
-                logger.info(
-                    f"Admin {telegram_id}: создан клиент '{admin_sub_id}' (все inbound'ы, безлимит)"
-                )
 
-        # Удаляем устаревший user_* клиент этого админа (мусор от старой логики),
-        # но не тот, который мы только что сделали каноническим Admin-клиентом.
-        stale_email = build_base_email(telegram_id)
-        if stale_email and stale_email != admin_email and stale_email != existing_email:
-            try:
-                await panel.delete_client(stale_email)
-                logger.info(f"Admin {telegram_id}: удалён устаревший клиент {stale_email}")
-            except Exception as e:  # noqa: BLE001
-                logger.warning(f"Admin {telegram_id}: не удалось удалить {stale_email}: {e}")
+            # Удаляем устаревший user_* клиент этого админа (мусор от старой логики),
+            # но не тот, который мы только что сделали каноническим Admin-клиентом.
+            stale_email = build_base_email(telegram_id)
+            if stale_email and stale_email != admin_email and stale_email != existing_email:
+                try:
+                    await panel.delete_client(stale_email)
+                    logger.info(f"Admin {telegram_id}: удалён устаревший клиент {stale_email}")
+                except Exception as e:  # noqa: BLE001
+                    logger.warning(f"Admin {telegram_id}: не удалось удалить {stale_email}: {e}")
 
-        expiry_dt = datetime.now(timezone.utc) + timedelta(days=days)
-        expiry_sub_datatime = expiry_dt.isoformat()
-        await db.set_subscription(
-            admin_id,
-            plan_text=admin_sub_id,
-            ip_limit=ip_limit,
-            vpn_url=admin_sub_id,
-            traffic_gb=traffic_gb,
-            plan_servers=servers,
-            subscription_id=admin_sub_id,
-            expiry_sub_datatime=expiry_sub_datatime,
-        )
-        logger.info(
-            f"Admin {telegram_id}: подписка синхронизирована с '{admin_sub_id}' "
-            f"({days} дней, {traffic_gb} GB)"
-        )
-        return True
-    except Exception as e:  # noqa: BLE001
-        logger.error(f"_ensure_admin_subscription {admin_id}: {e}")
-        return False
+            expiry_dt = datetime.now(timezone.utc) + timedelta(days=days)
+            expiry_sub_datatime = expiry_dt.isoformat()
+            await db.set_subscription(
+                admin_id,
+                plan_text=admin_sub_id,
+                ip_limit=ip_limit,
+                vpn_url=admin_sub_id,
+                traffic_gb=traffic_gb,
+                plan_servers=servers,
+                subscription_id=admin_sub_id,
+                expiry_sub_datatime=expiry_sub_datatime,
+            )
+            logger.info(
+                f"Admin {telegram_id}: подписка синхронизирована с '{admin_sub_id}' "
+                f"({days} дней, {traffic_gb} GB)"
+            )
+            return True
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"_ensure_admin_subscription {admin_id}: {e}")
+            return False
 
 
 async def _notify_subscription_creation_failed(
@@ -6991,7 +7189,7 @@ async def _create_subscription_unlocked(
     if pending > 0:
         await db.clear_bonus_days_pending(user_id)
 
-    if earn_trust:
+    if Config.TRUST_SCORE_ENABLED and earn_trust:
         accrual_base = (
             to_float(paid_amount, 0.0)
             if paid_amount is not None
@@ -7154,7 +7352,7 @@ async def renew_subscription(
     )
     if pending > 0:
         await db.clear_bonus_days_pending(user_id)
-    if earn_trust:
+    if Config.TRUST_SCORE_ENABLED and earn_trust:
         accrual_base = (
             to_float(paid_amount, 0.0)
             if paid_amount is not None
@@ -7237,10 +7435,10 @@ async def notify_expiring_subscription(
         return False
 
 
-async def reward_referrer(referrer_id: int, bonus_days: int) -> None:
+async def reward_referrer(referrer_id: int, bonus_days: int) -> bool:
     user = await db.get_user_by_any_id(referrer_id)
     if not user:
-        return
+        return False
     tg_id = to_int(user.get("telegram_id"), referrer_id)
     lang = await get_user_language(tg_id)
     pending = await db.get_bonus_days_pending(referrer_id)
@@ -7251,37 +7449,57 @@ async def reward_referrer(referrer_id: int, bonus_days: int) -> None:
     if has_active:
         if await panel.extend_client_expiry(base_email, total):
             if pending > 0:
-                await db.clear_bonus_days_pending(referrer_id)
-            await notify_user(
-                tg_id,
-                translate(
-                    lang,
-                    "texts.referral_bonus_days_added",
-                    bonus_days=format_duration(total),
-                ),
-            )
-            return
-        await db.add_bonus_days_pending(referrer_id, bonus_days)
-        await notify_admins(
-            translate(
-                Config.DEFAULT_LANGUAGE,
-                "texts.referral_bonus_extend_failed_admin",
-                referrer_id=referrer_id,
-                bonus_days=format_duration(bonus_days),
-            )
-        )
-        return
+                try:
+                    await db.clear_bonus_days_pending(referrer_id)
+                except Exception as e:  # noqa: BLE001
+                    logger.critical(
+                        f"Не удалось очистить bonus_days_pending для {referrer_id}: {e}"
+                    )
+                    try:
+                        await db.add_bonus_days_pending(referrer_id, bonus_days)
+                    except Exception:  # noqa: BLE001, S110
+                        pass
+            try:
+                await notify_user(
+                    tg_id,
+                    translate(
+                        lang,
+                        "texts.referral_bonus_days_added",
+                        bonus_days=format_duration(total),
+                    ),
+                )
+            except Exception as e:  # noqa: BLE001
+                logger.error(f"notify_referral_bonus {referrer_id}: {e}")
+            return True
+        if await db.add_bonus_days_pending(referrer_id, bonus_days):
+            try:
+                await notify_admins(
+                    translate(
+                        Config.DEFAULT_LANGUAGE,
+                        "texts.referral_bonus_extend_failed_admin",
+                        referrer_id=referrer_id,
+                        bonus_days=format_duration(bonus_days),
+                    )
+                )
+            except Exception as e:  # noqa: BLE001
+                logger.error(f"notify_admins referral bonus {referrer_id}: {e}")
+            return True
+        return False
     min_plan = get_minimal_by_price()
     if not min_plan:
-        await db.add_bonus_days_pending(referrer_id, bonus_days)
-        await notify_admins(
-            translate(
-                Config.DEFAULT_LANGUAGE,
-                "texts.referral_bonus_no_plan_admin",
-                referrer_id=referrer_id,
-            )
-        )
-        return
+        if await db.add_bonus_days_pending(referrer_id, bonus_days):
+            try:
+                await notify_admins(
+                    translate(
+                        Config.DEFAULT_LANGUAGE,
+                        "texts.referral_bonus_no_plan_admin",
+                        referrer_id=referrer_id,
+                    )
+                )
+            except Exception as e:  # noqa: BLE001
+                logger.error(f"notify_admins referral bonus {referrer_id}: {e}")
+            return True
+        return False
     vpn_url = await create_subscription(
         referrer_id,
         min_plan,
@@ -7290,25 +7508,35 @@ async def reward_referrer(referrer_id: int, bonus_days: int) -> None:
         earn_trust=False,
     )
     if vpn_url:
-        await notify_user(
-            tg_id,
-            translate(
-                lang,
-                "texts.referral_bonus_subscription_created",
-                bonus_days=format_duration(total),
-                vpn_url=vpn_url,
-                json_vpn_url=build_json_subscription_url(vpn_url),
-            ),
-        )
-    else:
-        await db.add_bonus_days_pending(referrer_id, bonus_days)
-        await notify_admins(
-            translate(
-                Config.DEFAULT_LANGUAGE,
-                "texts.referral_bonus_create_failed_admin",
-                referrer_id=referrer_id,
+        try:
+            await notify_user(
+                tg_id,
+                translate(
+                    lang,
+                    "texts.referral_bonus_subscription_created",
+                    bonus_days=format_duration(total),
+                    subscription_links=build_subscription_link_blocks(vpn_url, lang),
+                    subscription_setup_required=translate(
+                        lang, "texts.subscription_setup_required"
+                    ),
+                ),
             )
-        )
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"notify_referral_subscription {referrer_id}: {e}")
+        return True
+    if await db.add_bonus_days_pending(referrer_id, bonus_days):
+        try:
+            await notify_admins(
+                translate(
+                    Config.DEFAULT_LANGUAGE,
+                    "texts.referral_bonus_create_failed_admin",
+                    referrer_id=referrer_id,
+                )
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"notify_admins referral bonus {referrer_id}: {e}")
+        return True
+    return False
 
 
 async def claim_pending_payment_or_alert(
@@ -7376,14 +7604,6 @@ async def resolve_user_from_payment(payment: dict[str, Any]) -> ResolvedUser | N
                 telegram_id=tg_id,
                 internal_user_id=user_data["user_id"],
             )
-
-    user_data = await db.get_user_by_any_id(raw_uid)
-    if user_data:
-        return ResolvedUser(
-            user_data=user_data,
-            telegram_id=raw_uid,
-            internal_user_id=user_data["user_id"],
-        )
 
     user_data = await db.get_user_by_any_id(raw_uid)
     if user_data:
@@ -7745,8 +7965,9 @@ async def cmd_start(event: Message | CallbackQuery, state: FSMContext, **kwargs:
             try:
                 if not _admin_startup_completed:
                     await db.add_user(user_id, force=True)
-            except Exception:  # noqa: BLE001, S110
-                pass
+                lang = await db.get_user_language(user_id) or Config.DEFAULT_LANGUAGE
+            except Exception:  # noqa: BLE001
+                lang = Config.DEFAULT_LANGUAGE
         else:
             lang = await db.get_user_language(user_id) or Config.DEFAULT_LANGUAGE
 
@@ -7995,13 +8216,13 @@ async def cmd_start(event: Message | CallbackQuery, state: FSMContext, **kwargs:
 
         if await is_admin_user(user_id):
             text = translate(
-                Config.DEFAULT_LANGUAGE,
+                lang,
                 "texts.admin_welcome",
                 total_users=total,
                 active_vpns=active,
                 banned_users=banned,
             )
-            keyboard = build_main_keyboard(True, False, Config.DEFAULT_LANGUAGE)
+            keyboard = build_main_keyboard(True, False, lang)
         else:
             user_data = await db.get_user_by_any_id(user_id)
             is_partner = bool(user_data.get("is_mate")) if user_data else False
@@ -8844,8 +9065,8 @@ async def cmd_custom_confirm_test(event: CallbackQuery, state: FSMContext, **kwa
             traffic=format_traffic(traffic, user_lang),
             servers=format_servers(servers),
             duration=format_duration(days, user_lang),
-            vpn_url=vpn_url,
-            json_vpn_url=build_json_subscription_url(vpn_url),
+            subscription_links=build_subscription_link_blocks(vpn_url, user_lang),
+            subscription_setup_required=translate(user_lang, "texts.subscription_setup_required"),
         )
         setup_keyboard = build_setup_keyboard(user_lang)
     else:
@@ -8926,8 +9147,10 @@ async def cmd_custom_confirm_payment(event: CallbackQuery, state: FSMContext, **
                 traffic=format_traffic(traffic, user_lang),
                 servers=format_servers(servers),
                 duration=format_duration(days, user_lang),
-                vpn_url=vpn_url,
-                json_vpn_url=build_json_subscription_url(vpn_url),
+                subscription_links=build_subscription_link_blocks(vpn_url, user_lang),
+                subscription_setup_required=translate(
+                    user_lang, "texts.subscription_setup_required"
+                ),
             )
             setup_keyboard = build_setup_keyboard(user_lang)
         else:
@@ -9145,8 +9368,8 @@ async def cmd_test_plan(event: CallbackQuery, **kwargs: Any) -> None:
             traffic=format_traffic(plan.get("traffic_gb", 0), user_lang),
             servers=format_servers(plan.get("servers")),
             duration=format_duration(int(plan.get("duration_days", 30)), user_lang),
-            vpn_url=vpn_url,
-            json_vpn_url=build_json_subscription_url(vpn_url),
+            subscription_links=build_subscription_link_blocks(vpn_url, user_lang),
+            subscription_setup_required=translate(user_lang, "texts.subscription_setup_required"),
         )
     else:
         text = translate(Config.DEFAULT_LANGUAGE, "texts.failed_to_create_trial_subscription")
@@ -9222,8 +9445,8 @@ async def cmd_trial_plan(event: CallbackQuery, **kwargs):
             traffic=format_traffic(plan.get("traffic_gb", 0), user_lang),
             servers=format_servers(plan.get("servers")),
             duration=format_duration(int(plan.get("duration_days", 30)), user_lang),
-            vpn_url=vpn_url,
-            json_vpn_url=build_json_subscription_url(vpn_url),
+            subscription_links=build_subscription_link_blocks(vpn_url, user_lang),
+            subscription_setup_required=translate(user_lang, "texts.subscription_setup_required"),
         )
     else:
         text = translate(Config.DEFAULT_LANGUAGE, "texts.failed_to_create_trial_subscription")
@@ -9582,12 +9805,14 @@ async def cmd_mysub(event: CallbackQuery, **kwargs):
                 show_alert=True,
             )
             return
-        text = translate(
+        text = translate(lang, "texts.admin_subscription_info")
+        link_text = build_subscription_link_blocks_from_urls(
             lang,
-            "texts.admin_subscription_info",
-            url=admin_sub_url,
-            json_url=admin_json_url,
+            admin_sub_url,
+            admin_json_url,
         )
+        if link_text:
+            text += "\n\n" + link_text
         keyboard = kb(
             [
                 [
@@ -9636,9 +9861,14 @@ async def cmd_mysub(event: CallbackQuery, **kwargs):
             nickname=mate_nickname,
             plan_name=translate(lang, "texts.partner_plan_name"),
             expiry=mate_expiry or translate(lang, "texts.not_specified"),
-            url=mate_url or translate(lang, "texts.not_specified"),
-            json_url=mate_json_url or translate(lang, "texts.not_specified"),
         )
+        link_text = build_subscription_link_blocks_from_urls(
+            lang,
+            mate_url,
+            mate_json_url,
+        )
+        if link_text:
+            mate_text += "\n\n" + link_text
         keyboard = kb(
             [
                 [
@@ -9752,6 +9982,16 @@ async def cmd_mysub(event: CallbackQuery, **kwargs):
             if max_expiry > 0
             else translate(lang, "texts.not_specified")
         )
+        trust_score_line = (
+            translate(
+                lang,
+                "texts.trust_score_details",
+                trust_score=trust,
+                discount_percent=disc,
+            )
+            if Config.TRUST_SCORE_ENABLED
+            else translate(lang, "texts.trust_score_disabled")
+        )
         text = translate(
             lang,
             "texts.subscription_active_details",
@@ -9760,13 +10000,26 @@ async def cmd_mysub(event: CallbackQuery, **kwargs):
             ip_limit=ip_limit,
             servers=format_servers(servers),
             expiry_date=expiry_date,
-            trust_score=trust,
-            discount_percent=disc,
-            sub_url=sub_url,
+            trust_score_line=trust_score_line,
         )
-        if json_sub_url:
-            text += f"\n\n🔗 <b>JSON URL:</b>\n<code>{html.escape(json_sub_url)}</code>"
+        link_text = build_subscription_link_blocks_from_urls(
+            lang,
+            sub_url,
+            json_sub_url,
+        )
+        if link_text:
+            text += "\n\n" + link_text
     else:
+        trust_score_line = (
+            translate(
+                lang,
+                "texts.trust_score_details",
+                trust_score=trust,
+                discount_percent=disc,
+            )
+            if Config.TRUST_SCORE_ENABLED
+            else translate(lang, "texts.trust_score_disabled")
+        )
         text = translate(
             lang,
             "texts.subscription_inactive_details",
@@ -9774,12 +10027,15 @@ async def cmd_mysub(event: CallbackQuery, **kwargs):
             ip_limit=ip_limit,
             traffic=format_traffic(total_traffic_gb, lang),
             servers=format_servers(servers),
-            trust_score=trust,
-            discount_percent=disc,
-            sub_url=sub_url,
+            trust_score_line=trust_score_line,
         )
-        if json_sub_url:
-            text += f"\n\n🔗 <b>JSON URL:</b>\n<code>{html.escape(json_sub_url)}</code>"
+        link_text = build_subscription_link_blocks_from_urls(
+            lang,
+            sub_url,
+            json_sub_url,
+        )
+        if link_text:
+            text += "\n\n" + link_text
 
     rows: list[list[dict[str, str]]] = [
         [
@@ -11188,7 +11444,9 @@ async def _handle_partner_renewal_accept(
     current_expiry_str = user_data.get("mate_expiry", "")
     if current_expiry_str:
         try:
-            current_expiry = datetime.strptime(current_expiry_str, "%d.%m.%Y")  # noqa: DTZ007
+            current_expiry = datetime.strptime(current_expiry_str, "%d.%m.%Y").replace(
+                tzinfo=timezone.utc
+            )
         except Exception:  # noqa: BLE001
             current_expiry = datetime.now(timezone.utc)
     else:
@@ -11266,6 +11524,20 @@ async def _handle_partner_withdrawal_accept(
     lang = await get_lang(event)
     user_lang = await get_user_language(uid)
     amount = to_float(op.get("amount", 0))
+    if amount <= 0:
+        await event.answer(
+            translate(lang, "texts.amount_must_be_positive"),
+            show_alert=True,
+        )
+        return
+    user_data = await db.get_user_by_any_id(uid)
+    balance = to_float(user_data.get("mate_balance", 0), 0) if user_data else 0.0
+    if amount > balance or not await db.debit_partner_balance(uid, amount):
+        await event.answer(
+            translate(lang, "texts.partner_insufficient_balance"),
+            show_alert=True,
+        )
+        return
     finalized = await finalize_partner_operation(
         op.get("operation_id", ""),
         get_event_user_id(event) or 0,
@@ -11273,8 +11545,37 @@ async def _handle_partner_withdrawal_accept(
         "accepted",
     )
     if not finalized:
+        refunded = False
+        try:
+            refunded = await db.update_partner_balance(uid, amount)
+        except Exception as e:  # noqa: BLE001
+            logger.critical(
+                f"Не удалось вернуть баланс партнёра {uid} после операции "
+                f"{op.get('operation_id')}: {e}"
+            )
+        if not refunded:
+            logger.critical(
+                f"Баланс партнёра {uid} не восстановлен после операции {op.get('operation_id')}"
+            )
+            try:
+                await notify_admins(
+                    translate(
+                        Config.DEFAULT_LANGUAGE,
+                        "texts.partner_operation_claim_error",
+                    )
+                    + f" Операция {op.get('operation_id')}, сумма {amount}"
+                )
+            except Exception as e:  # noqa: BLE001
+                logger.critical(
+                    f"Не удалось уведомить администраторов о балансе партнёра {uid}: {e}"
+                )
         logger.warning(f"Не удалось финализировать операцию {op.get('operation_id')}")
-    await db.update_partner_balance(uid, -amount)
+        await event.answer(
+            translate(lang, "texts.partner_operation_claim_error"),
+            show_alert=True,
+        )
+        return
+    logger.info(f"С баланса партнёра {uid} списано {amount} по операции {op.get('operation_id')}")
     await event.answer(translate(lang, "texts.partner_withdraw_accepted"), show_alert=True)
     await append_payment_decision_label(
         event.message,
@@ -11342,41 +11643,46 @@ async def claim_partner_operation_or_alert(
 
 
 async def check_partner_expiry_notifications() -> None:
+    semaphore = asyncio.Semaphore(10)
+
+    async def process_partner(uid: int) -> None:
+        async with semaphore:
+            user_data = await db.get_user_by_any_id(uid)
+            if not user_data:
+                return
+            expiry = user_data.get("mate_expiry", "")
+            if not expiry:
+                return
+            try:
+                expiry_dt = datetime.strptime(expiry, "%d.%m.%Y").replace(tzinfo=timezone.utc)
+            except Exception:  # noqa: BLE001
+                return
+            now = datetime.now(timezone.utc)
+            grace_days = Config.PARTNER_EXPIRY_GRACE_DAYS
+            if expiry_dt > now and (expiry_dt - now).days <= grace_days:
+                try:
+                    await safe_send_message(
+                        bot,
+                        uid,
+                        translate(
+                            Config.DEFAULT_LANGUAGE,
+                            "texts.partner_expiry_soon",
+                            expiry_date=expiry_dt.strftime("%d.%m.%Y"),
+                            grace_days=grace_days,
+                        ),
+                    )
+                except Exception:  # noqa: BLE001, S110
+                    pass
+            elif expiry_dt <= now:
+                try:
+                    await _deactivate_partner(uid)
+                except Exception as e:  # noqa: BLE001
+                    logger.error(f"Ошибка деактивации партнёра {uid}: {e}")
+
     while True:
         try:
             partner_ids = await db.get_mate_user_ids()
-            for uid in partner_ids:
-                user_data = await db.get_user_by_any_id(uid)
-                if not user_data:
-                    continue
-                expiry = user_data.get("mate_expiry", "")
-                if not expiry:
-                    continue
-                try:
-                    expiry_dt = datetime.strptime(expiry, "%d.%m.%Y")  # noqa: DTZ007
-                except Exception:  # noqa: BLE001, S112
-                    continue
-                now = datetime.now(timezone.utc)
-                grace_days = Config.PARTNER_EXPIRY_GRACE_DAYS
-                if expiry_dt > now and (expiry_dt - now).days <= grace_days:
-                    try:
-                        await safe_send_message(
-                            bot,
-                            uid,
-                            translate(
-                                Config.DEFAULT_LANGUAGE,
-                                "texts.partner_expiry_soon",
-                                expiry_date=expiry_dt.strftime("%d.%m.%Y"),
-                                grace_days=grace_days,
-                            ),
-                        )
-                    except Exception:  # noqa: BLE001, S110
-                        pass
-                elif expiry_dt <= now:
-                    try:
-                        await _deactivate_partner(uid)
-                    except Exception as e:  # noqa: BLE001
-                        logger.error(f"Ошибка деактивации партнёра {uid}: {e}")
+            await asyncio.gather(*(process_partner(uid) for uid in partner_ids))
         except asyncio.CancelledError:
             raise
         except Exception as e:  # noqa: BLE001
@@ -11582,24 +11888,29 @@ async def cmd_pay_await_accept(event: CallbackQuery, **kwargs):
                     ),
                     bonus_text=bonus_text,
                     trust_change_line=trust_line,
-                    vpn_url=vpn_url,
-                    json_vpn_url=build_json_subscription_url(vpn_url),
+                    subscription_links=build_subscription_link_blocks(vpn_url, user_lang),
+                    subscription_setup_required=translate(
+                        user_lang, "texts.subscription_setup_required"
+                    ),
                 ),
                 reply_markup=setup_keyboard,
             )
         except Exception:  # noqa: BLE001, S110
             pass
         if ref_by and not ref_rewarded:
-            fresh = await db.get_user_by_any_id(uid)
-            if fresh and not fresh.get("ref_rewarded"):
-                await reward_referrer(ref_by, Config.REF_BONUS_DAYS)
-                await db.mark_ref_rewarded(uid)
+            if await reward_referrer(ref_by, Config.REF_BONUS_DAYS):
+                if not await db.mark_ref_rewarded(uid):
+                    logger.error(f"Не удалось отметить referral bonus для {uid}")
+            else:
+                logger.error(f"Не удалось выдать referral bonus для {uid}")
         if ref_by:
             referrer = await db.get_user_by_any_id(ref_by)
             if referrer and referrer.get("is_mate"):
                 commission = round(paid_amount * Config.PARTNER_COMMISSION_PERCENT / 100, 2)
-                if commission > 0:
-                    await db.update_partner_balance(ref_by, commission)
+                if commission > 0 and await db.update_partner_balance(ref_by, commission):
+                    logger.info(
+                        f"Партнёру {ref_by} начислена комиссия {commission} по платежу {payment_id}"
+                    )
         await event.answer(
             translate(
                 Config.DEFAULT_LANGUAGE,
@@ -11649,14 +11960,14 @@ async def cmd_pay_await_reject(event: CallbackQuery, **kwargs):
             translate(Config.DEFAULT_LANGUAGE, "texts.payment_processed_warning"),
             show_alert=True,
         )
-    if uid > 0:
+    trust_line = ""
+    if Config.TRUST_SCORE_ENABLED and uid > 0:
         changed, before, after, delta = await apply_trust_score_delta(
             uid, -TRUST_SCORE_PENALTY_PAYMENT_REJECTED
         )
         if changed:
             trust_line = build_trust_change_line(delta, before, after)
-        else:
-            trust_line = translate(Config.DEFAULT_LANGUAGE, "texts.trust_change_short_none")
+    if uid > 0:
         user_lang = await get_user_language(uid)
         try:
             await notify_user(
@@ -11973,18 +12284,24 @@ async def cmd_debug_menu(event: CallbackQuery, **kwargs):
                     "callback_data": "unban",
                 }
             ],
-            [
-                {
-                    "text": translate(lang, "buttons.trust_add"),
-                    "callback_data": "debug_trust_add",
-                }
-            ],
-            [
-                {
-                    "text": translate(lang, "buttons.trust_remove"),
-                    "callback_data": "debug_trust_remove",
-                }
-            ],
+            *(
+                [
+                    [
+                        {
+                            "text": translate(lang, "buttons.trust_add"),
+                            "callback_data": "debug_trust_add",
+                        }
+                    ],
+                    [
+                        {
+                            "text": translate(lang, "buttons.trust_remove"),
+                            "callback_data": "debug_trust_remove",
+                        }
+                    ],
+                ]
+                if Config.TRUST_SCORE_ENABLED
+                else []
+            ),
             [
                 {
                     "text": translate(lang, "buttons.normalize_subscriptions"),
@@ -12624,6 +12941,10 @@ async def cmd_debug_clear_abuse(event: CallbackQuery, **kwargs):
 async def cmd_debug_trust_add(event: CallbackQuery, state: FSMContext, **kwargs):
     if not await ensure_admin_access(event):
         return
+    if not Config.TRUST_SCORE_ENABLED:
+        lang = await get_lang(event)
+        await event.answer(translate(lang, "texts.trust_system_disabled"), show_alert=True)
+        return
     lang = await get_lang(event)
     await state.set_state(TrustScoreState.waiting_for_user_id)
     await state.update_data(action="add")
@@ -12639,6 +12960,10 @@ async def cmd_debug_trust_add(event: CallbackQuery, state: FSMContext, **kwargs)
 async def cmd_debug_trust_remove(event: CallbackQuery, state: FSMContext, **kwargs):
     if not await ensure_admin_access(event):
         return
+    if not Config.TRUST_SCORE_ENABLED:
+        lang = await get_lang(event)
+        await event.answer(translate(lang, "texts.trust_system_disabled"), show_alert=True)
+        return
     lang = await get_lang(event)
     await state.set_state(TrustScoreState.waiting_for_user_id)
     await state.update_data(action="remove")
@@ -12653,6 +12978,10 @@ async def cmd_debug_trust_remove(event: CallbackQuery, state: FSMContext, **kwar
 @router.message(TrustScoreState.waiting_for_user_id)
 async def process_trust_user_id(event: Message, state: FSMContext, **kwargs):
     lang = await get_lang(event)
+    if not Config.TRUST_SCORE_ENABLED:
+        await state.clear()
+        await event.answer(translate(lang, "texts.trust_system_disabled"), show_alert=True)
+        return
     val = event.text.strip() if event.text else ""
     if is_cancel_text(val, lang):
         await state.clear()
@@ -12683,6 +13012,10 @@ async def process_trust_user_id(event: Message, state: FSMContext, **kwargs):
 @router.message(TrustScoreState.waiting_for_amount)
 async def process_trust_amount(event: Message, state: FSMContext, **kwargs):
     lang = await get_lang(event)
+    if not Config.TRUST_SCORE_ENABLED:
+        await state.clear()
+        await event.answer(translate(lang, "texts.trust_system_disabled"), show_alert=True)
+        return
     val = event.text.strip() if event.text else ""
     if is_cancel_text(val, lang):
         await state.clear()
@@ -13874,7 +14207,10 @@ async def normalize_all_subscriptions_with_retry(
                         else:
                             sub_clients = None
                             if db_sub_id:
-                                ok, sub_clients = await panel.find_clients_by_sub_id_safe(db_sub_id)
+                                (
+                                    ok,
+                                    sub_clients,
+                                ) = await panel.find_clients_by_sub_id_safe(db_sub_id)
                             if sub_clients:
                                 existing_client = sub_clients[0]
                                 ec_email = str(existing_client.get("email") or email)
@@ -13891,7 +14227,10 @@ async def normalize_all_subscriptions_with_retry(
                                     f"{panel._quote_path(ec_email)}"
                                 )
                                 status, data, _ = await panel._request_json_with_reauth(
-                                    "POST", upd_url, headers=panel._headers(), json=payload
+                                    "POST",
+                                    upd_url,
+                                    headers=panel._headers(),
+                                    json=payload,
                                 )
                                 if status in (200, 201) and data.get("success"):
                                     report["subscriptions_updated"] += 1
@@ -14375,7 +14714,6 @@ _SENSITIVE_USER_FIELDS = {
     "session_token",
     "session_expires_at",
     "session_created_at",
-    "session_version",
 }
 
 
@@ -14383,6 +14721,141 @@ def sanitize_user(user: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(user, dict):
         return user
     return {k: v for k, v in user.items() if k not in _SENSITIVE_USER_FIELDS}
+
+
+async def _build_profile_response(user: dict[str, Any]) -> dict[str, Any]:
+    lang = await db.get_user_language_by_user_id(user["user_id"]) or Config.DEFAULT_LANGUAGE
+    db_uid = user["user_id"]
+    sub_state = await get_subscription_state(db_uid)
+    trust_score = await db.get_trust_score(db_uid)
+    ref_count = await db.count_referrals(db_uid)
+    ref_paid = await db.count_referrals_paid(db_uid)
+    ref_code = user.get("ref_code", "")
+    if not ref_code:
+        tg_id_for_ref = to_int(user.get("telegram_id"), 0)
+        ref_code = await db.ensure_ref_code(tg_id_for_ref) or "" if tg_id_for_ref else ""
+    is_partner = bool(user.get("is_mate"))
+    partner_data: dict[str, Any] = {}
+    if is_partner:
+        partner_data = {
+            "mate_balance": to_float(user.get("mate_balance", 0), 0.0),
+            "mate_commission_total": to_float(user.get("mate_commission_total", 0), 0.0),
+            "mate_status": str(user.get("mate_status", "") or ""),
+            "mate_followers": to_int(user.get("mate_followers", 0), 0),
+            "mate_avg_reach": to_int(user.get("mate_avg_reach", 0), 0),
+            "mate_period_months": to_int(user.get("mate_period_months", 0), 0),
+            "mate_ref_link_code": str(user.get("mate_ref_link_code", "") or ""),
+            "mate_subscription_id": str(user.get("mate_subscription_id", "") or ""),
+            "mate_expiry": str(user.get("mate_expiry", "") or ""),
+        }
+    discount = calculate_discount_percent(trust_score)
+    sub_data: dict[str, Any] = {}
+    if sub_state.get("status") == "active":
+        sub_data = {
+            "status": "active",
+            "plan_text": str(user.get("plan_text", "") or ""),
+            "traffic_gb": to_float(user.get("traffic_gb", 0), 0.0),
+            "extra_sub_gb": to_int(user.get("extra_sub_gb", 0), 0),
+            "ip_limit": to_int(user.get("ip_limit", 0), 0),
+            "vpn_url": str(user.get("vpn_url", "") or ""),
+            "plan_servers": parse_stored_servers(user.get("plan_servers")),
+            "used_gb": round(sub_state.get("used_gb", 0), 2),
+            "max_expiry": sub_state.get("max_expiry", 0),
+            "expiry_sub_datatime": str(user.get("expiry_sub_datatime", "") or ""),
+        }
+    else:
+        sub_data = {"status": sub_state.get("status", "none")}
+    ref_link = get_ref_link(ref_code) if ref_code else ""
+    admin_sub_data = None
+    panel_types = Features.available_panel_types()
+    if await is_admin_user(to_int(user.get("telegram_id"), 0)):
+        admin_vpn_url = str(user.get("vpn_url", "") or "")
+        admin_sub_url = (
+            build_subscription_url(admin_vpn_url) if panel_types["main"] and admin_vpn_url else ""
+        )
+        admin_json_url = (
+            build_json_subscription_url(admin_vpn_url)
+            if panel_types["json"] and admin_vpn_url
+            else ""
+        )
+        admin_sub_data = {
+            "url": admin_sub_url,
+            "json_url": admin_json_url,
+        }
+    partner_sub_data = None
+    if is_partner:
+        mate_sub_id = user.get("mate_subscription_id", "")
+        mate_expiry = user.get("mate_expiry", "")
+        partner_sub_data = {
+            "sub_id": mate_sub_id,
+            "expiry": mate_expiry,
+            "url": (build_subscription_url(mate_sub_id) if mate_sub_id else ""),
+            "json_url": (build_json_subscription_url(mate_sub_id) if mate_sub_id else ""),
+        }
+        try:
+            partner_email = get_user_panel_email(db_uid, user)
+            p_ok, p_clients = await panel.get_client_stats_safe(partner_email)
+            if p_ok and p_clients:
+                p_used = sum(
+                    max(0, to_int(c.get("up", 0))) + max(0, to_int(c.get("down", 0)))
+                    for c in p_clients
+                )
+                partner_sub_data["used_gb"] = round(p_used / BYTES_IN_GB, 2)
+        except Exception:  # noqa: BLE001, S110
+            pass
+    try:
+        pending_ops = await get_pending_partner_operations()
+        pending_app = any(
+            str(o.get("user_id")) == str(user.get("telegram_id"))
+            and o.get("op_type") == "partner_new"
+            for o in pending_ops
+        )
+    except Exception:  # noqa: BLE001
+        pending_app = False
+    try:
+        has_pending_payment = await json_db.has_pending_payment_for_user(user["user_id"])
+    except Exception:  # noqa: BLE001
+        has_pending_payment = False
+    return {
+        "user_id": user["user_id"],
+        "telegram_id": to_int(user.get("telegram_id", 0), 0),
+        "web_id": user.get("web_id", 0) or None,
+        "username": str(user.get("username", "") or "") or None,
+        "login": str(user.get("username", "") or "") or None,
+        "language": lang,
+        "trust_score": trust_score,
+        "discount_percent": discount,
+        "subscription": sub_data,
+        "referral": {
+            "ref_code": ref_code,
+            "ref_link": ref_link,
+            "referrals_count": ref_count,
+            "referrals_paid": ref_paid,
+        },
+        "partner": partner_data if is_partner else {},
+        "is_partner": is_partner,
+        "pending_partner_application": pending_app,
+        "trial_used": bool(user.get("trial_used")),
+        "join_date": str(user.get("join_date", "") or ""),
+        "web_auth_method": str(user.get("web_auth_method", "") or "") or None,
+        "is_admin": await is_admin_user(to_int(user.get("telegram_id"), 0)),
+        "is_mate": is_partner,
+        "mate_balance": to_float(user.get("mate_balance", 0), 0.0),
+        "mate_commission_total": to_float(user.get("mate_commission_total", 0), 0.0),
+        "mate_status": str(user.get("mate_status", "") or ""),
+        "mate_followers": to_int(user.get("mate_followers", 0), 0),
+        "mate_avg_reach": to_int(user.get("mate_avg_reach", 0), 0),
+        "mate_period_months": to_int(user.get("mate_period_months", 0), 0),
+        "mate_ref_link_code": str(user.get("mate_ref_link_code", "") or ""),
+        "mate_subscription_id": str(user.get("mate_subscription_id", "") or ""),
+        "mate_expiry": str(user.get("mate_expiry", "") or ""),
+        "admin_subscription": admin_sub_data,
+        "has_pending_payment": bool(has_pending_payment),
+        "partner_subscription": partner_sub_data,
+        "has_password": bool(user.get("password_hash", "")),
+        "banned": bool(user.get("banned", False)),
+        "ban_reason": str(user.get("ban_reason", "") or ""),
+    }
 
 
 _active_connections: dict[str, list[WebSocket]] = {}
@@ -14417,9 +14890,12 @@ class TelegramLoginRequest(BaseModel):
     state: str = Field(min_length=16, max_length=128)
 
 
+PaymentMethod = Literal["card", "yoomoney", "manual"]
+
+
 class CreateCheckoutRequest(BaseModel):
     plan_id: str
-    method: str = "manual"
+    method: PaymentMethod = "manual"
     custom_plan: dict[str, Any] | None = None
 
 
@@ -14515,6 +14991,22 @@ class BOT_FastAPI:
                 logger.info("FastAPI lifespan: cancelled")
             finally:
                 logger.info("FastAPI lifespan: shutdown")
+                for conns in _active_connections.values():
+                    for ws in conns:
+                        try:
+                            asyncio.create_task(ws.close(code=1001))
+                        except Exception:  # noqa: BLE001, S110
+                            pass
+                _active_connections.clear()
+                for ws in _admin_connections:
+                    try:
+                        asyncio.create_task(ws.close(code=1001))
+                    except Exception:  # noqa: BLE001, S110
+                        pass
+                _admin_connections.clear()
+                for task in _scheduled_tasks:
+                    if not task.done():
+                        task.cancel()
 
         self.app = FastAPI(
             title=f"{Config.VPN_NAME} API",
@@ -14689,8 +15181,10 @@ class BOT_FastAPI:
             _api_request_times[client_ip] = [
                 t for t in _api_request_times[client_ip] if now - t < _API_RATE_WINDOW
             ]
+            if not _api_request_times[client_ip]:
+                _api_request_times.pop(client_ip, None)
 
-            if len(_api_request_times[client_ip]) >= _API_RATE_LIMIT:
+            if len(_api_request_times.get(client_ip, [])) >= _API_RATE_LIMIT:
                 logger.warning(
                     f"Rate limit exceeded for IP {client_ip} "
                     f"({len(_api_request_times[client_ip])}/{_API_RATE_LIMIT} in {_API_RATE_WINDOW}s)"
@@ -14961,10 +15455,15 @@ class BOT_FastAPI:
                 minimal_status: dict[str, Any] = {}
                 if isinstance(server_status, dict):
                     xray_obj = server_status.get("xray")
+                    xray_state = "offline"
                     if isinstance(xray_obj, dict):
-                        minimal_status["xray"] = {"state": xray_obj.get("state")}
+                        raw_state = xray_obj.get("state")
+                        xray_state = (
+                            raw_state if raw_state and raw_state != "unknown" else "offline"
+                        )
                     elif xray_obj is not None:
-                        minimal_status["xray"] = {"state": str(xray_obj)}
+                        xray_state = "offline"
+                    minimal_status["xray"] = {"state": xray_state}
                     if "uptime" in server_status:
                         minimal_status["uptime"] = server_status["uptime"]
 
@@ -14972,10 +15471,13 @@ class BOT_FastAPI:
                 for node in nodes:
                     if not isinstance(node, dict):
                         continue
+                    node_status = node.get("status", "offline")
+                    if node_status == "unknown":
+                        node_status = "offline"
                     minimal_nodes.append(
                         {
                             "name": node.get("name", ""),
-                            "status": node.get("status", "offline"),
+                            "status": node_status,
                             "uptime": node.get("uptime"),
                             "panel_version": node.get("panel_version", ""),
                             "xray_version": node.get("xray_version", ""),
@@ -15215,7 +15717,32 @@ class BOT_FastAPI:
             logger.info(
                 f"API auth_me: пользователь запросил свой профиль user_id={user['user_id']}"
             )
-            return JSONResponse(content={"user": sanitize_user(user)})
+            if bool(user.get("banned", False)):
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.account_banned"),
+                        "banned": True,
+                        "ban_reason": str(user.get("ban_reason", "")),
+                    },
+                )
+            if await is_admin_user(to_int(user.get("telegram_id"), 0)):
+                try:
+                    await _ensure_admin_subscription(user["user_id"])
+                    user = await db.get_user_by_any_id(user["user_id"]) or user
+                except Exception as e:  # noqa: BLE001
+                    logger.error(f"api_auth_me: _ensure_admin_subscription error: {e}")
+            try:
+                profile = await _build_profile_response(user)
+                return JSONResponse(content=profile)
+            except Exception as e:  # noqa: BLE001
+                logger.error(f"api_auth_me: {e}")
+                return JSONResponse(
+                    status_code=500,
+                    content={
+                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
+                    },
+                )
 
         @self.app.post("/api/v1/auth/logout")
         async def api_auth_logout(
@@ -15604,8 +16131,6 @@ class BOT_FastAPI:
                 return JSONResponse(
                     content={
                         "payment_methods": Features.available_payment_methods(),
-                        "payment_card": Config.PAYMENT_CARD_NUMBER or None,
-                        "yoomoney": Config.YOOMONEY_WALLET or None,
                         "panel_types": panel_types,
                         "features": Features.features_dict(),
                         "public_links": Features.public_links(),
@@ -16161,18 +16686,38 @@ class BOT_FastAPI:
                 if req.plan_id == "custom" and req.custom_plan:
                     custom_plan_data = req.custom_plan
                     plan_name = custom_plan_data.get("name", "Custom Plan")
-                    amount = float(custom_plan_data.get("price_rub", 0))
-                    plan_type = "custom"
-                    if amount <= 0:
+                    traffic = to_int(custom_plan_data.get("traffic_gb"), 0)
+                    ip = to_int(custom_plan_data.get("ip_limit"), 0)
+                    days = to_int(custom_plan_data.get("duration_days"), 0)
+                    servers = normalize_servers(custom_plan_data.get("servers"))
+                    if not is_valid_custom_limits(traffic, ip, days):
                         return JSONResponse(
                             status_code=400,
                             content={
                                 "error": translate(
                                     Config.DEFAULT_LANGUAGE,
-                                    "texts.invalid_custom_plan_price",
-                                )
+                                    "texts.invalid_custom_tariff_limits",
+                                ),
+                                "gb_bounds": list(custom_gb_bounds()),
+                                "ip_bounds": list(custom_ip_bounds()),
+                                "days_bounds": list(custom_days_bounds()),
                             },
                         )
+                    if not is_valid_custom_servers(servers):
+                        return JSONResponse(
+                            status_code=400,
+                            content={
+                                "error": translate(
+                                    Config.DEFAULT_LANGUAGE,
+                                    "texts.invalid_server_locations",
+                                ),
+                            },
+                        )
+                    plan = build_custom_plan(
+                        traffic, ip, days, servers=servers, plan_name=plan_name or None
+                    )
+                    amount = calculate_custom_tariff_total(traffic, ip, days, servers)
+                    plan_type = "custom"
                 else:
                     plan = get_by_id(req.plan_id)
                     if not plan or not plan.get("active", True):
@@ -16186,6 +16731,7 @@ class BOT_FastAPI:
                         )
                     amount = float(plan.get("price_rub", 0))
                     plan_name = plan.get("name", req.plan_id)
+                    plan_type = "catalog"
                     if amount <= 0:
                         return JSONResponse(
                             status_code=400,
@@ -16212,6 +16758,30 @@ class BOT_FastAPI:
                             "wait_admin": True,
                         },
                     )
+                original_amount = amount
+                discount_percent = 0
+                if user_id and session_user:
+                    trust = await db.get_trust_score(user_id)
+                    amount, discount_percent = apply_trust_discount(amount, trust)
+                amount_rub = max(0, round(amount))
+                original_amount_rub = max(0, round(original_amount))
+                method = req.method
+                if method == "manual" and Config.PAYMENT_CARD_NUMBER:
+                    method = "card"
+                if method == "yoomoney" and not Config.YOOMONEY_WALLET:
+                    return JSONResponse(
+                        status_code=400,
+                        content={
+                            "error": translate(Config.DEFAULT_LANGUAGE, "texts.no_payment_methods")
+                        },
+                    )
+                if method == "card" and not Config.PAYMENT_CARD_NUMBER:
+                    return JSONResponse(
+                        status_code=400,
+                        content={
+                            "error": translate(Config.DEFAULT_LANGUAGE, "texts.no_payment_methods")
+                        },
+                    )
                 payment_id = f"pay_{user_id}_{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}"
                 payment_data = {
                     "payment_id": payment_id,
@@ -16220,11 +16790,11 @@ class BOT_FastAPI:
                     "plan_id": req.plan_id,
                     "plan_type": plan_type,
                     "plan_name": plan_name,
-                    "amount": amount,
+                    "amount": amount_rub,
                     "currency": "RUB",
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "status": "pending",
-                    "payment_method": req.method,
+                    "payment_method": method,
                 }
                 if user_id == 0:
                     logger.warning(
@@ -16244,28 +16814,31 @@ class BOT_FastAPI:
                         },
                     )
                 checkout_url = ""
-                if req.method == "yoomoney" and Config.YOOMONEY_WALLET:
+                if method == "yoomoney":
                     checkout_params = {
                         "receiver": Config.YOOMONEY_WALLET,
                         "quickpay-form": "shop",
                         "targets": f"{Config.VPN_NAME} {payment_id}",
                         "paymentType": "AC",
-                        "sum": amount,
+                        "sum": amount_rub,
                         "label": payment_id,
                     }
                     checkout_url = "https://yoomoney.ru/quickpay/confirm?" + urlencode(
                         checkout_params
                     )
-                elif req.method == "yoomoney":
-                    logger.warning(
-                        "api_create_checkout: yoomoney method requested but YOOMONEY_WALLET is not configured"
-                    )
-                if not checkout_url:
-                    logger.warning(
-                        f"api_create_checkout: empty checkout_url for method={req.method} (payment_id={payment_id})"
-                    )
+                payment_details = None
+                if method == "card" and Config.PAYMENT_CARD_NUMBER:
+                    payment_details = {"card_number": Config.PAYMENT_CARD_NUMBER}
                 return JSONResponse(
-                    content={"checkout_url": checkout_url, "payment_id": payment_id}
+                    content={
+                        "checkout_url": checkout_url,
+                        "payment_id": payment_id,
+                        "payment_method": method,
+                        "amount_rub": amount_rub,
+                        "original_amount_rub": original_amount_rub,
+                        "discount_percent": discount_percent,
+                        "payment_details": payment_details,
+                    }
                 )
             except Exception as e:  # noqa: BLE001
                 logger.error(f"api_create_checkout: {e}")
@@ -16436,140 +17009,8 @@ class BOT_FastAPI:
                 except Exception as e:  # noqa: BLE001
                     logger.error(f"api_get_profile: _ensure_admin_subscription error: {e}")
             try:
-                lang = (
-                    await db.get_user_language_by_user_id(user["user_id"])
-                    or Config.DEFAULT_LANGUAGE
-                )
-                db_uid = user["user_id"]
-                sub_state = await get_subscription_state(db_uid)
-                trust_score = await db.get_trust_score(db_uid)
-                ref_count = await db.count_referrals(db_uid)
-                ref_paid = await db.count_referrals_paid(db_uid)
-                ref_code = user.get("ref_code", "")
-                if not ref_code:
-                    tg_id_for_ref = to_int(user.get("telegram_id"), 0)
-                    ref_code = (
-                        await db.ensure_ref_code(tg_id_for_ref) or "" if tg_id_for_ref else ""
-                    )
-                is_partner = bool(user.get("is_mate"))
-                partner_data: dict[str, Any] = {}
-                if is_partner:
-                    partner_data = {
-                        "mate_balance": to_float(user.get("mate_balance", 0), 0.0),
-                        "mate_commission_total": to_float(
-                            user.get("mate_commission_total", 0), 0.0
-                        ),
-                        "mate_status": str(user.get("mate_status", "") or ""),
-                        "mate_followers": to_int(user.get("mate_followers", 0), 0),
-                        "mate_avg_reach": to_int(user.get("mate_avg_reach", 0), 0),
-                        "mate_period_months": to_int(user.get("mate_period_months", 0), 0),
-                        "mate_ref_link_code": str(user.get("mate_ref_link_code", "") or ""),
-                        "mate_subscription_id": str(user.get("mate_subscription_id", "") or ""),
-                        "mate_expiry": str(user.get("mate_expiry", "") or ""),
-                    }
-                discount = calculate_discount_percent(trust_score)
-                sub_data: dict[str, Any] = {}
-                if sub_state.get("status") == "active":
-                    sub_data = {
-                        "status": "active",
-                        "plan_text": str(user.get("plan_text", "") or ""),
-                        "traffic_gb": to_float(user.get("traffic_gb", 0), 0.0),
-                        "extra_sub_gb": to_int(user.get("extra_sub_gb", 0), 0),
-                        "ip_limit": to_int(user.get("ip_limit", 0), 0),
-                        "vpn_url": str(user.get("vpn_url", "") or ""),
-                        "plan_servers": parse_stored_servers(user.get("plan_servers")),
-                        "used_gb": round(sub_state.get("used_gb", 0), 2),
-                        "max_expiry": sub_state.get("max_expiry", 0),
-                        "expiry_sub_datatime": str(user.get("expiry_sub_datatime", "") or ""),
-                    }
-                else:
-                    sub_data = {"status": sub_state.get("status", "none")}
-                ref_link = get_ref_link(ref_code) if ref_code else ""
-                admin_sub_data = None
-                panel_types = Features.available_panel_types()
-                if await is_admin_user(to_int(user.get("telegram_id"), 0)):
-                    admin_vpn_url = str(user.get("vpn_url", "") or "")
-                    admin_sub_url = (
-                        build_subscription_url(admin_vpn_url)
-                        if panel_types["main"] and admin_vpn_url
-                        else ""
-                    )
-                    admin_json_url = (
-                        build_json_subscription_url(admin_vpn_url)
-                        if panel_types["json"] and admin_vpn_url
-                        else ""
-                    )
-                    admin_sub_data = {
-                        "url": admin_sub_url,
-                        "json_url": admin_json_url,
-                    }
-                partner_sub_data = None
-                if is_partner:
-                    mate_sub_id = user.get("mate_subscription_id", "")
-                    mate_expiry = user.get("mate_expiry", "")
-                    partner_sub_data = {
-                        "sub_id": mate_sub_id,
-                        "expiry": mate_expiry,
-                        "url": (build_subscription_url(mate_sub_id) if mate_sub_id else ""),
-                        "json_url": (
-                            build_json_subscription_url(mate_sub_id) if mate_sub_id else ""
-                        ),
-                    }
-                    try:
-                        partner_email = get_user_panel_email(db_uid, user)
-                        p_ok, p_clients = await panel.get_client_stats_safe(partner_email)
-                        if p_ok and p_clients:
-                            p_used = sum(
-                                max(0, to_int(c.get("up", 0))) + max(0, to_int(c.get("down", 0)))
-                                for c in p_clients
-                            )
-                            partner_sub_data["used_gb"] = round(p_used / BYTES_IN_GB, 2)
-                    except Exception:  # noqa: BLE001, S110
-                        pass
-                try:
-                    pending_ops = await get_pending_partner_operations()
-                    pending_app = any(
-                        str(o.get("user_id")) == str(user.get("telegram_id"))
-                        and o.get("op_type") == "partner_new"
-                        for o in pending_ops
-                    )
-                except Exception:  # noqa: BLE001
-                    pending_app = False
-                try:
-                    has_pending_payment = await json_db.has_pending_payment_for_user(
-                        user["user_id"]
-                    )
-                except Exception:  # noqa: BLE001
-                    has_pending_payment = False
-                return JSONResponse(
-                    content={
-                        "user_id": user["user_id"],
-                        "telegram_id": to_int(user.get("telegram_id", 0), 0),
-                        "web_id": user.get("web_id", 0),
-                        "username": str(user.get("username", "") or ""),
-                        "login": str(user.get("username", "") or ""),
-                        "language": lang,
-                        "trust_score": trust_score,
-                        "discount_percent": discount,
-                        "subscription": sub_data,
-                        "referral": {
-                            "ref_code": ref_code,
-                            "ref_link": ref_link,
-                            "referrals_count": ref_count,
-                            "referrals_paid": ref_paid,
-                        },
-                        "partner": partner_data if is_partner else {},
-                        "is_partner": is_partner,
-                        "pending_partner_application": pending_app,
-                        "trial_used": bool(user.get("trial_used")),
-                        "join_date": str(user.get("join_date", "") or ""),
-                        "is_admin": await is_admin_user(to_int(user.get("telegram_id"), 0)),
-                        "has_pending_payment": bool(has_pending_payment),
-                        "admin_subscription": admin_sub_data,
-                        "partner_subscription": partner_sub_data,
-                        "has_password": bool(user.get("password_hash", "")),
-                    }
-                )
+                profile = await _build_profile_response(user)
+                return JSONResponse(content=profile)
             except Exception as e:  # noqa: BLE001
                 logger.error(f"api_get_profile: {e}")
                 return JSONResponse(
@@ -16695,10 +17136,11 @@ class BOT_FastAPI:
                 traffic_gb = req.traffic_gb or plan.get("traffic_gb", 0)
                 servers = req.servers or normalize_servers(plan.get("servers"))
                 duration_days = req.duration_days or plan.get("duration_days", 30)
+                price = float(plan.get("price_rub", 0))
                 custom_plan: dict[str, Any] = {
                     "id": req.plan_id,
                     "name": plan_name,
-                    "price_rub": req.price_rub or plan.get("price_rub", 0),
+                    "price_rub": price,
                     "ip_limit": ip_limit,
                     "traffic_gb": traffic_gb,
                     "duration_days": duration_days,
@@ -16710,7 +17152,7 @@ class BOT_FastAPI:
                     custom_plan,
                     days_override=duration_days,
                     earn_trust=True,
-                    paid_amount=req.price_rub,
+                    paid_amount=price,
                 )
                 if vpn_url:
                     return JSONResponse(
@@ -16795,10 +17237,13 @@ class BOT_FastAPI:
                 traffic_gb = req.traffic_gb or plan.get("traffic_gb", 0)
                 servers = req.servers or normalize_servers(plan.get("servers"))
                 duration_days = req.duration_days or plan.get("duration_days", 30)
+                price = float(plan.get("price_rub", 0))
+                trust = await db.get_trust_score(_user_id)
+                final_price, discount_percent = apply_trust_discount(price, trust)
                 custom_plan: dict[str, Any] = {
                     "id": req.plan_id,
                     "name": plan_name,
-                    "price_rub": req.price_rub or plan.get("price_rub", 0),
+                    "price_rub": price,
                     "ip_limit": ip_limit,
                     "traffic_gb": traffic_gb,
                     "duration_days": duration_days,
@@ -16809,7 +17254,7 @@ class BOT_FastAPI:
                     telegram_id,
                     custom_plan,
                     earn_trust=True,
-                    paid_amount=req.price_rub,
+                    paid_amount=final_price,
                 )
                 if vpn_url:
                     return JSONResponse(
@@ -16817,6 +17262,9 @@ class BOT_FastAPI:
                             "message": "Subscription renewed",
                             "vpn_url": vpn_url,
                             "plan_name": plan_name,
+                            "paid_amount": round(final_price, 2),
+                            "original_amount_rub": round(price, 2),
+                            "discount_percent": discount_percent,
                         }
                     )
                 return JSONResponse(
@@ -17758,6 +18206,7 @@ class BOT_FastAPI:
                         },
                     )
                 await finalize_claimed_payment_or_alert(None, payment_id, action, req.status)
+                resolved = None
                 if req.status == "confirmed":
                     resolved = await resolve_user_from_payment(payment)
                     if not resolved:
@@ -17802,8 +18251,13 @@ class BOT_FastAPI:
                         if vpn_url:
                             await db.set_has_subscription(uid)
                             if ref_by and not ref_rewarded:
-                                await reward_referrer(ref_by, Config.REF_BONUS_DAYS)
-                                await db.mark_ref_rewarded(uid)
+                                if await reward_referrer(ref_by, Config.REF_BONUS_DAYS):
+                                    if not await db.mark_ref_rewarded(uid):
+                                        logger.error(
+                                            f"Не удалось отметить referral bonus для {uid}"
+                                        )
+                                else:
+                                    logger.error(f"Не удалось выдать referral bonus для {uid}")
                             if ref_by:
                                 referrer = await db.get_user_by_any_id(ref_by)
                                 if referrer and referrer.get("is_mate"):
@@ -17811,8 +18265,13 @@ class BOT_FastAPI:
                                         paid_amount * Config.PARTNER_COMMISSION_PERCENT / 100,
                                         2,
                                     )
-                                    if commission > 0:
-                                        await db.update_partner_balance(ref_by, commission)
+                                    if commission > 0 and await db.update_partner_balance(
+                                        ref_by, commission
+                                    ):
+                                        logger.info(
+                                            f"Партнёру {ref_by} начислена комиссия {commission} "
+                                            f"по платежу {payment_id}"
+                                        )
                             user_lang = await get_user_language(uid)
                             plan_name = str(payment.get("plan_name", ""))
                             duration_days = int(plan.get("duration_days", 30)) if plan else 30
@@ -17825,19 +18284,20 @@ class BOT_FastAPI:
                             await notify_user(uid, text)
                         logger.info(f"✅ Payment {payment_id} confirmed, subscription created")
                 else:
-                    resolved = await resolve_user_from_payment(payment)
-                    if resolved:
-                        await apply_trust_score_delta(
-                            resolved.telegram_id, -TRUST_SCORE_PENALTY_PAYMENT_REJECTED
-                        )
-                    else:
-                        raw_uid = to_int(payment.get("user_id"), 0)
-                        uid = await resolve_tg_id(raw_uid) if raw_uid > 0 else 0
-                        if uid > 0:
+                    if Config.TRUST_SCORE_ENABLED:
+                        if resolved:
                             await apply_trust_score_delta(
-                                uid, -TRUST_SCORE_PENALTY_PAYMENT_REJECTED
+                                resolved.telegram_id,
+                                -TRUST_SCORE_PENALTY_PAYMENT_REJECTED,
                             )
-                    logger.info(f"⚠️ Payment {payment_id} rejected, trust penalty applied")
+                        else:
+                            raw_uid = to_int(payment.get("user_id"), 0)
+                            uid = await resolve_tg_id(raw_uid) if raw_uid > 0 else 0
+                            if uid > 0:
+                                await apply_trust_score_delta(
+                                    uid, -TRUST_SCORE_PENALTY_PAYMENT_REJECTED
+                                )
+                        logger.info(f"⚠️ Payment {payment_id} rejected, trust penalty applied")
                 return JSONResponse(
                     content={
                         "message": f"Payment {req.status}",
@@ -17891,7 +18351,7 @@ class BOT_FastAPI:
                             (paid_refs / total_refs * 100) if total_refs > 0 else 0, 2
                         ),
                         "avg_commission_per_paid": round(
-                            balance / paid_refs if paid_refs > 0 else 0, 2
+                            commission_total / paid_refs if paid_refs > 0 else 0, 2
                         ),
                     }
                 )

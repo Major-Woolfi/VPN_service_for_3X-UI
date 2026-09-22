@@ -1,22 +1,22 @@
-import { MetadataRoute } from 'next';
+import { MetadataRoute } from "next";
 
 export default function robots(): MetadataRoute.Robots {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || '';
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "";
 
   return {
     rules: [
       {
-        userAgent: '*',
-        allow: ['/'],
+        userAgent: "*",
+        allow: ["/"],
         disallow: [
-          '/api/',
-          '/admin/',
-          '/login',
-          '/register',
-          '/subscription',
-          '/settings',
-          '/profile',
-          '/payment',
+          "/api/",
+          "/admin/",
+          "/login",
+          "/register",
+          "/subscription",
+          "/settings",
+          "/profile",
+          "/payment",
         ],
         crawlDelay: 1,
       },

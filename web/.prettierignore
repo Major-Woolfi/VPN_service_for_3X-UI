@@ -1,0 +1,4 @@
+.next/
+node_modules/
+next-env.d.ts
+src/lib/i18n-generated.ts

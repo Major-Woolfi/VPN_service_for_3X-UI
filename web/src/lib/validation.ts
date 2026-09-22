@@ -1,5 +1,5 @@
 export function sanitizeInput(input: string): string {
-  return input.replace(/[<>"'&]/g, '').trim();
+  return escapeHtml(input).trim();
 }
 
 export function isValidUsername(username: string): boolean {
@@ -16,9 +16,9 @@ export function isValidEmail(email: string): boolean {
 
 export function escapeHtml(str: string): string {
   return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }

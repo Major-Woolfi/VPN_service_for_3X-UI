@@ -1,26 +1,36 @@
-'use client';
+"use client";
 
-import { useState, useMemo, useCallback } from 'react';
-import { useLanguage } from '@/contexts/LanguageContext';
+import { useState, useMemo, useCallback } from "react";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function FaqList() {
   const { t } = useLanguage();
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState<number | null>(null);
 
   const allFaq = useMemo(() => {
-    const items: { id: number; question: string; answer: string; category: string }[] = [];
+    const items: {
+      id: number;
+      question: string;
+      answer: string;
+      category: string;
+    }[] = [];
     const categoryMap: Record<number, string> = {
-      13: 'texts.qa_category_5',
-      14: 'texts.qa_category_1',
-      15: 'texts.qa_category_1',
+      13: "texts.qa_category_5",
+      14: "texts.qa_category_1",
+      15: "texts.qa_category_1",
     };
     for (let i = 1; i <= 15; i++) {
       const question = t(`texts.qa_question_${i}`);
       const answer = t(`texts.qa_answer_${i}`);
       const categoryKey = categoryMap[i] || `texts.qa_category_${i}`;
       const category = t(categoryKey);
-      if (question && answer && question !== `texts.qa_question_${i}` && answer !== `texts.qa_answer_${i}`) {
+      if (
+        question &&
+        answer &&
+        question !== `texts.qa_question_${i}` &&
+        answer !== `texts.qa_answer_${i}`
+      ) {
         items.push({ id: i, question, answer, category });
       }
     }
@@ -39,12 +49,17 @@ export default function FaqList() {
     const q = query.toLowerCase().trim();
     if (!q) return allFaq;
     return allFaq.filter(
-      (item) => item.question.toLowerCase().includes(q) || item.answer.toLowerCase().includes(q),
+      (item) =>
+        item.question.toLowerCase().includes(q) ||
+        item.answer.toLowerCase().includes(q),
     );
   }, [query, allFaq]);
 
   const grouped = useMemo(() => {
-    const map = new Map<string, { id: number; question: string; answer: string; category: string }[]>();
+    const map = new Map<
+      string,
+      { id: number; question: string; answer: string; category: string }[]
+    >();
     for (const item of filtered) {
       const arr = map.get(item.category) || [];
       arr.push(item);
@@ -62,7 +77,14 @@ export default function FaqList() {
 
   return (
     <div className="faq-section">
-      <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div
+        style={{
+          marginTop: "16px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "16px",
+        }}
+      >
         <input
           type="text"
           value={query}
@@ -70,16 +92,19 @@ export default function FaqList() {
             setQuery(e.target.value);
             setOpenId(null);
           }}
-          placeholder={t('texts.qa_search_placeholder')}
+          placeholder={t("texts.qa_search_placeholder")}
           className="faq-search-input"
-          aria-label={t('texts.qa_search_placeholder')}
+          aria-label={t("texts.qa_search_placeholder")}
         />
         <div className="faq-count">
-          {t('texts.qa_show_count', { count: filtered.length, total: allFaq.length })}
+          {t("texts.qa_show_count", {
+            count: filtered.length,
+            total: allFaq.length,
+          })}
         </div>
         {filtered.length === 0 && (
           <div className="faq-no-results">
-            <p>{t('texts.qa_no_results')}</p>
+            <p>{t("texts.qa_no_results")}</p>
           </div>
         )}
       </div>
@@ -94,7 +119,10 @@ export default function FaqList() {
               {items.map((item, index) => {
                 const isOpen = openId === item.id;
                 return (
-                  <section key={item.id} className={`faq-item${isOpen ? ' open' : ''}`}>
+                  <section
+                    key={item.id}
+                    className={`faq-item${isOpen ? " open" : ""}`}
+                  >
                     <button
                       type="button"
                       className="faq-question"
@@ -106,13 +134,17 @@ export default function FaqList() {
                         {index + 1}. {item.question}
                       </span>
                     </button>
-                      <div className="faq-answer-wrapper">
-                        <div id={`faq-answer-${item.id}`} className="faq-answer" role="region">
-                          <div className="faq-answer-inner">
-                            <p>{item.answer}</p>
-                          </div>
+                    <div className="faq-answer-wrapper">
+                      <div
+                        id={`faq-answer-${item.id}`}
+                        className="faq-answer"
+                        role="region"
+                      >
+                        <div className="faq-answer-inner">
+                          <p>{item.answer}</p>
                         </div>
                       </div>
+                    </div>
                   </section>
                 );
               })}
@@ -123,4 +155,3 @@ export default function FaqList() {
     </div>
   );
 }
-

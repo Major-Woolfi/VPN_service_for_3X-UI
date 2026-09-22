@@ -4,15 +4,16 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 2010",
+    "test": "tsx --test src/lib/i18n-server.test.ts",
     "build": "npx tsx scripts/generate-i18n.ts && next build",
     "start": "next start -p 2010",
     "lint": "eslint",
     "generate-i18n": "npx tsx scripts/generate-i18n.ts",
-    "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format": "prettier --write \"src/**/*.{ts,tsx}\" \"scripts/**/*.ts\" \"next.config.ts\" \"eslint.config.mjs\" \"postcss.config.mjs\" \"package.json\" \"public/translations/ru.json\" \"public/translations/legal/ru.json\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx}\" \"scripts/**/*.ts\" \"next.config.ts\" \"eslint.config.mjs\" \"postcss.config.mjs\" \"package.json\" \"public/translations/ru.json\" \"public/translations/legal/ru.json\""
   },
   "dependencies": {
-    "next": "16.3.2",
+    "next": "16.3.5",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
@@ -21,8 +22,8 @@
     "@types/node": "26.4.0",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.5",
-    "eslint": "10.9.1",
-    "eslint-config-next": "16.3.2",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.3.5",
     "prettier": "3.9.6",
     "tailwindcss": "4.3.3",
     "tsx": "4.23.13",

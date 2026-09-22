@@ -1,10 +1,15 @@
-import { cookies, headers } from 'next/headers';
-import Header from '@/components/Header';
-import { getTariffs, getStatsOverview, getPublicLinks } from '@/lib/api';
-import { tServer, resolveLanguage } from '@/lib/i18n-server';
-import LiveStatusBar from '@/components/LiveStatusBar';
-import NodeStatus from '@/components/NodeStatus';
-import TariffGridClient from '@/components/TariffGridClient';
+import { cookies, headers } from "next/headers";
+import Header from "@/components/Header";
+import {
+  getTariffs,
+  getStatsOverview,
+  getFeatures,
+  getPublicLinksFromFeatures,
+} from "@/lib/api";
+import { tServer, resolveLanguage } from "@/lib/i18n-server";
+import LiveStatusBar from "@/components/LiveStatusBar";
+import NodeStatus from "@/components/NodeStatus";
+import TariffGridClient from "@/components/TariffGridClient";
 
 const telegramIcon = (
   <svg width="20" height="20" fill="currentColor" viewBox="0 0 30 30">
@@ -28,28 +33,40 @@ async function getStatsServer() {
   }
 }
 
+async function getFeaturesServer() {
+  try {
+    return await getFeatures();
+  } catch {
+    return null;
+  }
+}
+
 export const revalidate = 60;
 
 export default async function Home() {
-  const [tariffs, stats] = await Promise.all([
+  const [tariffs, stats, features] = await Promise.all([
     getTariffsServer(),
     getStatsServer(),
+    getFeaturesServer(),
   ]);
 
   const cookieStore = await cookies();
   const headerStore = await headers();
   const lang = resolveLanguage(
-    cookieStore.get('vpn_language')?.value,
-    headerStore.get('accept-language') || undefined,
+    cookieStore.get("vpn_language")?.value,
+    headerStore.get("accept-language") || undefined,
   );
-  const t = (key: string, params?: Record<string, string | number>) => tServer(lang, key, params);
+  const t = (key: string, params?: Record<string, string | number>) =>
+    tServer(lang, key, params);
 
-  const publicLinksEnv = getPublicLinks();
-  const tgBotUsername = publicLinksEnv.telegram_bot_username || process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME;
-  const tgChannelUsername = publicLinksEnv.telegram_channel_username || process.env.NEXT_PUBLIC_TELEGRAM_CHANNEL_USERNAME;
+  const publicLinks = getPublicLinksFromFeatures(features);
+  const tgBotUsername = publicLinks.telegram_bot_username;
+  const tgChannelUsername = publicLinks.telegram_channel_username;
   const tgBot = tgBotUsername ? `https://t.me/${tgBotUsername}` : null;
-  const tgChannel = tgChannelUsername ? `https://t.me/${tgChannelUsername}` : null;
-  const vpnName = process.env.NEXT_PUBLIC_VPN_NAME || 'vpn';
+  const tgChannel = tgChannelUsername
+    ? `https://t.me/${tgChannelUsername}`
+    : null;
+  const vpnName = process.env.NEXT_PUBLIC_VPN_NAME || "vpn";
 
   const features_list: string[] = [];
   for (let i = 1; i <= 20; i++) {
@@ -71,12 +88,22 @@ export default async function Home() {
               <h1 className="profile-name">{vpnName}</h1>
               <div className="profile-social">
                 {tgChannel && (
-                  <a href={tgChannel} target="_blank" rel="noopener noreferrer" className="social-link">
+                  <a
+                    href={tgChannel}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="social-link"
+                  >
                     {telegramIcon}@{tgChannelUsername}
                   </a>
                 )}
                 {tgBot && (
-                  <a href={tgBot} target="_blank" rel="noopener noreferrer" className="social-link">
+                  <a
+                    href={tgBot}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="social-link"
+                  >
                     {telegramIcon}@{tgBotUsername}
                   </a>
                 )}
@@ -85,44 +112,55 @@ export default async function Home() {
           </div>
 
           <div className="pinned-section fade-in">
-            <h2>{t('texts.about')}</h2>
+            <h2>{t("texts.about")}</h2>
             <div className="pinned-content">
-              <p>{t('texts.about_text')}</p>
-              <p>{t('texts.about_text_2')}</p>
-              <p>{t('texts.trial_available')}</p>
-              <blockquote>&quot;{t('texts.quote')}&quot;</blockquote>
+              <p>{t("texts.about_text")}</p>
+              <p>{t("texts.about_text_2")}</p>
+              <p>{t("texts.trial_available")}</p>
+              <blockquote>&quot;{t("texts.quote")}&quot;</blockquote>
             </div>
           </div>
 
           {stats && (
             <div className="pinned-section fade-in delay-1">
-              <h2>{t('texts.stats')}</h2>
+              <h2>{t("texts.stats")}</h2>
               <div className="pinned-content">
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    marginBottom: "12px",
+                  }}
+                >
                   <LiveStatusBar />
                 </div>
                 <div className="grid-auto-fit mt-4">
                   <div className="stat-card">
                     <div className="stat-value">{stats.total_users ?? 0}</div>
-                    <div className="stat-label">{t('texts.all_users')}</div>
+                    <div className="stat-label">{t("texts.all_users")}</div>
                   </div>
                   <div className="stat-card">
-                    <div className="stat-value">{stats.active_subscriptions ?? 0}</div>
-                    <div className="stat-label">{t('texts.active_subs')}</div>
-                  </div>
-                  {stats.banned_users !== undefined && stats.banned_users > 0 && (
-                    <div className="stat-card">
-                      <div className="stat-value">{stats.banned_users ?? 0}</div>
-                      <div className="stat-label">{t('texts.banned')}</div>
+                    <div className="stat-value">
+                      {stats.active_subscriptions ?? 0}
                     </div>
-                  )}
+                    <div className="stat-label">{t("texts.active_subs")}</div>
+                  </div>
+                  {stats.banned_users !== undefined &&
+                    stats.banned_users > 0 && (
+                      <div className="stat-card">
+                        <div className="stat-value">
+                          {stats.banned_users ?? 0}
+                        </div>
+                        <div className="stat-label">{t("texts.banned")}</div>
+                      </div>
+                    )}
                 </div>
               </div>
             </div>
           )}
 
           <div className="pinned-section fade-in delay-2">
-            <h2>{t('texts.nodes')}</h2>
+            <h2>{t("texts.nodes")}</h2>
             <div className="pinned-content">
               <NodeStatus />
             </div>
@@ -130,7 +168,7 @@ export default async function Home() {
 
           {tariffs.length > 0 && (
             <div className="pinned-section fade-in delay-2">
-              <h2>{t('texts.tariffs')}</h2>
+              <h2>{t("texts.tariffs")}</h2>
               <div className="pinned-content">
                 <TariffGridClient tariffs={tariffs} />
               </div>
@@ -138,7 +176,7 @@ export default async function Home() {
           )}
 
           <div className="contributions-section fade-in delay-3">
-            <h2>{t('texts.features')}</h2>
+            <h2>{t("texts.features")}</h2>
             <div className="contributions-content">
               <ul>
                 {features_list.map((feature, index) => (
@@ -152,4 +190,3 @@ export default async function Home() {
     </>
   );
 }
-
