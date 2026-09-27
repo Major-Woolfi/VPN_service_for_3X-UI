@@ -3,59 +3,71 @@
 import Header from "@/components/Header";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { getSubscriptionLink } from "@/lib/api";
-import { getPublicLinksFromFeatures } from "@/lib/api";
+import { ApiError, getPublicLinksFromFeatures, getSubscriptionLink } from "@/lib/api";
 import { useFeatures } from "@/contexts/FeaturesContext";
 import type { SubscriptionLinkResponse } from "@/lib/types";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 export default function ClientPage() {
   const { loading: authLoading, user } = useAuth();
   const router = useRouter();
   const { t } = useLanguage();
   const { features } = useFeatures();
-  const searchParams = useSearchParams();
   const [subLink, setSubLink] = useState<SubscriptionLinkResponse | null>(null);
+  const [linkFailed, setLinkFailed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user) {
-      router.replace("/login?next=/client");
-      return;
-    }
+    if (!user) return;
     if (
-      user?.subscription?.status !== "active" &&
-      !user?.admin_subscription?.url &&
-      !user?.admin_subscription?.json_url &&
-      !user?.partner_subscription?.url
+      user.subscription?.status !== "active" &&
+      !user.admin_subscription?.url &&
+      !user.admin_subscription?.json_url &&
+      !user.partner_subscription?.url
     ) {
       router.replace("/profile");
       return;
     }
 
+    // У партнёра и админа своя подписка - ссылка уже в профиле.
+    if (user.subscription?.status !== "active") {
+      const own = user.partner_subscription || user.admin_subscription;
+      if (own?.url) {
+        setSubLink({
+          subscription_id: "own",
+          vpn_url: own.url,
+          json_vpn_url: own.json_url || "",
+          plan_text: "",
+          traffic_gb: 0,
+          ip_limit: 0,
+          plan_servers: [],
+        });
+      }
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
     (async () => {
       try {
         const link = await getSubscriptionLink();
-        setSubLink(link);
-      } catch {
-        router.replace("/profile?error=subscription_link");
-        return;
+        if (!cancelled) setSubLink(link);
+      } catch (error) {
+        if (cancelled) return;
+        // Истёкшая сессия обрабатывается AuthContext - уводим на /login.
+        if (error instanceof ApiError && error.authExpired) return;
+        setLinkFailed(true);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
-  }, [
-    authLoading,
-    router,
-    user,
-    user?.subscription?.status,
-    user?.admin_subscription?.url,
-    user?.admin_subscription?.json_url,
-    user?.partner_subscription?.url,
-  ]);
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, router, user]);
 
   const handleCopy = async (text: string, type: string) => {
     try {
@@ -91,8 +103,7 @@ export default function ClientPage() {
     );
   }
 
-  const subscriptionLinkError =
-    searchParams?.get("error") === "subscription_link";
+  const subscriptionLinkError = linkFailed;
   const publicLinks = getPublicLinksFromFeatures(features);
   const clientApp = publicLinks.client_app_url || "";
   const setupGuide = publicLinks.setup_guide_url || "";

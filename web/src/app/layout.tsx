@@ -10,9 +10,11 @@ import { FeaturesProvider } from "@/contexts/FeaturesContext";
 import ScrollAnimations from "@/components/ScrollAnimations";
 import AuthCallback from "@/components/AuthCallback";
 import { cookies, headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { getSiteCopy, normalizeSiteLanguage } from "@/data/legal";
 import { generateJsonLdScript } from "@/lib/structured-data";
 import { getServerLanguages } from "@/lib/i18n-server";
+import { resolveServerSession } from "@/lib/server/session";
 
 const inter = Inter({
   subsets: ["cyrillic", "latin"],
@@ -103,6 +105,26 @@ export default async function RootLayout({
       undefined,
   );
 
+  // Профиль подтягивается на сервере: страница рендерится сразу
+  // с данными, без "загрузка..." и без лишнего клиентского запроса.
+  // Если cookie есть, но сессия на боте уже недействительна -
+  // редиректим сразу, не дожидаясь первого клиентского запроса.
+  const pathname = headerStore.get("x-pathname") || "";
+  const isGuestPage =
+    pathname === "/login" ||
+    pathname === "/register" ||
+    pathname.startsWith("/login/") ||
+    pathname.startsWith("/register/");
+
+  const session = await resolveServerSession();
+  if (session.kind === "expired" && !isGuestPage) {
+    // Route Handler чистит cookie и уводит на /login (Server Component
+    // не может удалять cookie). На гостевых страницах редирект не делаем,
+    // иначе возникает петля.
+    redirect("/api/session/expired");
+  }
+  const initialUser = session.kind === "authenticated" ? session.user : null;
+
   return (
     <html
       lang={lang}
@@ -125,7 +147,7 @@ export default async function RootLayout({
       <body className="min-h-full flex flex-col font-sans">
         <ThemeInit />
         <ThemeProvider>
-          <AuthProvider>
+          <AuthProvider initialUser={initialUser}>
             <LanguageProvider>
               <FeaturesProvider>
                 <AuthCallback />

@@ -2,20 +2,25 @@
 
 import Link from "next/link";
 import Header from "@/components/Header";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useRouter } from "next/navigation";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { getSubscriptionLink } from "@/lib/api";
-import type { SubscriptionLinkResponse } from "@/lib/types";
+import { getSubscriptionLink, renewSubscription } from "@/lib/api";
+import type {
+  SubscriptionLinkResponse,
+  SubscriptionPaymentRequest,
+} from "@/lib/types";
 
 export default function ProfilePage() {
-  const { user, loading: authLoading } = useAuth();
-  const router = useRouter();
+  const { user, loading: authLoading, refreshUser } = useAuth();
   const { t, lang } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [subLink, setSubLink] = useState<SubscriptionLinkResponse | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [renewLoading, setRenewLoading] = useState(false);
+  const [renewResult, setRenewResult] =
+    useState<SubscriptionPaymentRequest | null>(null);
+  const [renewError, setRenewError] = useState("");
 
   const handleCopy = async (text: string, type: string) => {
     try {
@@ -34,12 +39,27 @@ export default function ProfilePage() {
     }
   };
 
+  const handleRenew = useCallback(async () => {
+    if (!user) return;
+    setRenewLoading(true);
+    setRenewError("");
+    try {
+      const plan = user.subscription?.plan_id || "default";
+      const result = await renewSubscription({ plan_id: plan });
+      setRenewResult(result);
+      await refreshUser();
+    } catch (err) {
+      setRenewError(
+        err instanceof Error ? err.message : t("texts.renew_request_error"),
+      );
+    } finally {
+      setRenewLoading(false);
+    }
+  }, [user, refreshUser, t]);
+
   useEffect(() => {
     if (authLoading) return;
-    if (!user) {
-      router.replace("/login?next=/profile");
-      return;
-    }
+    if (!user) return;
 
     if (user.is_admin && user.admin_subscription?.url) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -52,7 +72,7 @@ export default function ProfilePage() {
         ip_limit: 0,
         plan_servers: [],
       });
-    } else if (user?.subscription?.status === "active") {
+    } else if (user.subscription?.status === "active") {
       const aborter = new AbortController();
       getSubscriptionLink(aborter.signal)
         .then(setSubLink)
@@ -60,7 +80,7 @@ export default function ProfilePage() {
       return () => aborter.abort();
     }
     setLoading(false);
-  }, [authLoading, user, router]);
+  }, [authLoading, user]);
 
   if (authLoading || loading || !user) {
     return (
@@ -98,6 +118,7 @@ export default function ProfilePage() {
   const displayIps = isAdminSub ? t("texts.unlimited") : sub?.ip_limit || 0;
 
   const initials = user?.username?.charAt(0).toUpperCase() || "?";
+  const hasTid = Boolean(user?.telegram_id);
 
   return (
     <>
@@ -112,7 +133,19 @@ export default function ProfilePage() {
               <h1 className="profile-name">
                 {user?.username || `${t("texts.user_id")}:${user?.user_id}`}
               </h1>
-              <p className="profile-username">{t("texts.account")}</p>
+              <p className="profile-username">
+                {t("texts.account")}
+                {hasTid && (
+                  <span
+                    style={{
+                      marginLeft: "12px",
+                      color: "var(--text-secondary)",
+                    }}
+                  >
+                    {t("texts.telegram_id_label")}: {user?.telegram_id}
+                  </span>
+                )}
+              </p>
             </div>
           </div>
 
@@ -265,6 +298,80 @@ export default function ProfilePage() {
                         {user?.trust_score || 0} ({user?.discount_percent || 0}%{" "}
                         {t("texts.discount")})
                       </span>
+                    </div>
+                    <div
+                      style={{
+                        marginTop: "16px",
+                        paddingTop: "16px",
+                        borderTop: "1px solid var(--border-color)",
+                      }}
+                    >
+                      {renewError && (
+                        <div className="error-message" style={{ marginBottom: "12px" }}>
+                          {renewError}
+                        </div>
+                      )}
+                      {renewResult ? (
+                        <div className="success-message">
+                          <p style={{ fontWeight: "600", marginBottom: "8px" }}>
+                            {t("texts.renew_request_sent")}
+                          </p>
+                          <p
+                            className="text-secondary"
+                            style={{ fontSize: "14px" }}
+                          >
+                            {t("texts.payment_id_label")}:{" "}
+                            <code>{renewResult.payment_id}</code>
+                          </p>
+                          {renewResult.discount_percent > 0 && (
+                            <p
+                              className="text-secondary"
+                              style={{ fontSize: "14px", marginTop: "8px" }}
+                            >
+                              {t("texts.amount")}:{" "}
+                              <s style={{ opacity: 0.5 }}>
+                                {renewResult.original_amount_rub} ₽
+                              </s>{" "}
+                              → {renewResult.amount} ₽ (
+                              {renewResult.discount_percent}%{" "}
+                              {t("texts.discount")})
+                            </p>
+                          )}
+                          <p
+                            className="text-secondary"
+                            style={{ fontSize: "14px", marginTop: "8px" }}
+                          >
+                            {t("texts.renew_wait_admin")}
+                          </p>
+                          <button
+                            onClick={handleRenew}
+                            disabled={renewLoading}
+                            className="button"
+                            style={{ width: "100%", marginTop: "12px" }}
+                          >
+                            {t("texts.renew_check_status")}
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={handleRenew}
+                          disabled={renewLoading || user?.has_pending_payment}
+                          className="button"
+                          style={{ width: "100%" }}
+                        >
+                          {renewLoading
+                            ? t("texts.loading")
+                            : t("buttons.renew_subscription")}
+                        </button>
+                      )}
+                      {user?.has_pending_payment && !renewResult && (
+                        <p
+                          className="text-secondary"
+                          style={{ fontSize: "13px", marginTop: "8px" }}
+                        >
+                          {t("texts.purchase_blocked_wait_admin")}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>

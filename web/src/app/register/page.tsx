@@ -3,15 +3,23 @@
 import Header from "@/components/Header";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/contexts/AuthContext";
 import { registerUser } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
 
+function safeNextPath(): string {
+  if (typeof window === "undefined") return "/settings";
+  const params = new URLSearchParams(window.location.search);
+  const next = params.get("next");
+  if (next && next.startsWith("/") && !next.startsWith("//")) return next;
+  // Без явного next ведём в настройки: без Telegram-аккаунта
+  // покупка подписки и партнёрство недоступны.
+  return "/settings";
+}
+
 export default function RegisterPage() {
   const router = useRouter();
-  const { user, login, loading: authLoading } = useAuth();
   const { t } = useLanguage();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -20,17 +28,10 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const refCode = useSearchParams()?.get("ref") || "";
 
-  useEffect(() => {
-    if (!authLoading && user) {
-      router.replace("/profile");
-    }
-  }, [authLoading, user, router]);
-
   const handlePasswordRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    // Sanitize username: remove potential XSS characters
     const sanitizedUsername = username.replace(/[<>"'&]/g, "").trim();
     if (sanitizedUsername.length < 3) {
       setError(t("texts.username_too_short"));
@@ -46,26 +47,18 @@ export default function RegisterPage() {
     }
 
     setLoading(true);
-
     try {
-      const session = await registerUser({
+      await registerUser({
         username: sanitizedUsername,
         password,
         ref_code: refCode || undefined,
       });
-      if (session) {
-        const userData = await login();
-        if (userData) {
-          router.push("/profile");
-        } else {
-          setError(t("texts.login_failed_after_register"));
-        }
-      } else {
-        setError(t("texts.register_error"));
-      }
+      // Сессионная cookie уже установлена прокси - обновляем
+      // серверный layout и уходим на профиль без доп. запросов.
+      router.refresh();
+      router.replace(safeNextPath());
     } catch (err) {
       setError(err instanceof Error ? err.message : t("texts.register_error"));
-    } finally {
       setLoading(false);
     }
   };
@@ -90,6 +83,7 @@ export default function RegisterPage() {
                 <form
                   onSubmit={handlePasswordRegister}
                   className="flex flex-col gap-3"
+                  noValidate
                 >
                   <input
                     type="text"
@@ -99,6 +93,7 @@ export default function RegisterPage() {
                     onChange={(e) =>
                       setUsername(e.target.value.replace(/[<>"'&]/g, ""))
                     }
+                    autoComplete="username"
                     required
                   />
                   <input
@@ -107,6 +102,7 @@ export default function RegisterPage() {
                     className="faq-search-input"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="new-password"
                     required
                   />
                   <input
@@ -115,6 +111,7 @@ export default function RegisterPage() {
                     className="faq-search-input"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
+                    autoComplete="new-password"
                     required
                   />
                   <button

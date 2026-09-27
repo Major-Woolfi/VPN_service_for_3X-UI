@@ -11,6 +11,7 @@ import {
   getPartnerPublicInfo,
   getPartnerPendingStatus,
   partnerApply,
+  partnerRenew,
   partnerWithdraw,
 } from "@/lib/api";
 import type {
@@ -41,10 +42,13 @@ export default function PartnerPage() {
   const [periodMonths, setPeriodMonths] = useState("");
   const [bonusType, setBonusType] = useState("days");
   const [bonusValue, setBonusValue] = useState("");
-  const [pdConsent, setPdConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
+
+  const [renewMonths, setRenewMonths] = useState("1");
+  const [renewLoading, setRenewLoading] = useState(false);
+  const [showRenewForm, setShowRenewForm] = useState(false);
 
   const [showWithdrawForm, setShowWithdrawForm] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState("");
@@ -122,14 +126,25 @@ export default function PartnerPage() {
   };
 
   const handleRenew = () => {
-    const tgBotUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME;
-    const botUrl = tgBotUsername ? `https://t.me/${tgBotUsername}` : undefined;
-    if (botUrl) {
-      window.open(botUrl, "_blank");
-    } else {
-      setIsError(true);
-      setMessage(t("texts.renew_partner_support"));
-    }
+    const months = Math.max(1, parseInt(renewMonths, 10) || 1);
+    setRenewLoading(true);
+    setIsError(false);
+    setMessage("");
+    partnerRenew({ months })
+      .then((res) => {
+        setMessage(t("texts.partner_renew_success", { months: res.months }));
+        setIsError(false);
+        setShowRenewForm(false);
+      })
+      .catch((e: unknown) => {
+        setIsError(true);
+        setMessage(
+          e instanceof Error ? e.message : t("texts.partner_renew_error"),
+        );
+      })
+      .finally(() => {
+        setRenewLoading(false);
+      });
   };
 
   useEffect(() => {
@@ -191,7 +206,6 @@ export default function PartnerPage() {
         period_months: parseInt(periodMonths, 10) || 1,
         bonus_type: bonusType,
         bonus_value: parseInt(bonusValue, 10) || 0,
-        pd_consent: pdConsent ? 1 : 0,
       });
       setMessage(t("texts.partner_apply_success"));
       setIsError(false);
@@ -200,7 +214,6 @@ export default function PartnerPage() {
       setNickname("");
       setPeriodMonths("");
       setBonusValue("");
-      setPdConsent(false);
     } catch {
       setMessage(t("texts.partner_apply_error"));
       setIsError(true);
@@ -656,15 +669,6 @@ export default function PartnerPage() {
                             +
                           </button>
                         </div>
-                        <label className="checkbox-wrapper">
-                          <input
-                            type="checkbox"
-                            checked={pdConsent}
-                            onChange={(e) => setPdConsent(e.target.checked)}
-                          />
-                          <span className="checkbox-custom" />
-                          <span>{t("texts.partner_pd_consent")}</span>
-                        </label>
                         {message && (
                           <div
                             style={{
@@ -912,13 +916,143 @@ export default function PartnerPage() {
                 <button
                   className="button"
                   style={{ width: "100%" }}
-                  onClick={handleRenew}
+                  onClick={() => {
+                    setRenewMonths(
+                      String(user?.mate_period_months || 1),
+                    );
+                    setMessage("");
+                    setIsError(false);
+                    setShowRenewForm((prev) => !prev);
+                  }}
+                  disabled={renewLoading || !telegramLinked}
                 >
                   {t("buttons.renew_partner")}
                 </button>
+                {message && !showRenewForm && (
+                  <div
+                    style={{
+                      padding: "12px",
+                      borderRadius: "var(--radius-sm)",
+                      fontSize: "14px",
+                      background: isError
+                        ? "rgba(255,0,0,0.1)"
+                        : "var(--accent-glow)",
+                      color: isError ? "var(--danger)" : "var(--accent)",
+                      border: `1px solid ${isError ? "var(--danger)" : "var(--accent)"}`,
+                    }}
+                  >
+                    {message}
+                  </div>
+                )}
               </div>
             </div>
           </div>
+
+          {showRenewForm && (
+            <div className="pinned-section fade-in">
+              <h2>{t("buttons.renew_partner")}</h2>
+              <div className="pinned-content">
+                <div
+                  style={{
+                    marginTop: "16px",
+                    padding: "12px",
+                    background: "var(--bg-tertiary)",
+                    borderRadius: "var(--radius-sm)",
+                    marginBottom: "16px",
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: "13px",
+                      color: "var(--text-secondary)",
+                      lineHeight: "1.6",
+                    }}
+                  >
+                    {t("texts.partner_renew_free_info")}
+                  </p>
+                </div>
+                <div
+                  className="number-input-wrapper"
+                  style={{ marginBottom: "12px" }}
+                >
+                  <button
+                    type="button"
+                    className="number-btn"
+                    onClick={() =>
+                      setRenewMonths(
+                        String(Math.max(1, (parseInt(renewMonths, 10) || 1) - 1)),
+                      )
+                    }
+                  >
+                    −
+                  </button>
+                  <input
+                    type="number"
+                    value={renewMonths}
+                    min="1"
+                    max={publicInfo?.max_period_months || 12}
+                    onChange={(e) => setRenewMonths(e.target.value)}
+                    placeholder={t("texts.partner_period_label", {
+                      min: 1,
+                      max: publicInfo?.max_period_months || 12,
+                    })}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="number-btn"
+                    onClick={() =>
+                      setRenewMonths(
+                        String(
+                          Math.min(
+                            publicInfo?.max_period_months || 12,
+                            (parseInt(renewMonths, 10) || 1) + 1,
+                          ),
+                        ),
+                      )
+                    }
+                  >
+                    +
+                  </button>
+                </div>
+                {message && (
+                  <div
+                    style={{
+                      marginBottom: "12px",
+                      padding: "12px",
+                      borderRadius: "var(--radius-sm)",
+                      fontSize: "14px",
+                      background: isError
+                        ? "rgba(255,0,0,0.1)"
+                        : "var(--accent-glow)",
+                      color: isError ? "var(--danger)" : "var(--accent)",
+                      border: `1px solid ${isError ? "var(--danger)" : "var(--accent)"}`,
+                    }}
+                  >
+                    {message}
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: "12px" }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowRenewForm(false)}
+                    className="button"
+                    style={{ flex: 1, background: "var(--bg-tertiary)" }}
+                  >
+                    {t("buttons.cancel")}
+                  </button>
+                  <button
+                    onClick={handleRenew}
+                    className="button"
+                    style={{ flex: 1 }}
+                    disabled={renewLoading}
+                  >
+                    {renewLoading ? t("texts.waiting") : t("buttons.confirm")}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {showWithdrawForm && (
             <div className="pinned-section fade-in">

@@ -83,6 +83,7 @@ export interface SanitizedUser {
 
 export interface SubscriptionData {
   status: string;
+  plan_id?: string;
   plan_text?: string;
   traffic_gb?: number;
   extra_sub_gb?: number;
@@ -145,6 +146,19 @@ export interface SubscriptionLinkResponse {
   plan_servers: string[];
 }
 
+// Создание и продление подписки не активируют её сразу:
+// бот создаёт pending-платёж и ждёт подтверждения администратором.
+export interface SubscriptionPaymentRequest {
+  message: string;
+  payment_id: string;
+  plan_id: string;
+  plan_name: string;
+  amount: number;
+  original_amount_rub: number;
+  discount_percent: number;
+  wait_admin: true;
+}
+
 // === Tariff ===
 export interface Tariff {
   id: string;
@@ -205,7 +219,23 @@ export interface PartnerApplyRequest {
   period_months: number;
   bonus_type: string;
   bonus_value: number;
-  pd_consent: number;
+}
+
+export interface PartnerApplyResponse {
+  message: string;
+  app_id: number;
+  operation_id: number | null;
+}
+
+export interface PartnerRenewRequest {
+  months: number;
+}
+
+export interface PartnerRenewResponse {
+  message: string;
+  operation_id: number;
+  months: number;
+  amount: number;
 }
 
 // === Custom Tariff ===

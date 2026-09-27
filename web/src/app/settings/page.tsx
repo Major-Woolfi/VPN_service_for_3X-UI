@@ -10,6 +10,8 @@ import {
   changePassword,
   startTelegramLink,
   pollTelegramAuth,
+  TELEGRAM_POLL_INTERVAL_MS,
+  TELEGRAM_POLL_TIMEOUT_MS,
 } from "@/lib/api";
 import {
   setCurrentLang,
@@ -18,8 +20,8 @@ import {
 } from "@/lib/i18n";
 import { useLanguage } from "@/contexts/LanguageContext";
 
-const LINK_POLL_INTERVAL = 3000;
-const LINK_POLL_TIMEOUT = 120000;
+const LINK_POLL_INTERVAL = TELEGRAM_POLL_INTERVAL_MS;
+const LINK_POLL_TIMEOUT = TELEGRAM_POLL_TIMEOUT_MS;
 
 const MoonIcon = () => (
   <svg
@@ -115,13 +117,15 @@ export default function SettingsPage() {
           const res = await pollTelegramAuth(state);
           if (res.status === "completed") {
             stopLinkPolling();
+            // Серверный layout должен увидеть новый telegram_id.
+            router.refresh();
+            await refreshUser();
             setMessage(t("texts.telegram_linked_success"));
             setMessageType("success");
-            await refreshUser();
             setTimeout(() => setMessage(""), 3000);
           }
         } catch {
-          // ignore poll errors
+          // игнорируем отдельные сбои опроса
         }
         elapsed += LINK_POLL_INTERVAL;
         if (elapsed >= LINK_POLL_TIMEOUT) {
@@ -135,7 +139,7 @@ export default function SettingsPage() {
         stopLinkPolling();
       }, LINK_POLL_TIMEOUT);
     },
-    [stopLinkPolling, refreshUser, t],
+    [stopLinkPolling, refreshUser, router, t],
   );
 
   useEffect(() => {
@@ -167,17 +171,9 @@ export default function SettingsPage() {
       router.replace("/login?next=/settings");
       return;
     }
-
-    (async () => {
-      try {
-        await refreshUser();
-      } catch {
-        // user may still be valid from AuthContext
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [authLoading, authUser, refreshUser, router]);
+    // Профиль уже пришёл с сервера - повторный getMe не нужен.
+    setLoading(false);
+  }, [authLoading, authUser, router]);
 
   useEffect(() => {
     if (authLoading || !authUser || authUser.telegram_id > 0) return;
@@ -701,8 +697,6 @@ export default function SettingsPage() {
                 <button
                   onClick={async () => {
                     await logout();
-                    router.push("/");
-                    router.refresh();
                   }}
                   className="button"
                   style={{ width: "100%", background: "var(--danger)" }}

@@ -11,8 +11,16 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import type { SanitizedUser } from "@/lib/types";
-import { getMe, clearStoredToken } from "@/lib/api";
-import { syncLangFromDb, t } from "@/lib/i18n";
+import {
+  ApiError,
+  SESSION_LOST_EVENT,
+  clearStoredUser,
+  getMe,
+  logoutUser,
+  readStoredUser,
+  writeStoredUser,
+} from "@/lib/api";
+import { syncLangFromDb } from "@/lib/i18n";
 
 interface AuthContextType {
   user: SanitizedUser | null;
@@ -27,241 +35,154 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const USER_KEY = "vpn_user";
-const TOKEN_REFRESH_INTERVAL = 5 * 60_000;
+const TOKEN_REFRESH_INTERVAL = 60_000;
 
-function clearStoredUser() {
-  try {
-    localStorage.removeItem(USER_KEY);
-  } catch {
-    // ignore
-  }
-}
-
-function clearSessionCookie() {
-  try {
-    const cookies = document.cookie.split(";");
-    for (const cookie of cookies) {
-      const eqIdx = cookie.indexOf("=");
-      const name =
-        eqIdx > -1 ? cookie.substring(0, eqIdx).trim() : cookie.trim();
-      if (name) {
-        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax`;
-        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Strict`;
-        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/`;
-      }
-    }
-  } catch {
-    // ignore
-  }
-}
-
-async function clearAuthSession() {
-  try {
-    const { logoutUser } = await import("@/lib/api");
-    await logoutUser().catch(() => {});
-  } catch {
-    // ignore
-  }
-  clearStoredUser();
-  clearStoredToken();
-  clearSessionCookie();
-}
-
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({
+  children,
+  initialUser = null,
+}: {
+  children: ReactNode;
+  initialUser?: SanitizedUser | null;
+}) {
   const router = useRouter();
-  const [user, setUser] = useState<SanitizedUser | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<SanitizedUser | null>(initialUser);
+  const [loading, setLoading] = useState(initialUser === null);
   const [isBanned, setIsBanned] = useState(false);
   const [banReason, setBanReason] = useState("");
-  const authLostRef = useRef(false);
-  const isPageVisible = useRef(true);
-  const refreshInProgress = useRef(false);
+  const sessionLostRef = useRef(false);
+  const inFlightRef = useRef<Promise<SanitizedUser | null> | null>(null);
+  const mountedRef = useRef(true);
 
-  const redirectToLogin = useCallback(() => {
-    if (authLostRef.current) return;
-    authLostRef.current = true;
-    try {
-      sessionStorage.setItem("auth_lost", "1");
-    } catch {
-      // ignore
+  const applyUser = useCallback((userData: SanitizedUser) => {
+    sessionLostRef.current = false;
+    setUser(userData);
+    setIsBanned(false);
+    setBanReason("");
+    writeStoredUser(userData);
+    if (userData.language) {
+      syncLangFromDb(userData.language);
     }
-    router.replace("/login");
-  }, [router]);
+    return userData;
+  }, []);
 
-  const loadUser = useCallback(async (): Promise<SanitizedUser | null> => {
-    try {
-      const userData = await getMe();
-      authLostRef.current = false;
-      setUser(userData);
-      try {
-        localStorage.setItem(USER_KEY, JSON.stringify(userData));
-      } catch {
-        // ignore
-      }
-      if (userData.language) {
-        syncLangFromDb(userData.language);
-      }
-      setIsBanned(false);
-      setBanReason("");
-      return userData;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "";
-      const isBannedError = message.toLowerCase().includes("account banned");
-      const isAuthError =
-        message.toLowerCase().includes("unauthorized") ||
-        message.toLowerCase().includes("invalid session") ||
-        message.toLowerCase().includes("invalid_session") ||
-        message.includes("401") ||
-        message.includes("403");
-      if (isBannedError || (isAuthError && message.includes("403"))) {
+  // Автовыход: proxy вернул 401 (сессия истекла или была отозвана).
+  const dropSession = useCallback(
+    (banned = false, reason = "") => {
+      clearStoredUser();
+      setUser(null);
+      if (banned) {
         setIsBanned(true);
-        setBanReason(message);
-        clearStoredUser();
-        clearStoredToken();
-        clearSessionCookie();
-        setUser(null);
-        redirectToLogin();
-      } else if (isAuthError) {
-        clearStoredUser();
-        clearStoredToken();
-        clearSessionCookie();
-        setUser(null);
-        redirectToLogin();
+        setBanReason(reason);
       }
-      return null;
-    }
-  }, [redirectToLogin]);
+      if (sessionLostRef.current) return;
+      sessionLostRef.current = true;
+      router.replace(`/login?reason=${banned ? "banned" : "session_expired"}`);
+    },
+    [router],
+  );
 
-  useEffect(() => {
-    const init = async () => {
-      try {
-        const lost = sessionStorage.getItem("auth_lost");
-        if (lost === "1") {
-          sessionStorage.removeItem("auth_lost");
-          redirectToLogin();
-          setLoading(false);
-          return;
-        }
-      } catch {
-        // ignore
-      }
-      let cached: SanitizedUser | null = null;
-      try {
-        const stored = localStorage.getItem(USER_KEY);
-        if (stored) {
-          cached = JSON.parse(stored) as SanitizedUser;
-          setUser(cached);
-        }
-      } catch {
-        // ignore
-      }
-      await loadUser();
-      setLoading(false);
-    };
-    init();
-  }, [loadUser, redirectToLogin]);
+  const loadUser = useCallback((): Promise<SanitizedUser | null> => {
+    if (inFlightRef.current) return inFlightRef.current;
 
-  const login = useCallback(async (): Promise<SanitizedUser | null> => {
-    return loadUser();
-  }, [loadUser]);
-
-  const logout = useCallback(async () => {
-    await clearAuthSession();
-    setUser(null);
-    try {
-      router.replace("/");
-    } catch {
-      // ignore
-    }
-  }, [router]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const interval = setInterval(async () => {
-      if (cancelled || !isPageVisible.current || refreshInProgress.current)
-        return;
-      refreshInProgress.current = true;
+    const request = (async (): Promise<SanitizedUser | null> => {
       try {
         const userData = await getMe();
-        if (userData && !cancelled) {
-          authLostRef.current = false;
-          setUser(userData);
-          try {
-            localStorage.setItem(USER_KEY, JSON.stringify(userData));
-          } catch {
-            // ignore
-          }
-          if (userData.language) {
-            syncLangFromDb(userData.language);
-          }
-        }
+        if (!mountedRef.current) return userData;
+        applyUser(userData);
+        return userData;
       } catch (error) {
-        if (cancelled) return;
-        const message = error instanceof Error ? error.message : "";
-        if (
-          message.toLowerCase().includes("unauthorized") ||
-          message.toLowerCase().includes("invalid session") ||
-          message.includes("401")
-        ) {
-          clearStoredUser();
-          clearStoredToken();
-          clearSessionCookie();
-          setUser(null);
-          redirectToLogin();
+        if (!mountedRef.current) return null;
+        if (error instanceof ApiError && (error.authExpired || error.status === 401)) {
+          dropSession();
+          return null;
         }
+        if (error instanceof ApiError && error.status === 403) {
+          dropSession(true, error.message);
+          return null;
+        }
+        // Сеть недоступна - не выкидываем пользователя, оставляем кэш.
+        return readStoredUser<SanitizedUser>();
       } finally {
-        if (!cancelled) {
-          refreshInProgress.current = false;
-        }
+        inFlightRef.current = null;
       }
-    }, TOKEN_REFRESH_INTERVAL);
+    })();
 
-    const onVisibility = () => {
-      isPageVisible.current = document.visibilityState === "visible";
-      if (!isPageVisible.current) return;
-      (async () => {
-        if (refreshInProgress.current) return;
-        refreshInProgress.current = true;
-        try {
-          const userData = await getMe();
-          if (userData && !cancelled) {
-            authLostRef.current = false;
-            setUser(userData);
-            try {
-              localStorage.setItem(USER_KEY, JSON.stringify(userData));
-            } catch {
-              // ignore
-            }
-            if (userData.language) {
-              syncLangFromDb(userData.language);
-            }
-          }
-        } catch {
-          // ignore
-        } finally {
-          if (!cancelled) {
-            refreshInProgress.current = false;
-          }
-        }
-      })();
+    inFlightRef.current = request;
+    return request;
+  }, [applyUser, dropSession]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
     };
+  }, []);
 
-    document.addEventListener("visibilitychange", onVisibility);
+  useEffect(() => {
+    const onSessionLost = () => dropSession();
+    window.addEventListener(SESSION_LOST_EVENT, onSessionLost);
+    return () => window.removeEventListener(SESSION_LOST_EVENT, onSessionLost);
+  }, [dropSession]);
+
+  useEffect(() => {
+    if (initialUser) {
+      writeStoredUser(initialUser);
+      if (initialUser.language) syncLangFromDb(initialUser.language);
+      setLoading(false);
+      return;
+    }
+    // Профиль уже пришёл с сервера - повторный запрос не нужен.
+    const cached = readStoredUser<SanitizedUser>();
+    if (cached) {
+      setUser(cached);
+      setLoading(false);
+    }
+    let cancelled = false;
+    loadUser().finally(() => {
+      if (!cancelled) setLoading(false);
+    });
     return () => {
       cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Сессия истекла на сервере - proxy сам сообщит через 401.
+  // Дополнительно синхронизируемся раз в минуту, чтобы поймать
+  // отозванную сессию даже без активных запросов.
+  useEffect(() => {
+    if (initialUser) return;
+    const interval = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      void loadUser();
+    }, TOKEN_REFRESH_INTERVAL);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void loadUser();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
       clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [redirectToLogin]);
+  }, [loadUser, initialUser]);
+
+  const login = useCallback(async (): Promise<SanitizedUser | null> => {
+    setLoading(true);
+    const result = await loadUser();
+    setLoading(false);
+    return result;
+  }, [loadUser]);
+
+  const logout = useCallback(async () => {
+    clearStoredUser();
+    setUser(null);
+    sessionLostRef.current = false;
+    await logoutUser();
+    router.replace("/");
+  }, [router]);
 
   const refreshUser = useCallback(async (): Promise<SanitizedUser | null> => {
-    const userData = await loadUser();
-    if (!userData) {
-      throw new Error(t("texts.failed_to_load_user"));
-    }
-    return userData;
+    return loadUser();
   }, [loadUser]);
 
   return (

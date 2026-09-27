@@ -129,12 +129,12 @@ export default function SubscribePage() {
       setError(t("texts.partner_application_pending_block"));
       return;
     }
-    if (!canBuy) {
-      setError(t("texts.purchase_blocked_wait_admin"));
+    if (!telegramLinked) {
+      setError(t("texts.subscription_requires_telegram"));
       return;
     }
-    if (tariff.is_trial && !telegramLinked) {
-      setError(t("texts.trial_requires_telegram"));
+    if (!canBuy) {
+      setError(t("texts.purchase_blocked_wait_admin"));
       return;
     }
     setSelectedTariff(tariff);
@@ -214,6 +214,10 @@ export default function SubscribePage() {
   const handleSelectCustomTariff = () => {
     if (hasPendingPartnerApplication) {
       setError(t("texts.partner_application_pending_block"));
+      return;
+    }
+    if (!telegramLinked) {
+      setError(t("texts.subscription_requires_telegram"));
       return;
     }
     if (!canBuy) {
@@ -451,7 +455,7 @@ export default function SubscribePage() {
                     {t("texts.trial_admin_only_bot")}
                   </div>
                 )}
-                {eligibleForTrial && !telegramLinked && (
+                {!telegramLinked && (
                   <div
                     className="card"
                     style={{
@@ -466,7 +470,7 @@ export default function SubscribePage() {
                       gap: "12px",
                     }}
                   >
-                    <span>{t("texts.trial_requires_telegram")}</span>
+                    <span>{t("texts.subscription_requires_telegram")}</span>
                     <button
                       type="button"
                       className="btn btn-primary"

@@ -3,8 +3,7 @@
 import Header from "@/components/Header";
 import Link from "next/link";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/contexts/AuthContext";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   loginUser,
   startTelegramAuth,
@@ -17,9 +16,16 @@ import { useLanguage } from "@/contexts/LanguageContext";
 const POLL_INTERVAL = TELEGRAM_POLL_INTERVAL_MS;
 const POLL_TIMEOUT = TELEGRAM_POLL_TIMEOUT_MS;
 
+function safeNextPath(): string {
+  if (typeof window === "undefined") return "/profile";
+  const next = new URLSearchParams(window.location.search).get("next");
+  if (!next || !next.startsWith("/") || next.startsWith("//")) return "/profile";
+  return next;
+}
+
 export default function LoginPage() {
   const router = useRouter();
-  const { user, loading: authLoading, login } = useAuth();
+  const searchParams = useSearchParams();
   const { t } = useLanguage();
   const [method, setMethod] = useState<"password" | "telegram">("password");
   const [username, setUsername] = useState("");
@@ -30,11 +36,17 @@ export default function LoginPage() {
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const getNext = () => {
-    if (typeof window === "undefined") return "/profile";
-    const params = new URLSearchParams(window.location.search);
-    return params.get("next") || "/profile";
-  };
+  const reason = searchParams?.get("reason") || "";
+  const nextPath = safeNextPath();
+
+  const finish = useCallback(() => {
+    setLoading(false);
+    setTgWaiting(false);
+    // refresh() перезапрашивает серверный layout, который ставит initialUser
+    // уже с профилем - редирект без "мигания" загрузки.
+    router.refresh();
+    router.replace(nextPath);
+  }, [router, nextPath]);
 
   const stopPolling = useCallback(() => {
     if (pollIntervalRef.current) {
@@ -48,11 +60,19 @@ export default function LoginPage() {
     setTgWaiting(false);
   }, []);
 
+  useEffect(() => stopPolling, [stopPolling]);
+
   useEffect(() => {
-    return () => {
-      stopPolling();
-    };
-  }, [stopPolling]);
+    if (reason === "session_expired") {
+      setError(t("texts.session_expired"));
+    } else if (reason === "banned") {
+      setError(t("texts.account_banned"));
+    } else if (reason === "auth_expired") {
+      setError(t("texts.auth_error"));
+    } else if (reason === "auth_timeout") {
+      setError(t("texts.login_timeout"));
+    }
+  }, [reason, t]);
 
   const startPolling = useCallback(
     (state: string) => {
@@ -64,14 +84,13 @@ export default function LoginPage() {
           const res = await pollTelegramAuth(state);
           if (res.status === "completed") {
             stopPolling();
-            await login();
-            router.replace(getNext());
-          } else if (res.status === "timeout") {
+            finish();
+          } else if (res.status === "timeout" || res.status === "expired") {
             stopPolling();
             setError(t("texts.login_timeout"));
           }
         } catch {
-          // ignore poll errors
+          // игнорируем отдельные сбои опроса
         }
         elapsed += POLL_INTERVAL;
         if (elapsed >= POLL_TIMEOUT) {
@@ -80,70 +99,45 @@ export default function LoginPage() {
         }
       }, POLL_INTERVAL);
 
-      pollTimeoutRef.current = setTimeout(() => {
-        stopPolling();
-      }, POLL_TIMEOUT);
+      pollTimeoutRef.current = setTimeout(() => stopPolling(), POLL_TIMEOUT);
     },
-    [stopPolling, login, router, t],
+    [stopPolling, finish, t],
   );
 
   const handleTelegramLogin = async () => {
     setError("");
     setLoading(true);
-
     try {
       const res = await startTelegramAuth();
-      const botUrl = res.url;
-      const state = res.state;
-      if (!botUrl || !state) {
+      if (!res?.url || !res.state) {
         setError(t("texts.login_error"));
-        setLoading(false);
         return;
       }
-      const next = getNext();
-      if (next && next !== "/profile") {
+      if (nextPath !== "/profile") {
         try {
-          sessionStorage.setItem(`vpn_auth_next_${state}`, next);
+          sessionStorage.setItem(`vpn_auth_next_${res.state}`, nextPath);
         } catch {
           // ignore
         }
       }
-      window.open(botUrl, "_blank");
-      setLoading(false);
-      startPolling(state);
+      window.open(res.url, "_blank", "noopener,noreferrer");
+      startPolling(res.state);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("texts.login_error"));
+    } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    if (!authLoading && user) {
-      router.replace(getNext());
-    }
-  }, [authLoading, user, router]);
-
-  const redirectAfterLogin = () => {
-    const next = getNext();
-    router.replace(next);
   };
 
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
-
     try {
-      const session = await loginUser({ username, password });
-      if (session) {
-        await login();
-        redirectAfterLogin();
-      } else {
-        setError(t("texts.login_error"));
-      }
+      await loginUser({ username: username.trim(), password });
+      finish();
     } catch (err) {
       setError(err instanceof Error ? err.message : t("texts.login_error"));
-    } finally {
       setLoading(false);
     }
   };
@@ -194,6 +188,7 @@ export default function LoginPage() {
                   <form
                     onSubmit={handlePasswordLogin}
                     className="flex flex-col gap-3"
+                    noValidate
                   >
                     <input
                       type="text"
@@ -203,6 +198,7 @@ export default function LoginPage() {
                       onChange={(e) =>
                         setUsername(e.target.value.replace(/[<>"'&]/g, ""))
                       }
+                      autoComplete="username"
                       required
                     />
                     <input
@@ -211,6 +207,7 @@ export default function LoginPage() {
                       className="faq-search-input"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
+                      autoComplete="current-password"
                       required
                     />
                     <button
@@ -226,6 +223,7 @@ export default function LoginPage() {
                     <button
                       onClick={handleTelegramLogin}
                       className="button"
+                      disabled={loading}
                       style={{
                         display: "inline-flex",
                         alignItems: "center",
@@ -240,7 +238,7 @@ export default function LoginPage() {
                         fill="currentColor"
                         viewBox="0 0 30 30"
                       >
-                        <path d="m20.665 3.717-17.73 6.837c-1.21.486-1.203 1.161-.222 1.462l4.552 1.42 10.532-6.645c.498-.303.953-.14.579.192l-8.533 7.701h-.002l.002.001-.314 4.692c.46 0 .663-.211.921-.46l2.211-2.15 4.599 3.397c.848.467 1.457.227 1.668-.785l3.019-14.228c.309-1.239-.473-1.8-1.282-1.434z" />
+                        <path d="m20.665 3.717-17.73 6.837c-1.21.486-1.203 1.161-.222 1.462l4.552 1.42 10.532-6.645c.498-.303.953-.14.579.192l-8.533 7.701h-.002l.002.001-.314 4.692c.46 0.663-.211.921-.46l2.211-2.15 4.599 3.397c.848.467 1.457.227 1.668-.785l3.019-14.228c.309-1.239-.473-1.8-1.282-1.434z" />
                       </svg>
                       {t("buttons.telegram_login")}
                     </button>

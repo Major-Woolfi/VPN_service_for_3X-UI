@@ -679,27 +679,44 @@
         "type": "object"
       },
       "PaymentRecord": {
-        "description": "PaymentRecord represents a payment transaction in the system.",
+        "description": "PaymentRecord represents a payment transaction in the system. Both identifiers are always stored: user_id is the internal user ID and tg_id is the Telegram ID.",
         "properties": {
           "payment_id": {
             "description": "Unique payment identifier",
             "type": "string"
           },
           "user_id": {
-            "description": "User ID who made the payment",
+            "description": "Internal user ID (UID) who made the payment",
+            "type": "integer"
+          },
+          "tg_id": {
+            "description": "Telegram ID (TID) of the user who made the payment",
             "type": "integer"
           },
           "plan_id": {
             "description": "Tariff ID associated with the payment",
             "type": "string"
           },
+          "plan_type": {
+            "description": "Payment kind",
+            "type": "string",
+            "enum": [ "catalog", "custom", "withdrawal" ]
+          },
           "plan_name": {
             "description": "Tariff name",
             "type": "string"
           },
           "amount": {
-            "description": "Payment amount",
+            "description": "Payment amount. Always 0 for free partner operations.",
             "type": "number"
+          },
+          "original_amount_rub": {
+            "description": "Original tariff price before the trust discount",
+            "type": "number"
+          },
+          "discount_percent": {
+            "description": "Applied trust discount percent",
+            "type": "integer"
           },
           "currency": {
             "description": "Payment currency",
@@ -708,7 +725,7 @@
           "status": {
             "description": "Payment status",
             "type": "string",
-            "enum": [ "pending", "confirmed", "rejected" ]
+            "enum": [ "pending", "processing", "accepted", "rejected" ]
           },
           "timestamp": {
             "description": "Payment timestamp (ISO format)",
@@ -828,7 +845,7 @@
         "type": "object"
       },
       "PartnerApplication": {
-        "description": "PartnerApplication represents a partner program application.",
+        "description": "PartnerApplication represents a partner program application. Consent to the partner terms is given once on the partner requirements screen before the application form starts, so no consent flag is sent in this request.",
         "properties": {
           "followers": {
             "description": "Number of followers on social media",
@@ -853,10 +870,6 @@
           "bonus_value": {
             "description": "Bonus value",
             "type": "integer"
-          },
-          "pd_consent": {
-            "description": "Personal data processing consent (1 = yes, 0 = no)",
-            "type": "integer"
           }
         },
         "required": [
@@ -865,10 +878,20 @@
           "nickname",
           "period_months",
           "bonus_type",
-          "bonus_value",
-          "pd_consent"
+          "bonus_value"
         ],
         "type": "object"
+      },
+      "PartnerRenewalRequest": {
+        "description": "PartnerRenewalRequest requests a free renewal of the partner agreement.",
+        "type": "object",
+        "properties": {
+          "months": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Renewal period in months. Defaults to the partner's current period_months when omitted."
+          }
+        }
       },
       "PartnerStats": {
         "description": "PartnerStats represents partner program statistics for a given period.",
@@ -2312,8 +2335,8 @@
     "/api/v1/subscription/create": {
       "post": {
         "tags": [ "Subscriptions" ],
-        "summary": "Create subscription",
-        "description": "Purchase a subscription from the catalog tariff. Automatically creates a client in the VPN panel and generates a VPN link.",
+        "summary": "Request subscription purchase",
+        "description": "Creates a pending payment request for a catalog tariff. The subscription itself is NOT granted immediately: an administrator must confirm the payment in the Telegram bot. The tariff is resolved server-side from the catalog and the trust discount is applied to the amount. Trust score is only accrued after the administrator confirms the payment.",
         "operationId": "create_subscription",
         "security": [
           {
@@ -2332,7 +2355,7 @@
         },
         "responses": {
           "201": {
-            "description": "Subscription created",
+            "description": "Payment request created, waiting for administrator confirmation",
             "content": {
               "application/json": {
                 "schema": {
@@ -2342,13 +2365,33 @@
                       "type": "string",
                       "description": "Success message"
                     },
-                    "vpn_url": {
+                    "payment_id": {
                       "type": "string",
-                      "description": "VPN subscription URL"
+                      "description": "Pending payment ID to await administrator confirmation"
+                    },
+                    "plan_id": {
+                      "type": "string",
+                      "description": "Requested tariff ID"
                     },
                     "plan_name": {
                       "type": "string",
-                      "description": "Created plan name"
+                      "description": "Requested plan name"
+                    },
+                    "amount": {
+                      "type": "integer",
+                      "description": "Amount to pay after trust discount, in RUB"
+                    },
+                    "original_amount_rub": {
+                      "type": "number",
+                      "description": "Original tariff price before discount"
+                    },
+                    "discount_percent": {
+                      "type": "integer",
+                      "description": "Applied trust discount percent"
+                    },
+                    "wait_admin": {
+                      "type": "boolean",
+                      "description": "Always true: the subscription is granted only after administrator confirmation"
                     }
                   }
                 }
@@ -2362,10 +2405,13 @@
             "description": "Unauthorized"
           },
           "403": {
-            "description": "Admins cannot purchase"
+            "description": "Admins cannot purchase, or Telegram is not linked"
+          },
+          "404": {
+            "description": "Tariff not found or inactive"
           },
           "409": {
-            "description": "Active subscription already exists"
+            "description": "Active subscription already exists, or a payment request is already pending"
           },
           "500": {
             "description": "Internal server error"
@@ -2376,8 +2422,8 @@
     "/api/v1/subscription/renew": {
       "post": {
         "tags": [ "Subscriptions" ],
-        "summary": "Renew subscription",
-        "description": "Renew an existing subscription with a catalog tariff. Price is determined server-side from the catalog and trust discount is applied; client-provided price_rub is ignored.",
+        "summary": "Request subscription renewal",
+        "description": "Creates a pending payment request to renew a subscription with a catalog tariff. The subscription is NOT extended immediately: an administrator must confirm the payment in the Telegram bot, which then renews the existing subscription or creates one if it is no longer active. The tariff is resolved server-side from the catalog and the trust discount is applied to the amount. Trust score is only accrued after the administrator confirms the payment.",
         "operationId": "renew_subscription",
         "security": [
           {
@@ -2395,8 +2441,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Subscription renewed",
+          "201": {
+            "description": "Payment request created, waiting for administrator confirmation",
             "content": {
               "application/json": {
                 "schema": {
@@ -2406,17 +2452,21 @@
                       "type": "string",
                       "description": "Success message"
                     },
-                    "vpn_url": {
+                    "payment_id": {
                       "type": "string",
-                      "description": "VPN subscription URL"
+                      "description": "Pending payment ID to await administrator confirmation"
+                    },
+                    "plan_id": {
+                      "type": "string",
+                      "description": "Requested tariff ID"
                     },
                     "plan_name": {
                       "type": "string",
-                      "description": "Renewed plan name"
+                      "description": "Requested plan name"
                     },
-                    "paid_amount": {
-                      "type": "number",
-                      "description": "Final amount after server-side trust discount"
+                    "amount": {
+                      "type": "integer",
+                      "description": "Amount to pay after trust discount, in RUB"
                     },
                     "original_amount_rub": {
                       "type": "number",
@@ -2425,6 +2475,10 @@
                     "discount_percent": {
                       "type": "integer",
                       "description": "Applied trust discount percent"
+                    },
+                    "wait_admin": {
+                      "type": "boolean",
+                      "description": "Always true: the renewal is applied only after administrator confirmation"
                     }
                   }
                 }
@@ -2444,7 +2498,7 @@
             "description": "Tariff not found or inactive"
           },
           "409": {
-            "description": "Active subscription already exists"
+            "description": "A payment request is already pending"
           },
           "500": {
             "description": "Internal server error"
@@ -3083,7 +3137,7 @@
       "post": {
         "tags": [ "Partners" ],
         "summary": "Apply for partnership",
-        "description": "Submit an application to join the partner program. Requires authentication. Nickname must contain only English letters, digits and _. Partner referral link uses the same code as the user referral link (t.me/bot?start={ref_code}).",
+        "description": "Submit an application to join the partner program. Requires authentication. Nickname must contain only English letters, digits and _. Consent to the partner terms is collected once on the requirements screen before the application form starts, so no consent flag is sent here. Creates a pending partner_new operation for admin review and returns both app_id and operation_id.",
         "operationId": "apply_partner",
         "security": [
           {
@@ -3102,7 +3156,26 @@
         },
         "responses": {
           "201": {
-            "description": "Application submitted"
+            "description": "Application submitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "app_id": {
+                      "type": "string"
+                    },
+                    "operation_id": {
+                      "type": "string",
+                      "description": "Pending partner operation id, null when an operation of the same type is already pending"
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid application data (nickname format, period range)"
@@ -3145,6 +3218,65 @@
           },
           "401": {
             "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/partner/renew": {
+      "post": {
+        "tags": [ "Partners" ],
+        "summary": "Request a free partnership renewal",
+        "description": "Request a renewal of the partner agreement. Renewal is free of charge: no payment record is created and no amount is charged, and a pending subscription payment does not block it. Creates a pending partner_renewal operation for admin review. The partnership expiry and the panel client expiry are extended when the admin accepts the operation.",
+        "operationId": "partner_renew",
+        "security": [
+          {
+            "bearerAuth": [ ]
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartnerRenewalRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Renewal request created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "operation_id": {
+                      "type": "string"
+                    },
+                    "months": {
+                      "type": "integer"
+                    },
+                    "amount": {
+                      "type": "number",
+                      "description": "Always 0, renewal is free"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid session token"
+          },
+          "403": {
+            "description": "Not a partner, or Telegram account not linked"
+          },
+          "409": {
+            "description": "A renewal request for this partnership is already pending"
           }
         }
       }

@@ -15,7 +15,7 @@ import {
 import { changeLanguage } from "@/lib/api";
 
 function LanguageSwitcher() {
-  const { user, refreshUser } = useAuth();
+  const { user } = useAuth();
   const [langOpen, setLangOpen] = useState(false);
   const { lang } = useLanguage();
   const router = useRouter();
@@ -29,7 +29,6 @@ function LanguageSwitcher() {
     try {
       await changeLanguage(code);
       setCurrentLang(code);
-      await refreshUser();
       router.refresh();
     } catch {
       setCurrentLang(code);
@@ -68,7 +67,6 @@ function LanguageSwitcher() {
 }
 
 export default function UserMenu() {
-  const router = useRouter();
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { authorizedLinks, adminLinks } = useNavigation();
@@ -88,10 +86,8 @@ export default function UserMenu() {
   }, []);
 
   const handleLogout = async () => {
-    await logout();
     setOpen(false);
-    router.push("/");
-    router.refresh();
+    await logout();
   };
 
   const isPartner = Boolean(user?.is_partner && !user?.is_admin);
@@ -141,6 +137,11 @@ export default function UserMenu() {
                 <strong>{user.username || `ID:${user.user_id}`}</strong>
                 <span>
                   {t("texts.user_id")}: {user.user_id}
+                  {user.telegram_id && (
+                    <span style={{ marginLeft: "12px" }}>
+                      {t("texts.telegram_id_label")}: {user.telegram_id}
+                    </span>
+                  )}
                 </span>
               </div>
               {authorizedLinks.map((link) => (

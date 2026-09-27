@@ -1,16 +1,5 @@
 import type { NextConfig } from "next";
 
-const botApiOrigin = (() => {
-  try {
-    return new URL(
-      process.env.BOT_API_URL ||
-        process.env.NEXT_PUBLIC_BOT_API_URL ||
-        "http://localhost:2005/api/v1",
-    ).origin;
-  } catch {
-    return "http://localhost:2005";
-  }
-})();
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
@@ -44,8 +33,10 @@ const nextConfig: NextConfig = {
             value: "max-age=31536000; includeSubDomains; preload",
           },
           {
+            // Все обращения к боту идут через same-origin /api/bot/*,
+            // поэтому внешние origins в connect-src не нужны - CORS не возникает.
             key: "Content-Security-Policy",
-            value: `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ${botApiOrigin}; frame-ancestors 'none'; base-uri 'self'`,
+            value: `default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'`,
           },
         ],
       },
