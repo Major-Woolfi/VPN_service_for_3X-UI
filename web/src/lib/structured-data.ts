@@ -1,11 +1,11 @@
-import { getSiteCopy, normalizeSiteLanguage } from "../data/legal";
+import { getServerSiteCopy, normalizeServerLanguage } from "./i18n-server";
 
 const siteName = process.env.NEXT_PUBLIC_VPN_NAME || "VPN";
 const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "";
 
 export function generateJsonLd(language?: string) {
-  const normalizedLanguage = normalizeSiteLanguage(language);
-  const copy = getSiteCopy(normalizedLanguage);
+  const normalizedLanguage = normalizeServerLanguage(language);
+  const copy = getServerSiteCopy(normalizedLanguage);
   return {
     "@context": "https://schema.org",
     "@graph": [

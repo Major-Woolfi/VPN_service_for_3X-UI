@@ -72,7 +72,6 @@ export default function SettingsPage() {
   } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { t } = useLanguage();
-  const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error">(
     "success",
@@ -169,10 +168,7 @@ export default function SettingsPage() {
     if (authLoading) return;
     if (!authUser) {
       router.replace("/login?next=/settings");
-      return;
     }
-    // Профиль уже пришёл с сервера - повторный getMe не нужен.
-    setLoading(false);
   }, [authLoading, authUser, router]);
 
   useEffect(() => {
@@ -233,7 +229,7 @@ export default function SettingsPage() {
     }
   };
 
-  if (authLoading || loading || !authUser) {
+  if (authLoading || !authUser) {
     return (
       <>
         <Header currentPage="/settings" />

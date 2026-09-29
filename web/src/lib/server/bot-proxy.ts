@@ -69,9 +69,9 @@ function extractUpstreamSession(
       : "");
   if (!setCookie) return null;
 
-  const match = new RegExp(`(?:^|[;,]\\s*)${SESSION_COOKIE_NAME}=([^;,]*)`).exec(
-    setCookie,
-  );
+  const match = new RegExp(
+    `(?:^|[;,]\\s*)${SESSION_COOKIE_NAME}=([^;,]*)`,
+  ).exec(setCookie);
   if (!match) return null;
 
   const value = decodeURIComponent(match[1] || "").trim();
@@ -199,7 +199,9 @@ export async function fetchServerProfile(
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
     if (!response.ok) return null;
-    const data = (await response.json().catch(() => null)) as SanitizedUser | null;
+    const data = (await response
+      .json()
+      .catch(() => null)) as SanitizedUser | null;
     return data && typeof data === "object" ? data : null;
   } catch {
     return null;

@@ -1,11 +1,11 @@
 import { cookies, headers } from "next/headers";
 import Header from "@/components/Header";
+import { getPublicLinksFromFeatures } from "@/lib/api";
 import {
-  getTariffs,
-  getStatsOverview,
-  getFeatures,
-  getPublicLinksFromFeatures,
-} from "@/lib/api";
+  getFeaturesServer,
+  getStatsServer,
+  getTariffsServer,
+} from "@/lib/server/bot-data";
 import { tServer, resolveLanguage } from "@/lib/i18n-server";
 import LiveStatusBar from "@/components/LiveStatusBar";
 import NodeStatus from "@/components/NodeStatus";
@@ -17,31 +17,10 @@ const telegramIcon = (
   </svg>
 );
 
-async function getTariffsServer() {
-  try {
-    return await getTariffs();
-  } catch {
-    return [];
-  }
-}
-
-async function getStatsServer() {
-  try {
-    return await getStatsOverview();
-  } catch {
-    return null;
-  }
-}
-
-async function getFeaturesServer() {
-  try {
-    return await getFeatures();
-  } catch {
-    return null;
-  }
-}
-
-export const revalidate = 60;
+// Главная читает cookies (сессия/язык) и тянет тарифы и статистику
+// с no-store, поэтому предрендерить её на этапе сборки бессмысленно:
+// next build падал с "Dynamic server usage". Явно помечаем роут динамическим.
+export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const [tariffs, stats, features] = await Promise.all([

@@ -7,13 +7,17 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { FeaturesProvider } from "@/contexts/FeaturesContext";
+import { getFeaturesServer } from "@/lib/server/bot-data";
 import ScrollAnimations from "@/components/ScrollAnimations";
 import AuthCallback from "@/components/AuthCallback";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { getSiteCopy, normalizeSiteLanguage } from "@/data/legal";
 import { generateJsonLdScript } from "@/lib/structured-data";
-import { getServerLanguages } from "@/lib/i18n-server";
+import {
+  getServerLanguages,
+  getServerSiteCopy,
+  normalizeServerLanguage,
+} from "@/lib/i18n-server";
 import { resolveServerSession } from "@/lib/server/session";
 
 const inter = Inter({
@@ -26,12 +30,12 @@ const siteName = process.env.NEXT_PUBLIC_VPN_NAME || "vpn";
 export async function generateMetadata(): Promise<Metadata> {
   const cookieStore = await cookies();
   const headerStore = await headers();
-  const lang = normalizeSiteLanguage(
+  const lang = normalizeServerLanguage(
     cookieStore.get("vpn_language")?.value ||
       headerStore.get("accept-language") ||
       undefined,
   );
-  const copy = getSiteCopy(lang);
+  const copy = getServerSiteCopy(lang);
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local";
   const languageAlternates = Object.fromEntries(
     getServerLanguages().map((language) => [
@@ -99,7 +103,7 @@ export default async function RootLayout({
 }) {
   const cookieStore = await cookies();
   const headerStore = await headers();
-  const lang = normalizeSiteLanguage(
+  const lang = normalizeServerLanguage(
     cookieStore.get("vpn_language")?.value ||
       headerStore.get("accept-language") ||
       undefined,
@@ -123,7 +127,14 @@ export default async function RootLayout({
     // иначе возникает петля.
     redirect("/api/session/expired");
   }
+  // Забаненного не разлогиниваем - он должен увидеть причину бана.
+  if (session.kind === "banned" && !isGuestPage) {
+    redirect("/banned");
+  }
   const initialUser = session.kind === "authenticated" ? session.user : null;
+  // Один серверный запрос /config/features на рендер вместо дубля
+  // (серверный + клиентский FeaturesProvider) на каждой странице.
+  const initialFeatures = await getFeaturesServer();
 
   return (
     <html
@@ -149,7 +160,7 @@ export default async function RootLayout({
         <ThemeProvider>
           <AuthProvider initialUser={initialUser}>
             <LanguageProvider>
-              <FeaturesProvider>
+              <FeaturesProvider initialFeatures={initialFeatures}>
                 <AuthCallback />
                 {children}
                 <BackToTop />

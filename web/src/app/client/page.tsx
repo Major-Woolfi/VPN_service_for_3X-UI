@@ -3,7 +3,11 @@
 import Header from "@/components/Header";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { ApiError, getPublicLinksFromFeatures, getSubscriptionLink } from "@/lib/api";
+import {
+  ApiError,
+  getPublicLinksFromFeatures,
+  getSubscriptionLink,
+} from "@/lib/api";
 import { useFeatures } from "@/contexts/FeaturesContext";
 import type { SubscriptionLinkResponse } from "@/lib/types";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -14,10 +18,30 @@ export default function ClientPage() {
   const router = useRouter();
   const { t } = useLanguage();
   const { features } = useFeatures();
-  const [subLink, setSubLink] = useState<SubscriptionLinkResponse | null>(null);
+  const [fetchedLink, setFetchedLink] =
+    useState<SubscriptionLinkResponse | null>(null);
   const [linkFailed, setLinkFailed] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [requested, setRequested] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+
+  // У партнёра и админа своя подписка - ссылка выводится из профиля,
+  // это производное значение, а не результат запроса.
+  const ownSub = user?.partner_subscription || user?.admin_subscription;
+  const derivedLink: SubscriptionLinkResponse | null =
+    user && user.subscription?.status !== "active" && ownSub?.url
+      ? {
+          subscription_id: "own",
+          vpn_url: ownSub.url,
+          json_vpn_url: ownSub.json_url || "",
+          plan_text: "",
+          traffic_gb: 0,
+          ip_limit: 0,
+          plan_servers: [],
+        }
+      : null;
+  const subLink = derivedLink ?? fetchedLink;
+  const needsFetch = user?.subscription?.status === "active";
+  const loading = authLoading || (needsFetch && !requested && !linkFailed);
 
   useEffect(() => {
     if (authLoading) return;
@@ -33,35 +57,20 @@ export default function ClientPage() {
     }
 
     // У партнёра и админа своя подписка - ссылка уже в профиле.
-    if (user.subscription?.status !== "active") {
-      const own = user.partner_subscription || user.admin_subscription;
-      if (own?.url) {
-        setSubLink({
-          subscription_id: "own",
-          vpn_url: own.url,
-          json_vpn_url: own.json_url || "",
-          plan_text: "",
-          traffic_gb: 0,
-          ip_limit: 0,
-          plan_servers: [],
-        });
-      }
-      setLoading(false);
-      return;
-    }
+    if (user.subscription?.status !== "active") return;
 
     let cancelled = false;
     (async () => {
       try {
         const link = await getSubscriptionLink();
-        if (!cancelled) setSubLink(link);
+        if (!cancelled) setFetchedLink(link);
       } catch (error) {
         if (cancelled) return;
         // Истёкшая сессия обрабатывается AuthContext - уводим на /login.
         if (error instanceof ApiError && error.authExpired) return;
         setLinkFailed(true);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setRequested(true);
       }
     })();
     return () => {

@@ -8,6 +8,7 @@ import {
   loginUser,
   startTelegramAuth,
   pollTelegramAuth,
+  clearStoredUser,
   TELEGRAM_POLL_INTERVAL_MS,
   TELEGRAM_POLL_TIMEOUT_MS,
 } from "@/lib/api";
@@ -19,7 +20,8 @@ const POLL_TIMEOUT = TELEGRAM_POLL_TIMEOUT_MS;
 function safeNextPath(): string {
   if (typeof window === "undefined") return "/profile";
   const next = new URLSearchParams(window.location.search).get("next");
-  if (!next || !next.startsWith("/") || next.startsWith("//")) return "/profile";
+  if (!next || !next.startsWith("/") || next.startsWith("//"))
+    return "/profile";
   return next;
 }
 
@@ -38,6 +40,29 @@ export default function LoginPage() {
 
   const reason = searchParams?.get("reason") || "";
   const nextPath = safeNextPath();
+
+  // Сообщение по ?reason= - производное значение от URL, а не состояние.
+  const reasonError =
+    reason === "session_expired"
+      ? t("texts.session_expired")
+      : reason === "banned"
+        ? t("texts.account_banned")
+        : reason === "auth_expired"
+          ? t("texts.auth_error")
+          : reason === "auth_timeout"
+            ? t("texts.login_timeout")
+            : "";
+  const shownError = error || reasonError;
+
+  // Сервер принудительно разлогинил (истёкшая сессия) и попросил
+  // почистить клиентский кэш через vpn_clear_cache. Cookie одноразовая,
+  // поэтому читаем её до первого рендера.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (!/(^|;\s*)vpn_clear_cache=1(;|$)/.test(document.cookie)) return;
+    clearStoredUser();
+    document.cookie = "vpn_clear_cache=; path=/; max-age=0; samesite=lax";
+  }, []);
 
   const finish = useCallback(() => {
     setLoading(false);
@@ -61,18 +86,6 @@ export default function LoginPage() {
   }, []);
 
   useEffect(() => stopPolling, [stopPolling]);
-
-  useEffect(() => {
-    if (reason === "session_expired") {
-      setError(t("texts.session_expired"));
-    } else if (reason === "banned") {
-      setError(t("texts.account_banned"));
-    } else if (reason === "auth_expired") {
-      setError(t("texts.auth_error"));
-    } else if (reason === "auth_timeout") {
-      setError(t("texts.login_timeout"));
-    }
-  }, [reason, t]);
 
   const startPolling = useCallback(
     (state: string) => {
@@ -182,7 +195,9 @@ export default function LoginPage() {
                   </button>
                 </div>
 
-                {error && <div className="error-message">{error}</div>}
+                {shownError && (
+                  <div className="error-message">{shownError}</div>
+                )}
 
                 {method === "password" ? (
                   <form

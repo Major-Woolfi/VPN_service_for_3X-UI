@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { useLanguage } from "@/contexts/LanguageContext";
 import {
   pollTelegramAuth,
@@ -10,15 +11,15 @@ import {
 
 type AuthCallbackStatus = "idle" | "processing" | "error";
 
-function readState(): string | null {
-  if (typeof window === "undefined") return null;
-  return new URLSearchParams(window.location.search).get("state");
-}
-
 export default function AuthCallback() {
   const { t } = useLanguage();
-  const [state, setState] = useState<string | null>(null);
-  const [status, setStatus] = useState<AuthCallbackStatus>("idle");
+  // state берётся из URL на этапе рендера, а не в эффекте:
+  // useSearchParams работает и на сервере, поэтому SSR и клиент совпадают.
+  const searchParams = useSearchParams();
+  const state = searchParams?.get("state") || null;
+  const [status, setStatus] = useState<AuthCallbackStatus>(
+    state ? "processing" : "idle",
+  );
   const processedRef = useRef(false);
 
   const resolveTarget = useCallback((authState: string | null) => {
@@ -40,13 +41,6 @@ export default function AuthCallback() {
       }
     }
     return "/profile";
-  }, []);
-
-  useEffect(() => {
-    const current = readState();
-    if (!current) return;
-    setState(current);
-    setStatus("processing");
   }, []);
 
   useEffect(() => {

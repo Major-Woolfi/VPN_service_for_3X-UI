@@ -21,27 +21,58 @@ const FeaturesContext = createContext<FeaturesContextType | undefined>(
   undefined,
 );
 
-export function FeaturesProvider({ children }: { children: ReactNode }) {
-  const [features, setFeatures] = useState<FeaturesResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+export function FeaturesProvider({
+  children,
+  initialFeatures = null,
+}: {
+  children: ReactNode;
+  initialFeatures?: FeaturesResponse | null;
+}) {
+  const [features, setFeatures] = useState<FeaturesResponse | null>(
+    initialFeatures,
+  );
+  const [loading, setLoading] = useState(initialFeatures === null);
   const [error, setError] = useState<string | null>(null);
 
+  // Синхронизация нового server-provided features - в render-фазе
+  // (паттерн React "Adjusting state when a prop changes"), а не setState
+  // в эффекте: это не вызывает каскадных ререндеров.
+  const initialSignature = initialFeatures
+    ? JSON.stringify(initialFeatures)
+    : "";
+  const [syncedSignature, setSyncedSignature] = useState(initialSignature);
+  if (initialSignature && initialSignature !== syncedSignature) {
+    setSyncedSignature(initialSignature);
+    setFeatures(initialFeatures);
+    setLoading(false);
+  }
+
+  // Сервер уже получил features в layout - повторный клиентский запрос
+  // /config/features был дублирующим обращением к боту на каждой странице.
+  // Клиентский запрос остаётся только как fallback, если серверный не удался.
   useEffect(() => {
+    if (initialFeatures) return;
+    let cancelled = false;
     (async () => {
       try {
         const data = await getFeatures();
-        setFeatures(data);
+        if (!cancelled) setFeatures(data);
       } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : t("texts.failed_to_load_features"),
-        );
+        if (!cancelled) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : t("texts.failed_to_load_features"),
+          );
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [initialFeatures]);
 
   return (
     <FeaturesContext.Provider value={{ features, loading, error }}>

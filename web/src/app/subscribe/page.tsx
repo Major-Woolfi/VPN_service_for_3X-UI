@@ -2,7 +2,7 @@
 
 import Header from "@/components/Header";
 import { useEffect, useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useFeatures } from "@/contexts/FeaturesContext";
@@ -34,6 +34,7 @@ function roundHalfToEven(value: number): number {
 
 export default function SubscribePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
   const { t } = useLanguage();
   const { features, loading: featuresLoading } = useFeatures();
@@ -41,6 +42,7 @@ export default function SubscribePage() {
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState<Step>("select");
   const [selectedTariff, setSelectedTariff] = useState<Tariff | null>(null);
+  const [urlSelectionDismissed, setUrlSelectionDismissed] = useState(false);
   const [error, setError] = useState("");
   const [processing, setProcessing] = useState(false);
   const [checkoutResult, setCheckoutResult] = useState<CheckoutResponse | null>(
@@ -67,6 +69,9 @@ export default function SubscribePage() {
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const [customTariffParams, setCustomTariffParams] =
     useState<CustomTariffParams | null>(null);
+  // Тариф, выбранный на главной (?tariff=<id>). Объявлен до эффектов,
+  // чтобы редирект гостя на логин его сохранил.
+  const requestedTariffId = searchParams.get("tariff");
 
   useEffect(() => {
     let cancelled = false;
@@ -95,12 +100,17 @@ export default function SubscribePage() {
     return () => {
       cancelled = true;
     };
-  }, [user, features?.features?.custom_tariff]);
+  }, [user, features?.features?.custom_tariff, router, requestedTariffId]);
 
   useEffect(() => {
     if (authLoading) return;
     if (!user) {
-      router.replace("/login?next=/subscribe");
+      // Сохраняем выбранный тариф: без этого гость возвращался с логина
+      // на общий список и терял выбор.
+      const next = requestedTariffId
+        ? `/subscribe?tariff=${encodeURIComponent(requestedTariffId)}`
+        : "/subscribe";
+      router.replace(`/login?next=${encodeURIComponent(next)}`);
       return;
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -114,7 +124,7 @@ export default function SubscribePage() {
     setUserTrustScore(user.trust_score || 0);
     setUserDiscountPercent(user.discount_percent || 0);
     setLoading(false);
-  }, [authLoading, user, router]);
+  }, [authLoading, user, router, requestedTariffId]);
 
   const isSubscribed = userSubscriptionStatus === "active";
   const eligibleForTrial = !trialUsed && !isSubscribed && !isAdmin;
@@ -123,6 +133,35 @@ export default function SubscribePage() {
     () => tariffs.filter((t) => t.active && (!t.is_trial || eligibleForTrial)),
     [tariffs, eligibleForTrial],
   );
+
+  // Тариф из ?tariff=... показывается сразу, но выбор из URL не должен
+  // обходить те же проверки, что и клик по карточке.
+  const preselectedTariff = useMemo(
+    () =>
+      requestedTariffId
+        ? (visibleTariffs.find((t) => t.id === requestedTariffId) ?? null)
+        : null,
+    [requestedTariffId, visibleTariffs],
+  );
+  const urlBlockedKey = hasPendingPartnerApplication
+    ? "texts.partner_application_pending_block"
+    : !telegramLinked
+      ? "texts.subscription_requires_telegram"
+      : !canBuy
+        ? "texts.purchase_blocked_wait_admin"
+        : "";
+  const urlPreselectActive =
+    preselectedTariff !== null && !urlSelectionDismissed && !urlBlockedKey;
+
+  // Активный тариф: явно выбранный пользователем важнее тарифа из URL.
+  const activeTariff: Tariff | null = selectedTariff ?? preselectedTariff;
+  const activeStep: Step =
+    step !== "select" ? step : urlPreselectActive ? "offer" : "select";
+  const activeError =
+    error ||
+    (preselectedTariff && step === "select" && urlBlockedKey
+      ? t(urlBlockedKey)
+      : "");
 
   const handleSelectTariff = (tariff: Tariff) => {
     if (hasPendingPartnerApplication) {
@@ -137,17 +176,28 @@ export default function SubscribePage() {
       setError(t("texts.purchase_blocked_wait_admin"));
       return;
     }
+    setUrlSelectionDismissed(true);
     setSelectedTariff(tariff);
     setStep("offer");
     setError("");
   };
 
+  // Назад из оффера: снимаем и явный выбор, и предвыбор из URL.
+  const handleBackToSelect = () => {
+    setSelectedTariff(null);
+    setUrlSelectionDismissed(true);
+    setStep("select");
+    setError("");
+  };
+
   const handleAcceptOffer = async () => {
-    if (!selectedTariff) return;
-    if (selectedTariff.is_trial) {
+    if (!activeTariff) return;
+    if (activeTariff.is_trial) {
       await handleTrial();
       return;
     }
+    setSelectedTariff(activeTariff);
+    setUrlSelectionDismissed(true);
     setStep("payment");
     setError("");
   };
@@ -166,7 +216,7 @@ export default function SubscribePage() {
   };
 
   const handlePay = async () => {
-    if (!user || !selectedTariff) return;
+    if (!user || !activeTariff) return;
     setProcessing(true);
     setError("");
 
@@ -178,7 +228,7 @@ export default function SubscribePage() {
 
     try {
       const result = await createCheckout({
-        plan_id: selectedTariff.id,
+        plan_id: activeTariff.id,
         method: selectedPaymentMethod,
       });
       setCheckoutResult(result);
@@ -243,13 +293,14 @@ export default function SubscribePage() {
       active: true,
       locations: selectedLocations,
     };
+    setUrlSelectionDismissed(true);
     setSelectedTariff(customTariff);
     setStep("offer");
     setError("");
   };
 
   const handlePayCustom = async () => {
-    if (!user || !selectedTariff) return;
+    if (!user || !activeTariff) return;
     setProcessing(true);
     setError("");
 
@@ -264,12 +315,12 @@ export default function SubscribePage() {
         plan_id: "custom",
         method: selectedPaymentMethod,
         custom_plan: {
-          name: selectedTariff.name,
-          price_rub: selectedTariff.price_rub,
-          traffic_gb: selectedTariff.traffic_gb,
-          ip_limit: selectedTariff.ip_limit,
-          duration_days: selectedTariff.duration_days,
-          servers: selectedTariff.servers,
+          name: activeTariff.name,
+          price_rub: activeTariff.price_rub,
+          traffic_gb: activeTariff.traffic_gb,
+          ip_limit: activeTariff.ip_limit,
+          duration_days: activeTariff.duration_days,
+          servers: activeTariff.servers,
         },
       });
       setCheckoutResult(result);
@@ -290,7 +341,7 @@ export default function SubscribePage() {
     : (availableMethods[0] as PaymentMethod | undefined) || "card";
 
   const amountInfo = useMemo(() => {
-    if (!selectedTariff) return null;
+    if (!activeTariff) return null;
     if (checkoutResult) {
       return {
         original: checkoutResult.original_amount_rub,
@@ -298,13 +349,13 @@ export default function SubscribePage() {
         percent: checkoutResult.discount_percent,
       };
     }
-    const original = selectedTariff.price_rub;
+    const original = activeTariff.price_rub;
     const percent = userDiscountPercent || 0;
     const discounted = percent
       ? roundHalfToEven(original * (1 - percent / 100))
       : original;
     return { original, discounted, percent };
-  }, [checkoutResult, selectedTariff, userDiscountPercent]);
+  }, [checkoutResult, activeTariff, userDiscountPercent]);
 
   useEffect(() => {
     if ((checkoutResult || trialDone) && !processing) {
@@ -412,16 +463,16 @@ export default function SubscribePage() {
             <div className="profile-info">
               <h1 className="profile-name">{t("buttons.buy")}</h1>
               <p className="profile-username">
-                {step === "select" && t("texts.tariffs")}
-                {step === "offer" && t("texts.public_offer")}
-                {step === "payment" && t("texts.payment_title")}
+                {activeStep === "select" && t("texts.tariffs")}
+                {activeStep === "offer" && t("texts.public_offer")}
+                {activeStep === "payment" && t("texts.payment_title")}
               </p>
             </div>
           </div>
 
-          {error && <div className="error-message">{error}</div>}
+          {activeError && <div className="error-message">{activeError}</div>}
 
-          {step === "select" && (
+          {activeStep === "select" && (
             <div className="pinned-section fade-in">
               <h2>{t("texts.tariffs")}</h2>
               <div className="pinned-content">
@@ -494,7 +545,7 @@ export default function SubscribePage() {
             </div>
           )}
 
-          {step === "select" && features?.features?.custom_tariff && (
+          {activeStep === "select" && features?.features?.custom_tariff && (
             <div className="pinned-section fade-in delay-1">
               <h2>{t("texts.custom_tariff")}</h2>
               <div className="pinned-content">
@@ -928,28 +979,28 @@ export default function SubscribePage() {
             </div>
           )}
 
-          {step === "offer" && selectedTariff && (
+          {activeStep === "offer" && activeTariff && (
             <div className="pinned-section fade-in">
               <h2>{t("texts.public_offer")}</h2>
               <div className="pinned-content">
                 <div className="mt-4">
                   <div className="card" style={{ marginBottom: "16px" }}>
-                    <h3>{selectedTariff.name}</h3>
+                    <h3>{activeTariff.name}</h3>
                     <p
                       className="text-secondary"
                       style={{ fontSize: "14px", marginTop: "8px" }}
                     >
-                      {selectedTariff.price_rub} ₽ ·{" "}
+                      {activeTariff.price_rub} ₽ ·{" "}
                       {t("texts.duration_days", {
-                        days: selectedTariff.duration_days,
+                        days: activeTariff.duration_days,
                       })}{" "}
                       ·{" "}
-                      {selectedTariff.traffic_gb === 0
+                      {activeTariff.traffic_gb === 0
                         ? t("texts.unlimited")
                         : t("texts.traffic_gb", {
-                            value: selectedTariff.traffic_gb,
+                            value: activeTariff.traffic_gb,
                           })}{" "}
-                      · {selectedTariff.ip_limit} {t("texts.ips")}
+                      · {activeTariff.ip_limit} {t("texts.ips")}
                     </p>
                   </div>
                   <p
@@ -964,7 +1015,7 @@ export default function SubscribePage() {
                   </blockquote>
                   <div className="flex-center gap-3 mt-4">
                     <button
-                      onClick={() => setStep("select")}
+                      onClick={handleBackToSelect}
                       className="button"
                       style={{ flex: 1, background: "var(--bg-tertiary)" }}
                     >
@@ -983,8 +1034,8 @@ export default function SubscribePage() {
             </div>
           )}
 
-          {step === "payment" &&
-            selectedTariff &&
+          {activeStep === "payment" &&
+            activeTariff &&
             availableMethods.length > 0 && (
               <div className="pinned-section fade-in">
                 <h2>{t("texts.payment_title")}</h2>
@@ -996,7 +1047,7 @@ export default function SubscribePage() {
                           {t("texts.plan")}:{" "}
                         </span>
                         <span style={{ fontWeight: "600" }}>
-                          {selectedTariff.name}
+                          {activeTariff.name}
                         </span>
                       </div>
                       <div className="mb-4">
@@ -1092,8 +1143,7 @@ export default function SubscribePage() {
                               color: "var(--accent)",
                             }}
                           >
-                            {amountInfo?.discounted ?? selectedTariff.price_rub}{" "}
-                            ₽
+                            {amountInfo?.discounted ?? activeTariff.price_rub} ₽
                           </span>
                         )}
                       </div>
@@ -1168,7 +1218,11 @@ export default function SubscribePage() {
                     {!checkoutResult && trialDone === false && (
                       <div className="flex-center gap-3">
                         <button
-                          onClick={() => setStep("offer")}
+                          onClick={() => {
+                            setSelectedTariff(activeTariff);
+                            setUrlSelectionDismissed(true);
+                            setStep("offer");
+                          }}
                           className="button"
                           style={{ flex: 1, background: "var(--bg-tertiary)" }}
                         >
@@ -1176,7 +1230,7 @@ export default function SubscribePage() {
                         </button>
                         <button
                           onClick={
-                            selectedTariff.id === "custom"
+                            activeTariff.id === "custom"
                               ? handlePayCustom
                               : handlePay
                           }

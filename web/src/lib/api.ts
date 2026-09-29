@@ -110,7 +110,10 @@ function readEndpointCooldown(path: string): number {
 function setEndpointCooldown(path: string, ms: number): void {
   if (typeof localStorage === "undefined") return;
   try {
-    localStorage.setItem(COOLDOWN_STORAGE_PREFIX + path, String(Date.now() + ms));
+    localStorage.setItem(
+      COOLDOWN_STORAGE_PREFIX + path,
+      String(Date.now() + ms),
+    );
   } catch {
     // ignore
   }
@@ -170,17 +173,6 @@ function extractErrorMessage(
   return raw;
 }
 
-function isSessionError(message: string): boolean {
-  const lower = message.toLowerCase();
-  return (
-    lower.includes("unauthorized") ||
-    lower.includes("invalid session") ||
-    lower.includes("invalid_session") ||
-    lower.includes("http 401") ||
-    lower === "unauthorized"
-  );
-}
-
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
@@ -209,12 +201,7 @@ export async function fetchJson<T>(
 
   const blockedUntil = readEndpointCooldown(endpointPath(target));
   if (blockedUntil > 0) {
-    throw new ApiError(
-      t("texts.rate_limited"),
-      429,
-      "rate_limited",
-      false,
-    );
+    throw new ApiError(t("texts.rate_limited"), 429, "rate_limited", false);
   }
 
   const headers: Record<string, string> = {
@@ -257,7 +244,11 @@ export async function fetchJson<T>(
     const message = extractErrorMessage(payload, res.status);
     const code = typeof payload.error === "string" ? payload.error : "error";
 
-    if (res.status === 401 || authExpired) {
+    // Автовыход - ТОЛЬКО когда прокси подтвердил потерю сессии
+    // (auth_expired выставляется им только при наличии cookie).
+    // Голый 401 у гостя - это обычный ответ на запрос без токена,
+    // и реагировать на него нельзя, иначе гостя выкидывает на /login.
+    if (authExpired) {
       clearStoredUser();
       notifySessionLost();
     }
@@ -272,7 +263,10 @@ export async function fetchJson<T>(
       message,
       res.status,
       code,
-      authExpired || (res.status === 401 && isSessionError(message)),
+      // authExpired приходит только от прокси и означает реальную
+      // потерю сессии. Эвристика по тексту сообщения больше не нужна:
+      // она срабатывала на любом 401, включая запросы гостя.
+      authExpired,
     );
   }
 
@@ -290,14 +284,18 @@ export async function fetchJson<T>(
 // ==========================================
 
 export async function getPartnerPublicInfo(): Promise<PartnerPublicInfoResponse> {
-  return fetchJson<PartnerPublicInfoResponse>(`${API_BASE_URL}/partner/public-info`);
+  return fetchJson<PartnerPublicInfoResponse>(
+    `${API_BASE_URL}/partner/public-info`,
+  );
 }
 
 export async function getHealth() {
   if (!rateLimit("health", 2000)) {
     throw new ApiError(t("texts.rate_limited"), 429, "rate_limited");
   }
-  return fetchJson<{ status: string; version: string }>(`${API_BASE_URL}/health`);
+  return fetchJson<{ status: string; version: string }>(
+    `${API_BASE_URL}/health`,
+  );
 }
 
 export async function getFeatures() {
@@ -341,7 +339,9 @@ export async function getTariffs(): Promise<Tariff[]> {
 
 export async function getLocations(): Promise<Location[]> {
   try {
-    const data = await fetchJson<LocationsResponse>(`${API_BASE_URL}/locations`);
+    const data = await fetchJson<LocationsResponse>(
+      `${API_BASE_URL}/locations`,
+    );
     return data.locations || [];
   } catch {
     return [];
@@ -430,19 +430,25 @@ export async function changeLanguage(language: string) {
 export async function createSubscription(
   req: CreateSubscriptionRequest,
 ): Promise<SubscriptionPaymentRequest> {
-  return fetchJson<SubscriptionPaymentRequest>(`${API_BASE_URL}/subscription/create`, {
-    method: "POST",
-    body: JSON.stringify(req),
-  });
+  return fetchJson<SubscriptionPaymentRequest>(
+    `${API_BASE_URL}/subscription/create`,
+    {
+      method: "POST",
+      body: JSON.stringify(req),
+    },
+  );
 }
 
 export async function renewSubscription(
   req: CreateSubscriptionRequest,
 ): Promise<SubscriptionPaymentRequest> {
-  return fetchJson<SubscriptionPaymentRequest>(`${API_BASE_URL}/subscription/renew`, {
-    method: "POST",
-    body: JSON.stringify(req),
-  });
+  return fetchJson<SubscriptionPaymentRequest>(
+    `${API_BASE_URL}/subscription/renew`,
+    {
+      method: "POST",
+      body: JSON.stringify(req),
+    },
+  );
 }
 
 export async function trialSubscription() {
@@ -452,9 +458,12 @@ export async function trialSubscription() {
 export async function getSubscriptionLink(
   signal?: AbortSignal,
 ): Promise<SubscriptionLinkResponse> {
-  return fetchJson<SubscriptionLinkResponse>(`${API_BASE_URL}/subscription/link`, {
-    signal,
-  });
+  return fetchJson<SubscriptionLinkResponse>(
+    `${API_BASE_URL}/subscription/link`,
+    {
+      signal,
+    },
+  );
 }
 
 export async function addTraffic(gb: number) {
@@ -467,10 +476,13 @@ export async function addTraffic(gb: number) {
 export async function createCheckout(
   req: CreateCheckoutRequest,
 ): Promise<CheckoutResponse> {
-  return fetchJson<CheckoutResponse>(`${API_BASE_URL}/payments/create-checkout`, {
-    method: "POST",
-    body: JSON.stringify(req),
-  });
+  return fetchJson<CheckoutResponse>(
+    `${API_BASE_URL}/payments/create-checkout`,
+    {
+      method: "POST",
+      body: JSON.stringify(req),
+    },
+  );
 }
 
 export async function getReferralStats(): Promise<ReferralStatsResponse> {

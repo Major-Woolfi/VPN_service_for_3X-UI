@@ -53,9 +53,18 @@ export function proxy(request: NextRequest): NextResponse {
   );
 
   if (isGuestOnly && authenticated) {
+    // Сессия уже помечена как истёкшая или забанена - редирект обратно
+    // на /profile замкнул бы петлю. Пропускаем на страницу входа,
+    // cookie будет удалена в /api/session/expired.
+    const reason = request.nextUrl.searchParams.get("reason");
+    if (reason === "session_expired" || reason === "banned") {
+      return NextResponse.next({ request: { headers: requestHeaders } });
+    }
     const next = request.nextUrl.searchParams.get("next");
     const target =
-      next && next.startsWith("/") && !next.startsWith("//") ? next : "/profile";
+      next && next.startsWith("/") && !next.startsWith("//")
+        ? next
+        : "/profile";
     return NextResponse.redirect(new URL(target, request.url));
   }
 

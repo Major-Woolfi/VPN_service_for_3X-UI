@@ -917,9 +917,7 @@ export default function PartnerPage() {
                   className="button"
                   style={{ width: "100%" }}
                   onClick={() => {
-                    setRenewMonths(
-                      String(user?.mate_period_months || 1),
-                    );
+                    setRenewMonths(String(user?.mate_period_months || 1));
                     setMessage("");
                     setIsError(false);
                     setShowRenewForm((prev) => !prev);
@@ -980,7 +978,9 @@ export default function PartnerPage() {
                     className="number-btn"
                     onClick={() =>
                       setRenewMonths(
-                        String(Math.max(1, (parseInt(renewMonths, 10) || 1) - 1)),
+                        String(
+                          Math.max(1, (parseInt(renewMonths, 10) || 1) - 1),
+                        ),
                       )
                     }
                   >

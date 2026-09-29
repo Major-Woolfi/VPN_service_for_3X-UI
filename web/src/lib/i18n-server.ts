@@ -2,7 +2,20 @@
 // Используется в Server Components; fallback берётся из доступных языков
 
 import { SERVER_LANGUAGES } from "./i18n-generated";
-import type { TranslationData } from "./i18n-types";
+import type { LegalDocument, TranslationData } from "./i18n-types";
+
+export type { LegalDocument, LegalSection } from "./i18n-types";
+
+export const LEGAL_DOCUMENT_KEYS = ["tos", "privacy", "offer"] as const;
+
+export type LegalDocumentKey = (typeof LEGAL_DOCUMENT_KEYS)[number];
+
+export interface SiteCopy {
+  siteDescription: string;
+  siteTitle: string;
+  twitterDescription: string;
+  legal: Record<LegalDocumentKey, LegalDocument>;
+}
 
 function getDefaultLanguage(): string {
   const configured = process.env.NEXT_PUBLIC_DEFAULT_LANGUAGE;
@@ -33,8 +46,9 @@ function replacePlaceholders(
   text: string,
   params?: Record<string, string | number>,
 ): string {
-  // Глобальная замена {vpnName}
+  // Глобальная замена {vpnName} и {siteName}
   let result = text.replace(/\{vpnName\}/g, VPN_NAME);
+  result = result.replace(/\{siteName\}/g, VPN_NAME);
 
   // Замена пользовательских плейсхолдеров
   if (params) {
@@ -125,4 +139,81 @@ export function resolveLanguage(
 ): string {
   if (cookieLang && SERVER_LANGUAGES[cookieLang]) return cookieLang;
   return detectLanguage(acceptLanguage);
+}
+
+export function normalizeServerLanguage(value?: string): string {
+  const code = value?.toLowerCase().split(/[-_]/)[0];
+  return code && SERVER_LANGUAGES[code] ? code : FALLBACK_LANG;
+}
+
+function formatLegalDocument(doc: Partial<LegalDocument>): LegalDocument {
+  return {
+    title: replacePlaceholders(doc.title || ""),
+    subtitle: replacePlaceholders(doc.subtitle || ""),
+    effectiveDate: doc.effectiveDate || "",
+    sections: Array.isArray(doc.sections)
+      ? doc.sections.map((section) => ({
+          title: replacePlaceholders(section.title || ""),
+          content: replacePlaceholders(section.content || "").replace(
+            /\r?\n/g,
+            "<br>",
+          ),
+        }))
+      : [],
+  };
+}
+
+function buildFallbackLegal(): Record<LegalDocumentKey, LegalDocument> {
+  const data = SERVER_LANGUAGES[FALLBACK_LANG];
+  return {
+    tos: formatLegalDocument(data.legal?.tos || {}),
+    privacy: formatLegalDocument(data.legal?.privacy || {}),
+    offer: formatLegalDocument(data.legal?.offer || {}),
+  };
+}
+
+const FALLBACK_LEGAL = buildFallbackLegal();
+
+export function getServerLegalDocument(
+  lang: string,
+  key: LegalDocumentKey,
+): LegalDocument {
+  const fallback = FALLBACK_LEGAL[key];
+  const doc = SERVER_LANGUAGES[lang]?.legal?.[key];
+  if (!doc?.title) return fallback;
+
+  const formatted = formatLegalDocument(doc);
+  return {
+    title: formatted.title || fallback.title,
+    subtitle: formatted.subtitle || fallback.subtitle,
+    effectiveDate: formatted.effectiveDate || fallback.effectiveDate,
+    sections:
+      formatted.sections.length > 0 ? formatted.sections : fallback.sections,
+  };
+}
+
+export function getServerSiteCopy(language?: string): SiteCopy {
+  const lang = normalizeServerLanguage(language);
+  const data = SERVER_LANGUAGES[lang] || SERVER_LANGUAGES[FALLBACK_LANG];
+  const fallbackData = SERVER_LANGUAGES[FALLBACK_LANG];
+
+  const pick = (key: string): string => {
+    const value = resolveTranslation(data, key);
+    if (value !== undefined) return replacePlaceholders(value);
+    const fallbackValue = resolveTranslation(fallbackData, key);
+    return fallbackValue !== undefined
+      ? replacePlaceholders(fallbackValue)
+      : "";
+  };
+
+  return {
+    siteDescription: pick("texts.siteDescription"),
+    siteTitle: pick("texts.siteTitle"),
+    twitterDescription: pick("texts.twitterDescription"),
+    legal: {
+      tos: getServerLegalDocument(lang, "tos"),
+      privacy: getServerLegalDocument(lang, "privacy"),
+      offer: getServerLegalDocument(lang, "offer"),
+    },
+  };
 }

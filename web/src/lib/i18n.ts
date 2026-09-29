@@ -102,6 +102,7 @@ function replacePlaceholders(
   params?: Record<string, string | number>,
 ): string {
   let result = text.replace(/\{vpnName\}/g, VPN_NAME);
+  result = result.replace(/\{siteName\}/g, VPN_NAME);
   if (params) {
     Object.entries(params).forEach(([k, v]) => {
       const escapedK = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

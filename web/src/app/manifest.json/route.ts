@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies, headers } from "next/headers";
-import { getSiteCopy } from "@/data/legal";
-import { resolveLanguage } from "@/lib/i18n-server";
+import { getServerSiteCopy, resolveLanguage } from "@/lib/i18n-server";
 
 export async function GET() {
   const cookieStore = await cookies();
@@ -11,7 +10,7 @@ export async function GET() {
     headerStore.get("accept-language") || undefined,
   );
   const siteName = process.env.NEXT_PUBLIC_VPN_NAME || "VPN";
-  const copy = getSiteCopy(lang);
+  const copy = getServerSiteCopy(lang);
   const manifest = {
     name: siteName,
     short_name: siteName,

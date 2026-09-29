@@ -1,6 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { SESSION_COOKIE_NAME, UPSTREAM_TIMEOUT_MS, getBotApiBase } from "@/lib/server/bot-proxy";
+import {
+  SESSION_COOKIE_NAME,
+  UPSTREAM_TIMEOUT_MS,
+  getBotApiBase,
+} from "@/lib/server/bot-proxy";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -26,12 +30,34 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const response = NextResponse.redirect(
     new URL("/login?reason=session_expired", request.url),
   );
-  response.cookies.set(SESSION_COOKIE_NAME, "", {
+  // Чистим cookie с maxAge=0 по всем возможным префиксам домена.
+  // Без этого остатки старой cookie (например, после смены домена
+  // или SESSION_SECRET) переживают редирект и снова ловят гостя
+  // в петлю редиректов.
+  const host = request.headers.get("host") || "";
+  const domain = host.split(":")[0];
+  const isIp = /^\d{1,3}(\.\d{1,3}){3}$/.test(domain);
+
+  for (const opts of isIp
+    ? [{ path: "/" }]
+    : [{ path: "/" }, { path: "/", domain }]) {
+    response.cookies.set(SESSION_COOKIE_NAME, "", {
+      ...opts,
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 0,
+    });
+  }
+
+  // Страница входа чистит клиентский кэш пользователя, чтобы сайт
+  // не выглядел залогиненным после принудительного выхода.
+  response.cookies.set("vpn_clear_cache", "1", {
     path: "/",
-    httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
-    maxAge: 0,
+    maxAge: 60,
   });
+
   return response;
 }

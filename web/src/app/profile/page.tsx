@@ -307,7 +307,10 @@ export default function ProfilePage() {
                       }}
                     >
                       {renewError && (
-                        <div className="error-message" style={{ marginBottom: "12px" }}>
+                        <div
+                          className="error-message"
+                          style={{ marginBottom: "12px" }}
+                        >
                           {renewError}
                         </div>
                       )}

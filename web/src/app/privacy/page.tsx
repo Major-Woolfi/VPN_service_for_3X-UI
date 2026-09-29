@@ -1,7 +1,10 @@
 import { cookies, headers } from "next/headers";
 import Header from "@/components/Header";
-import { tServer, resolveLanguage } from "@/lib/i18n-server";
-import { getSiteCopy } from "@/data/legal";
+import {
+  tServer,
+  resolveLanguage,
+  getServerLegalDocument,
+} from "@/lib/i18n-server";
 import { SafeHTML } from "@/components/SafeHTML";
 
 export default async function PrivacyPage() {
@@ -13,7 +16,7 @@ export default async function PrivacyPage() {
   );
   const t = (key: string, params?: Record<string, string | number>) =>
     tServer(lang, key, params);
-  const copy = getSiteCopy(lang);
+  const copy = getServerLegalDocument(lang, "privacy");
 
   return (
     <>
@@ -22,8 +25,8 @@ export default async function PrivacyPage() {
         <div className="profile">
           <div className="profile-header no-avatar">
             <div className="profile-info">
-              <h1 className="profile-name">{copy.legal.privacy.title}</h1>
-              <p className="profile-username">{copy.legal.privacy.subtitle}</p>
+              <h1 className="profile-name">{copy.title}</h1>
+              <p className="profile-username">{copy.subtitle}</p>
             </div>
           </div>
 
@@ -38,11 +41,11 @@ export default async function PrivacyPage() {
                 >
                   <strong>
                     {t("texts.effective_date", {
-                      date: copy.legal.privacy.effectiveDate,
+                      date: copy.effectiveDate,
                     })}
                   </strong>
                 </p>
-                {copy.legal.privacy.sections.map((section, idx) => (
+                {copy.sections.map((section, idx) => (
                   <div key={idx}>
                     <h2 style={{ marginTop: idx === 0 ? "0" : "24px" }}>
                       {section.title}

@@ -92,8 +92,15 @@ export function AuthProvider({
         return userData;
       } catch (error) {
         if (!mountedRef.current) return null;
-        if (error instanceof ApiError && (error.authExpired || error.status === 401)) {
+        if (error instanceof ApiError && error.authExpired) {
+          // Прокси ставит auth_expired только когда cookie была,
+          // а апстрим ответил 401: сессия действительно потеряна.
           dropSession();
+          return null;
+        }
+        if (error instanceof ApiError && error.status === 401) {
+          // Голый 401 без auth_expired - cookie не было вовсе.
+          // Это обычный ответ гостя, автовыход здесь не нужен.
           return null;
         }
         if (error instanceof ApiError && error.status === 403) {
@@ -118,6 +125,31 @@ export function AuthProvider({
     };
   }, []);
 
+  // После server-side логина router.refresh() приносит новый initialUser.
+  // Без синхронизации состояние оставалось null и /profile вечно показывал
+  // «Загрузка» до ручного F5.
+  // Синхронизация выполняется в render-фазе (документированный паттерн React
+  // «Adjusting state when a prop changes»), а не через setState в эффекте:
+  // это не даёт каскадных ререндеров и не нарушает правила линтера.
+  const initialUserSignature = initialUser ? JSON.stringify(initialUser) : "";
+  const [syncedSignature, setSyncedSignature] = useState(initialUserSignature);
+  if (initialUserSignature && initialUserSignature !== syncedSignature) {
+    setSyncedSignature(initialUserSignature);
+    setIsBanned(false);
+    setBanReason("");
+    setUser(initialUser);
+    setLoading(false);
+  }
+
+  // localStorage, язык и флаг потери сессии - внешние системы,
+  // их синхронизируем в эффекте, а не в render-фазе.
+  useEffect(() => {
+    if (!initialUser) return;
+    sessionLostRef.current = false;
+    writeStoredUser(initialUser);
+    if (initialUser.language) syncLangFromDb(initialUser.language);
+  }, [initialUser]);
+
   useEffect(() => {
     const onSessionLost = () => dropSession();
     window.addEventListener(SESSION_LOST_EVENT, onSessionLost);
@@ -126,16 +158,19 @@ export function AuthProvider({
 
   useEffect(() => {
     if (initialUser) {
-      writeStoredUser(initialUser);
-      if (initialUser.language) syncLangFromDb(initialUser.language);
-      setLoading(false);
+      // loading уже инициализирован как false, когда initialUser пришёл с сервера.
       return;
     }
-    // Профиль уже пришёл с сервера - повторный запрос не нужен.
+    // Кэш из localStorage нужен только до ответа сервера, поэтому он
+    // обновляется в асинхронном колбэке, а не синхронно в теле эффекта.
     const cached = readStoredUser<SanitizedUser>();
     if (cached) {
-      setUser(cached);
-      setLoading(false);
+      queueMicrotask(() => {
+        if (mountedRef.current) {
+          setUser(cached);
+          setLoading(false);
+        }
+      });
     }
     let cancelled = false;
     loadUser().finally(() => {
