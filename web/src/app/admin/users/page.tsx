@@ -120,55 +120,38 @@ export default function AdminUsersPage() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <div style={{ overflowX: "auto", marginTop: "16px" }}>
-                <table
-                  style={{
-                    width: "100%",
-                    borderCollapse: "collapse",
-                    fontSize: "14px",
-                  }}
-                >
+              <div className="data-table-wrap">
+                <table className="data-table">
                   <thead>
-                    <tr
-                      style={{ borderBottom: "2px solid var(--border-color)" }}
-                    >
-                      <th style={{ padding: "12px", textAlign: "left" }}>
-                        {t("texts.user_id")}
-                      </th>
-                      <th style={{ padding: "12px", textAlign: "left" }}>
-                        {t("texts.admin_user_username")}
-                      </th>
-                      <th style={{ padding: "12px", textAlign: "left" }}>
-                        {t("texts.telegram_id_label")}
-                      </th>
-                      <th style={{ padding: "12px", textAlign: "left" }}>
-                        {t("texts.subscription_status")}
-                      </th>
-                      <th style={{ padding: "12px", textAlign: "left" }}>
-                        {t("buttons.partner")}
-                      </th>
-                      <th style={{ padding: "12px", textAlign: "left" }}>
-                        {t("texts.trust_score")}
-                      </th>
-                      <th style={{ padding: "12px", textAlign: "left" }}>
-                        {t("texts.abuse")}
-                      </th>
+                    <tr>
+                      <th>{t("texts.user_id")}</th>
+                      <th>{t("texts.admin_user_username")}</th>
+                      <th>{t("texts.telegram_id_label")}</th>
+                      <th>{t("texts.subscription_status")}</th>
+                      <th>{t("buttons.partner")}</th>
+                      <th>{t("texts.trust_score")}</th>
+                      <th>{t("texts.abuse")}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredUsers.map((u) => (
-                      <tr
-                        key={u.user_id}
-                        style={{
-                          borderBottom: "1px solid var(--border-color)",
-                        }}
-                      >
-                        <td style={{ padding: "12px" }}>{u.user_id}</td>
-                        <td style={{ padding: "12px" }}>{u.username || "-"}</td>
-                        <td style={{ padding: "12px" }}>
+                      <tr key={u.user_id}>
+                        <td
+                          className="data-num"
+                          data-label={t("texts.user_id")}
+                        >
+                          {u.user_id}
+                        </td>
+                        <td data-label={t("texts.admin_user_username")}>
+                          {u.username || "-"}
+                        </td>
+                        <td
+                          className="data-num"
+                          data-label={t("texts.telegram_id_label")}
+                        >
                           {u.telegram_id || "-"}
                         </td>
-                        <td style={{ padding: "12px" }}>
+                        <td data-label={t("texts.subscription_status")}>
                           <span
                             style={{
                               padding: "4px 8px",
@@ -187,7 +170,7 @@ export default function AdminUsersPage() {
                               : t("texts.no")}
                           </span>
                         </td>
-                        <td style={{ padding: "12px" }}>
+                        <td data-label={t("buttons.partner")}>
                           <span
                             style={{
                               padding: "4px 8px",
@@ -204,8 +187,13 @@ export default function AdminUsersPage() {
                             {u.is_mate ? t("texts.yes") : t("texts.no")}
                           </span>
                         </td>
-                        <td style={{ padding: "12px" }}>{u.trust_score}</td>
-                        <td style={{ padding: "12px" }}>
+                        <td
+                          className="data-num"
+                          data-label={t("texts.trust_score")}
+                        >
+                          {u.trust_score}
+                        </td>
+                        <td data-label={t("texts.abuse")}>
                           {u.abuse_status ? (
                             <span
                               style={{

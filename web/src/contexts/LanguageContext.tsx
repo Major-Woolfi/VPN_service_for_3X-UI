@@ -26,8 +26,16 @@ const LanguageContext = createContext<LanguageContextType | undefined>(
   undefined,
 );
 
-export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [lang, setLang] = useState(() => getCurrentLang());
+export function LanguageProvider({
+  children,
+  initialLang,
+}: {
+  children: ReactNode;
+  initialLang?: string;
+}) {
+  // Seed from the server-resolved language so SSR markup and the first
+  // client render match; otherwise hydration would flash the fallback.
+  const [lang, setLang] = useState(() => initialLang || getCurrentLang());
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -48,16 +56,16 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   const t = useCallback(
     (key: string, params?: Record<string, string | number>) => {
-      return translate(key, params);
+      return translate(key, params, lang);
     },
-    [],
+    [lang],
   );
 
   const tHtml = useCallback(
     (key: string, params?: Record<string, string | number>) => {
-      return translateHtml(key, params);
+      return translateHtml(key, params, lang);
     },
-    [],
+    [lang],
   );
 
   return (

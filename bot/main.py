@@ -2243,6 +2243,7 @@ class Database:
         "ref_code": "TEXT",
         "ref_by": "INTEGER",
         "ref_rewarded": "INTEGER",
+        "ref_bonus_given": "INTEGER",
         "bonus_days_pending": "INTEGER",
         "trial_used": "INTEGER",
         "has_subscription": "INTEGER",
@@ -2390,6 +2391,7 @@ class Database:
                         ref_code TEXT,
                         ref_by INTEGER,
                         ref_rewarded INTEGER DEFAULT 0,
+                        ref_bonus_given INTEGER DEFAULT 0,
                         bonus_days_pending INTEGER DEFAULT 0,
                         trial_used INTEGER DEFAULT 0,
                         has_subscription INTEGER DEFAULT 0,
@@ -3322,6 +3324,26 @@ class Database:
                 return cursor.rowcount > 0
         except Exception as e:  # noqa: BLE001
             logger.error(f"mark_ref_rewarded {user_id}: {e}")
+            return False
+
+    @log_error
+    async def mark_ref_bonus_given(self, user_id: int) -> bool:
+        """Ставит флаг, что бонус пригласившего уже выдан приглашённому."""
+        user = await self.get_user_by_any_id(user_id)
+        if not user:
+            return False
+        internal_uid = user.get("user_id", user_id)
+        try:
+            async with self.lock:
+                cursor = await self.conn.execute(
+                    """UPDATE users SET ref_bonus_given = 1
+                    WHERE user_id = ? AND COALESCE(ref_bonus_given, 0) = 0""",
+                    (internal_uid,),
+                )
+                await self.conn.commit()
+                return cursor.rowcount > 0
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"mark_ref_bonus_given {user_id}: {e}")
             return False
 
     @log_error
@@ -4883,6 +4905,26 @@ async def _ensure_partner_ops_file() -> None:
     await storage._ensure_file()
 
 
+PARTNER_OP_ID_PREFIX = {
+    "partner_new": "pn",
+    "partner_renewal": "pr",
+    "partner_withdrawal": "pw",
+}
+# Короткие префиксы: 64 байта - жёсткий лимит Telegram callback_data.
+PARTNER_OP_ACCEPT_CB = "p_acc"
+PARTNER_OP_REJECT_CB = "p_rej"
+
+
+def build_partner_operation_id(user_id: int, op_type: str) -> str:
+    """Короткий ID операции.
+
+    Полный op_type в ID не помещался вместе с префиксом callback_data
+    в лимит Telegram в 64 байта (BUTTON_DATA_INVALID).
+    """
+    code = PARTNER_OP_ID_PREFIX.get(op_type, "po")
+    return f"{code}_{user_id}_{int(time.time() * 1000)}"
+
+
 async def add_partner_operation(user_id: int, op_type: str, data: dict[str, Any]) -> str | None:
     try:
         storage = _get_partner_storage()
@@ -4900,7 +4942,7 @@ async def add_partner_operation(user_id: int, op_type: str, data: dict[str, Any]
                     f"У пользователя {user_id} уже есть pending/processing операция типа {op_type}"
                 )
                 return None
-            op_id = f"partner_{op_type}_{user_id}_{int(time.time() * 1000)}"
+            op_id = build_partner_operation_id(user_id, op_type)
             operation = {
                 "operation_id": op_id,
                 "user_id": user_id,
@@ -7605,6 +7647,23 @@ async def _ensure_admin_subscription(admin_id: int) -> bool:
                 except Exception as e:  # noqa: BLE001
                     logger.warning(f"Admin {telegram_id}: не удалось удалить {stale_email}: {e}")
 
+            # Свою подписку (тестовую или купленную) админу не перетираем:
+            # иначе автосинхронизация сразу после выдачи теста снова
+            # вернула бы план Admin. Канонический Admin-клиент на панели
+            # при этом остаётся доступен через /api/v1/users/{uid}/subscribe.
+            own_subscription_id = str(user_data.get("subscription_id") or "").strip()
+            has_own_subscription = (
+                bool(user_data.get("has_subscription"))
+                and bool(user_data.get("vpn_url"))
+                and own_subscription_id != admin_sub_id
+            )
+            if has_own_subscription:
+                logger.info(
+                    f"Admin {telegram_id}: план '{own_subscription_id}' сохранён, "
+                    f"автосинхронизация Admin-подписки пропущена"
+                )
+                return True
+
             expiry_dt = datetime.now(timezone.utc) + timedelta(days=days)
             expiry_sub_datatime = expiry_dt.isoformat()
             await db.set_subscription(
@@ -8067,10 +8126,166 @@ async def notify_expiring_subscription(
         return False
 
 
-async def reward_referrer(referrer_id: int, bonus_days: int) -> bool:
+def resolve_referral_bonus_spec(referrer: dict[str, Any] | None) -> tuple[str, int]:
+    """Тип и размер бонуса, который пригласивший даёт приглашённому.
+
+    Партнёр задаёт бонус сам (дни или очки доверия), обычный реферер
+    всегда даёт бонусные дни.
+    """
+    if referrer and referrer.get("is_mate"):
+        bonus_type = str(referrer.get("mate_bonus_type", "") or "days").strip().lower()
+        bonus_value = to_int(referrer.get("mate_bonus_value"), 0)
+        if bonus_value > 0:
+            if bonus_type == "trust":
+                return "trust", bonus_value
+            return "days", bonus_value
+    return "days", Config.REF_BONUS_DAYS
+
+
+def resolve_referrer_display_name(referrer: dict[str, Any] | None) -> str:
+    """Как показать пригласившего в тексте бонуса.
+
+    У партнёра есть никнейм, у обычного пользователя - только username
+    или UID. Без этого в сообщении светится прочерк.
+    """
+    if not referrer:
+        return "-"
+    nickname = str(referrer.get("mate_nickname", "") or "").strip()
+    if nickname:
+        return nickname
+    username = str(referrer.get("username", "") or "").strip()
+    if username:
+        return f"@{username}"
+    return f"UID {to_int(referrer.get('user_id'), 0)}"
+
+
+async def notify_referee_bonus_ready(
+    uid: int,
+    bonus_type: str,
+    bonus_value: int,
+    referrer_name: str = "",
+    is_partner: bool = False,
+) -> None:
+    """Уведомление приглашённому о том, какой бонус ему положен.
+
+    Тексты разделяются по статусу ПРИГЛАСИВШЕГО, а не приглашённого:
+    ссылка партнёра и обычная рефералка - разные программы.
+    """
+    user = await db.get_user_by_any_id(uid)
+    if not user:
+        return
+    tg_id = to_int(user.get("telegram_id"), uid)
+    lang = await get_user_language(tg_id)
+    if bonus_type == "trust":
+        key = (
+            "texts.ref_bonus_trust_granted_partner"
+            if is_partner
+            else "texts.ref_bonus_trust_granted"
+        )
+        await notify_user(
+            tg_id,
+            translate(
+                lang,
+                key,
+                points=bonus_value,
+                inviter=referrer_name or "-",
+            ),
+        )
+        return
+    key = "texts.ref_bonus_days_pending_partner" if is_partner else "texts.ref_bonus_days_pending"
+    await notify_user(
+        tg_id,
+        translate(
+            lang,
+            key,
+            days=format_duration(bonus_value),
+            inviter=referrer_name or "-",
+        ),
+    )
+
+
+async def grant_referee_bonus_on_registration(uid: int, referrer: dict[str, Any] | None) -> None:
+    """Бонус приглашённому сразу после регистрации.
+
+    Очки доверия начисляются сразу, бонусные дни ждут первой оплаты.
+    """
+    if not referrer or uid <= 0:
+        return
+    if await db.get_user_by_any_id(uid) and to_int(
+        (await db.get_user_by_any_id(uid)).get("ref_bonus_given"), 0
+    ):
+        return
+    bonus_type, bonus_value = resolve_referral_bonus_spec(referrer)
+    if bonus_value <= 0:
+        return
+    # Статус пригласившего определяет набор текстов: партнёрская ссылка
+    # и обычная рефералка - это разные программы.
+    is_partner = bool(referrer.get("is_mate"))
+    referrer_name = resolve_referrer_display_name(referrer)
+    if bonus_type == "trust":
+        if not await db.add_trust_score(uid, bonus_value):
+            logger.error(f"Не удалось начислить бонус очков приглашённому {uid}")
+            return
+        if not await db.mark_ref_bonus_given(uid):
+            await db.add_trust_score(uid, -bonus_value)
+            return
+    await notify_referee_bonus_ready(uid, bonus_type, bonus_value, referrer_name, is_partner)
+    logger.info(
+        f"Бонус приглашённому {uid}: тип={bonus_type}, значение={bonus_value}, партнёр={is_partner}"
+    )
+
+
+async def reward_referrer(
+    referrer_id: int,
+    bonus_days: int,
+    is_partner: bool = False,
+    is_referee: bool = False,
+) -> bool:
+    """Выдать бонусные дни.
+
+    Функция обслуживает двух разных получателей: пригласившего (бонус за
+    оплатившего реферала) и самого приглашённого (обещанные дни после его
+    первой оплаты). Это разные события, поэтому у них разные тексты.
+    """
     user = await db.get_user_by_any_id(referrer_id)
     if not user:
         return False
+    if is_referee:
+        # Приглашённый получает ранее обещанные дни.
+        added_key = (
+            "texts.ref_bonus_days_granted_partner" if is_partner else "texts.ref_bonus_days_granted"
+        )
+        created_key = (
+            "texts.ref_bonus_days_granted_subscription_partner"
+            if is_partner
+            else "texts.ref_bonus_days_granted_subscription"
+        )
+    else:
+        # У партнёра и у обычного реферера разные тексты: это разные
+        # программы, и общий текст путает пользователя.
+        added_key = (
+            "texts.partner_ref_bonus_days_added"
+            if is_partner
+            else "texts.referral_bonus_days_added"
+        )
+        created_key = (
+            "texts.partner_ref_bonus_subscription_created"
+            if is_partner
+            else "texts.referral_bonus_subscription_created"
+        )
+    suffix_key = (
+        "texts.partner_ref_bonus_plan_suffix" if is_partner else "texts.referral_bonus_plan_suffix"
+    )
+    # Админские уведомления о сбое выдачи тоже раздельные: партнёрский
+    # бонус и реферальный - разные потоки с разными правилами.
+    if is_partner:
+        admin_extend_failed = "texts.partner_bonus_extend_failed_admin"
+        admin_no_plan = "texts.partner_bonus_no_plan_admin"
+        admin_create_failed = "texts.partner_bonus_create_failed_admin"
+    else:
+        admin_extend_failed = "texts.referral_bonus_extend_failed_admin"
+        admin_no_plan = "texts.referral_bonus_no_plan_admin"
+        admin_create_failed = "texts.referral_bonus_create_failed_admin"
     tg_id = to_int(user.get("telegram_id"), referrer_id)
     lang = await get_user_language(tg_id)
     pending = await db.get_bonus_days_pending(referrer_id)
@@ -8096,7 +8311,7 @@ async def reward_referrer(referrer_id: int, bonus_days: int) -> bool:
                     tg_id,
                     translate(
                         lang,
-                        "texts.referral_bonus_days_added",
+                        added_key,
                         bonus_days=format_duration(total),
                     ),
                 )
@@ -8108,7 +8323,7 @@ async def reward_referrer(referrer_id: int, bonus_days: int) -> bool:
                 await notify_admins(
                     translate(
                         Config.DEFAULT_LANGUAGE,
-                        "texts.referral_bonus_extend_failed_admin",
+                        admin_extend_failed,
                         referrer_id=referrer_id,
                         bonus_days=format_duration(bonus_days),
                     )
@@ -8124,7 +8339,7 @@ async def reward_referrer(referrer_id: int, bonus_days: int) -> bool:
                 await notify_admins(
                     translate(
                         Config.DEFAULT_LANGUAGE,
-                        "texts.referral_bonus_no_plan_admin",
+                        admin_no_plan,
                         referrer_id=referrer_id,
                     )
                 )
@@ -8136,7 +8351,7 @@ async def reward_referrer(referrer_id: int, bonus_days: int) -> bool:
         referrer_id,
         min_plan,
         days_override=bonus_days,
-        plan_suffix=translate(lang, "texts.referral_bonus_plan_suffix"),
+        plan_suffix=translate(lang, suffix_key),
         earn_trust=False,
     )
     if vpn_url:
@@ -8145,7 +8360,7 @@ async def reward_referrer(referrer_id: int, bonus_days: int) -> bool:
                 tg_id,
                 translate(
                     lang,
-                    "texts.referral_bonus_subscription_created",
+                    created_key,
                     bonus_days=format_duration(total),
                     subscription_links=build_subscription_link_blocks(vpn_url, lang),
                     subscription_setup_required=translate(
@@ -8161,7 +8376,7 @@ async def reward_referrer(referrer_id: int, bonus_days: int) -> bool:
             await notify_admins(
                 translate(
                     Config.DEFAULT_LANGUAGE,
-                    "texts.referral_bonus_create_failed_admin",
+                    admin_create_failed,
                     referrer_id=referrer_id,
                 )
             )
@@ -8171,16 +8386,46 @@ async def reward_referrer(referrer_id: int, bonus_days: int) -> bool:
     return False
 
 
+async def grant_referee_days_bonus_after_payment(uid: int, ref_by: int) -> None:
+    """Бонусные дни приглашённому - только после первой оплаты."""
+    referee = await db.get_user_by_any_id(uid)
+    if not referee or to_int(referee.get("ref_bonus_given"), 0):
+        return
+    referrer = await db.find_user_by_any_id(ref_by)
+    if not referrer:
+        return
+    bonus_type, bonus_value = resolve_referral_bonus_spec(referrer)
+    if bonus_type != "days" or bonus_value <= 0:
+        return
+    if not await reward_referrer(
+        uid,
+        bonus_value,
+        is_partner=bool(referrer.get("is_mate")),
+        is_referee=True,
+    ):
+        logger.error(f"Не удалось выдать бонусные дни приглашённому {uid}")
+        return
+    await db.mark_ref_bonus_given(uid)
+    logger.info(f"Бонусные дни приглашённому {uid} начислены: {bonus_value}")
+
+
 async def grant_referral_bonus(
     uid: int, ref_by: int, ref_rewarded: Any, paid_amount: float = 0.0
 ) -> None:
     if not ref_by:
         return
+    # Оплата состоялась - дни приглашённому можно выдавать.
+    await grant_referee_days_bonus_after_payment(uid, ref_by)
     if not ref_rewarded:
         if not await db.mark_ref_rewarded(uid):
             logger.info(f"Referral bonus для {uid} уже выдан или получатель не найден")
             return
-        if not await reward_referrer(ref_by, Config.REF_BONUS_DAYS):
+        referrer = await db.find_user_by_any_id(ref_by)
+        if not await reward_referrer(
+            ref_by,
+            Config.REF_BONUS_DAYS,
+            is_partner=bool((referrer or {}).get("is_mate")),
+        ):
             await db.release_ref_reward(uid)
             logger.error(f"Не удалось выдать referral bonus для {uid}")
             return
@@ -8895,16 +9140,32 @@ async def cmd_start(event: Message | CallbackQuery, state: FSMContext, **kwargs:
                     if ref_user and ref_tid and ref_tid != user_id:
                         linked = await db.set_ref_by(user_id, ref_user.get("user_id"))
                         ref_nickname = str(ref_user.get("mate_nickname", "") or "").strip()
-                        if linked and is_mate_link:
-                            # Уведомление о приглашении - отдельным сообщением
-                            # и только при переходе по партнёрской ссылке.
-                            await event.answer(
-                                translate(
-                                    lang,
-                                    "texts.invited_by_partner",
-                                    nickname=ref_nickname or "-",
+                        if linked:
+                            # Приглашённому сразу сообщаем, кто его
+                            # пригласил и какой бонус ему положен.
+                            # Очки доверия начисляются сразу, дни - после
+                            # первой оплаты тарифа. У партнёра и у
+                            # обычного реферера разные тексты.
+                            if is_mate_link:
+                                await event.answer(
+                                    translate(
+                                        lang,
+                                        "texts.invited_by_partner",
+                                        nickname=resolve_referrer_display_name(ref_user),
+                                    )
                                 )
-                            )
+                            else:
+                                await event.answer(
+                                    translate(
+                                        lang,
+                                        "texts.invited_by_referrer",
+                                        nickname=resolve_referrer_display_name(ref_user),
+                                    )
+                                )
+                            try:
+                                await grant_referee_bonus_on_registration(user_id, ref_user)
+                            except Exception as e:  # noqa: BLE001
+                                logger.error(f"Ошибка выдачи бонуса приглашённому {user_id}: {e}")
                         if ref_nickname:
                             logger.info(
                                 f"Пользователь TID {user_id} приглашён партнёром UID {ref_user.get('user_id')} (TID: {ref_tid}, {ref_nickname})"
@@ -10820,6 +11081,20 @@ def resolve_display_ref_code(user: dict[str, Any] | None) -> str:
     return str(user.get("ref_code", "") or "")
 
 
+def resolve_partner_bonus_caption(user: dict[str, Any] | None, lang: str) -> str:
+    """Человекочитаемое описание бонуса, который партнёр даёт приглашённому."""
+    bonus_type, bonus_value = resolve_referral_bonus_spec(user)
+    if bonus_type == "trust":
+        return (
+            translate(
+                lang,
+                "texts.partner_bonus_trust_label",
+            )
+            + f" +{bonus_value}"
+        )
+    return translate(lang, "texts.partner_bonus_days_label") + f" +{bonus_value}"
+
+
 @router.callback_query(F.data == "ref")
 async def cmd_ref(event: CallbackQuery, **kwargs):
     user_id = get_event_user_id(event) or 0
@@ -10842,20 +11117,26 @@ async def cmd_ref(event: CallbackQuery, **kwargs):
     total = await db.count_referrals(db_uid)
     paid = await db.count_referrals_paid(db_uid)
     link = get_ref_link(await resolve_display_ref_code(user_data) or ref_code)
-    text = translate(
-        lang,
-        "texts.referral_info",
-        link=link,
-        total_refs=total,
-        paid_refs=paid,
-        bonus_days=Config.REF_BONUS_DAYS,
-    )
+    # Партнёр и обычный пользователь видят разные экраны: у партнёра своя
+    # ссылка, свой никнейм и свой бонус, а не дефолт реферальной программы.
     if user_data and user_data.get("is_mate"):
-        text += "\n\n" + translate(
+        text = translate(
             lang,
-            "texts.partner_ref_link_label",
+            "texts.partner_ref_info",
             link=link,
-            nickname=str(user_data.get("mate_nickname", "") or "-"),
+            nickname=resolve_referrer_display_name(user_data),
+            total_refs=total,
+            paid_refs=paid,
+            bonus=resolve_partner_bonus_caption(user_data, lang),
+        )
+    else:
+        text = translate(
+            lang,
+            "texts.referral_info",
+            link=link,
+            total_refs=total,
+            paid_refs=paid,
+            bonus_days=Config.REF_BONUS_DAYS,
         )
     await smart_answer(event, text, reply_markup=main_menu_keyboard(lang), delete_origin=True)
 
@@ -11674,27 +11955,9 @@ async def process_partner_withdrawal_bank(event: Message, state: FSMContext, **k
     )
     await state.clear()
     if operation_id:
-        internal_uid, tg_id = await resolve_payment_identity(user_id)
-        payment_data = {
-            "payment_id": operation_id,
-            "user_id": internal_uid,
-            "tg_id": tg_id,
-            "plan_id": "partner_withdrawal",
-            "plan_type": "withdrawal",
-            "plan_name": f"Partner Withdrawal #{operation_id[:12]}",
-            "amount": amount,
-            "currency": "RUB",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "status": "pending",
-            "payment_method": "partner_balance",
-            "partner_data": {
-                "amount": amount,
-                "phone": phone,
-                "fio": fio,
-                "bank": bank,
-            },
-        }
-        await json_db.add_pending_for_user(internal_uid, payment_data)
+        # Заявка живёт только в partner_operations.json. Дублировать её
+        # в списке ожидающих платежей нельзя: это не платёж, и админ
+        # видел бы одну и ту же операцию в двух меню.
         await event.answer(
             translate(lang, "texts.partner_withdraw_submitted", amount=amount),
             reply_markup=main_menu_keyboard(lang),
@@ -11770,6 +12033,18 @@ def build_partner_op_text(
     return ""
 
 
+async def is_partner_withdrawal_mirror(payment: dict[str, Any]) -> bool:
+    """Заявка на вывод средств - не платёж.
+
+    Старые версии зеркалили её в список ожидающих платежей, из-за чего
+    одна операция была видна админу сразу в двух меню.
+    """
+    return (
+        str(payment.get("plan_type", "")) == "withdrawal"
+        or str(payment.get("payment_method", "")) == "partner_balance"
+    )
+
+
 def build_partner_op_keyboard(
     op_id: str, op_type: str, lang: str = Config.DEFAULT_LANGUAGE
 ) -> InlineKeyboardMarkup:
@@ -11784,11 +12059,11 @@ def build_partner_op_keyboard(
             [
                 {
                     "text": accept_text,
-                    "callback_data": f"partner_accept_op:{op_id}",
+                    "callback_data": f"{PARTNER_OP_ACCEPT_CB}:{op_id}",
                 },
                 {
                     "text": reject_text,
-                    "callback_data": f"partner_reject_op:{op_id}",
+                    "callback_data": f"{PARTNER_OP_REJECT_CB}:{op_id}",
                 },
             ]
         ]
@@ -11869,7 +12144,7 @@ async def cmd_partner_operations(event: CallbackQuery, **kwargs):
             await event.message.answer(text, reply_markup=markup)
 
 
-@router.callback_query(F.data.startswith("partner_accept_op:"))
+@router.callback_query(F.data.startswith(f"{PARTNER_OP_ACCEPT_CB}:"))
 async def cmd_partner_accept_op(event: CallbackQuery, **kwargs):
     if not await ensure_admin_access(event):
         return
@@ -11889,7 +12164,7 @@ async def cmd_partner_accept_op(event: CallbackQuery, **kwargs):
         await _handle_partner_withdrawal_accept(event, op, uid)
 
 
-@router.callback_query(F.data.startswith("partner_reject_op:"))
+@router.callback_query(F.data.startswith(f"{PARTNER_OP_REJECT_CB}:"))
 async def cmd_partner_reject_op(event: CallbackQuery, **kwargs):
     if not await ensure_admin_access(event):
         return
@@ -12461,7 +12736,9 @@ async def cmd_pay_await(event: CallbackQuery, **kwargs):
     if not await ensure_admin_access(event):
         return
     payments = await json_db.read_all()
-    pending = [p for p in payments if p.get("status") == "pending"]
+    pending = [
+        p for p in payments if p.get("status") == "pending" and not is_partner_withdrawal_mirror(p)
+    ]
     if not pending:
         await smart_answer(
             event,
@@ -12967,11 +13244,16 @@ async def process_broadcast_message(event: Message, state: FSMContext, **kwargs)
 
 
 def _debug_back_rows(lang: str, target: str = "debug_menu") -> list[list[dict[str, str]]]:
+    """Кнопка выхода из отладки.
+
+    Кнопка "Назад" вела в секцию, из которой был вход, и ломалась при
+    переходах между подменю, поэтому из отладки всегда ведёт "Главная".
+    """
     return [
         [
             {
-                "text": translate(lang, "buttons.back"),
-                "callback_data": target,
+                "text": translate(lang, "buttons.main"),
+                "callback_data": "start",
             }
         ]
     ]
@@ -13754,7 +14036,7 @@ async def cmd_debug_search_abuse_users(event: CallbackQuery, **kwargs):
     rows.append(
         [
             {
-                "text": translate(lang, "buttons.back"),
+                "text": translate(lang, "buttons.main"),
                 "callback_data": "start",
             }
         ]
@@ -13816,8 +14098,8 @@ async def cmd_debug_view_abuse_user(event: CallbackQuery, **kwargs):
     rows.append(
         [
             {
-                "text": translate(lang, "buttons.back"),
-                "callback_data": "debug_search_abuse_users",
+                "text": translate(lang, "buttons.main"),
+                "callback_data": "start",
             }
         ]
     )
@@ -19606,6 +19888,132 @@ class BOT_FastAPI:
                     },
                 )
 
+        # === Тестовая подписка (только для администраторов) ===
+        @self.app.post("/api/v1/subscription/test")
+        async def api_test_subscription(
+            req: CreateCheckoutRequest,
+            credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
+        ) -> JSONResponse:
+            if not credentials:
+                return JSONResponse(
+                    status_code=401,
+                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.unauthorized")},
+                )
+            session_user = await db.get_user_by_session_token(credentials.credentials)
+            if not session_user:
+                return JSONResponse(
+                    status_code=401,
+                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.invalid_session")},
+                )
+            user_id = session_user["user_id"]
+            telegram_id = to_int(session_user.get("telegram_id"), 0) or user_id
+            lang = await get_user_language(user_id)
+            if not await is_admin_user(telegram_id):
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.admin_only_feature")
+                    },
+                )
+            try:
+                plan = None
+                plan_name = ""
+                if req.plan_id == "custom" and req.custom_plan:
+                    custom_plan_data = req.custom_plan
+                    plan_name = str(custom_plan_data.get("name") or "").strip()
+                    traffic = to_int(custom_plan_data.get("traffic_gb"), 0)
+                    ip = to_int(custom_plan_data.get("ip_limit"), 0)
+                    days = to_int(custom_plan_data.get("duration_days"), 0)
+                    servers = normalize_servers(custom_plan_data.get("servers"))
+                    if not is_valid_custom_limits(traffic, ip, days):
+                        return JSONResponse(
+                            status_code=400,
+                            content={
+                                "error": translate(
+                                    Config.DEFAULT_LANGUAGE,
+                                    "texts.invalid_custom_tariff_limits",
+                                ),
+                                "gb_bounds": list(custom_gb_bounds()),
+                                "ip_bounds": list(custom_ip_bounds()),
+                                "days_bounds": list(custom_days_bounds()),
+                            },
+                        )
+                    if not is_valid_custom_servers(servers):
+                        return JSONResponse(
+                            status_code=400,
+                            content={
+                                "error": translate(
+                                    Config.DEFAULT_LANGUAGE,
+                                    "texts.invalid_server_locations",
+                                ),
+                            },
+                        )
+                    plan = build_custom_plan(
+                        traffic,
+                        ip,
+                        days,
+                        servers=servers,
+                        plan_name=plan_name or None,
+                    )
+                    plan_name = plan_name or build_custom_plan_name(traffic, ip, days, servers)
+                else:
+                    plan, error = get_purchasable_catalog_plan(req.plan_id)
+                    if not plan:
+                        return JSONResponse(
+                            status_code=404,
+                            content={"error": error},
+                        )
+                    plan_name = str(plan.get("name", req.plan_id))
+
+                vpn_url = await create_subscription(
+                    user_id,
+                    plan,
+                    plan_suffix=translate(lang, "texts.test_plan_suffix"),
+                    earn_trust=False,
+                )
+                if not vpn_url:
+                    return JSONResponse(
+                        status_code=500,
+                        content={
+                            "error": translate(
+                                Config.DEFAULT_LANGUAGE,
+                                "texts.failed_to_create_trial_subscription",
+                            )
+                        },
+                    )
+                return JSONResponse(
+                    content={
+                        "message": translate(
+                            lang,
+                            "texts.test_subscription_created",
+                            plan_name=plan_name,
+                            ip_limit=to_int(plan.get("ip_limit", 0), 0),
+                            traffic=format_traffic(to_int(plan.get("traffic_gb", 0), 0), lang),
+                            servers=format_servers(get_plan_servers(plan)),
+                            duration=format_duration(
+                                to_int(plan.get("duration_days", 30), 30), lang
+                            ),
+                            subscription_links=build_subscription_link_blocks(vpn_url, lang),
+                            subscription_setup_required=translate(
+                                lang, "texts.subscription_setup_required"
+                            ),
+                        ),
+                        "plan_name": plan_name,
+                        "subscription_id": normalize_sub_id(vpn_url),
+                        "vpn_url": vpn_url,
+                        "json_vpn_url": build_json_subscription_url(vpn_url),
+                    },
+                    status_code=201,
+                )
+            except Exception as e:  # noqa: BLE001
+                logger.error(f"api_test_subscription: {e}")
+                return JSONResponse(
+                    status_code=500,
+                    content={
+                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
+                    },
+                )
+
         # === Получение VPN-ссылки ---
         @self.app.get("/api/v1/subscription/link")
         async def api_get_subscription_link(
@@ -20214,31 +20622,9 @@ class BOT_FastAPI:
                     },
                 )
                 if operation_id:
-                    payment_data = {
-                        "payment_id": operation_id,
-                        "user_id": to_int(session_user.get("user_id"), 0),
-                        "tg_id": tg_id,
-                        "plan_id": "partner_withdrawal",
-                        "plan_type": "withdrawal",
-                        "plan_name": f"Partner Withdrawal #{operation_id[:12]}",
-                        "amount": amount,
-                        "currency": "RUB",
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "status": "pending",
-                        "payment_method": "partner_balance",
-                        "partner_data": {
-                            "amount": amount,
-                            "phone": phone,
-                            "fio": fio,
-                            "bank": bank,
-                        },
-                        "withdrawal_fio": fio,
-                        "withdrawal_phone": phone,
-                        "withdrawal_bank": bank,
-                    }
-                    await json_db.add_pending_for_user(
-                        to_int(session_user.get("user_id"), 0), payment_data
-                    )
+                    # Заявка на вывод - не платёж: в список ожидающих
+                    # платежей она не добавляется, чтобы не двоиться
+                    # с меню заявок.
                     return JSONResponse(
                         content={
                             "message": translate(

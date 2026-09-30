@@ -1238,6 +1238,106 @@ select.form-input {
   }
 }
 
+/* === RESPONSIVE DATA TABLES ===
+   На десктопе - обычная таблица с горизонтальной прокруткой.
+   На телефоне каждая строка становится карточкой, а подпись колонки
+   берётся из data-label: узкие колонки больше не сжимают друг друга. */
+.data-table-wrap {
+  overflow-x: auto;
+  margin-top: 16px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.data-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.data-table thead tr {
+  border-bottom: 2px solid var(--border-color);
+}
+
+.data-table th {
+  padding: 12px;
+  text-align: left;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.data-table tbody tr {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.data-table td {
+  padding: 12px;
+  vertical-align: middle;
+}
+
+.data-table td.data-num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.data-table td::before {
+  content: none;
+}
+
+@media (max-width: 768px) {
+  .data-table-wrap {
+    overflow-x: visible;
+  }
+
+  .data-table {
+    min-width: 0;
+  }
+
+  .data-table thead {
+    display: none;
+  }
+
+  .data-table,
+  .data-table tbody,
+  .data-table tr,
+  .data-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .data-table tr {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-primary);
+    margin-bottom: 12px;
+    padding: 4px 0;
+  }
+
+  .data-table td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 12px;
+    border: none;
+    text-align: right;
+    word-break: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .data-table td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  .data-table td:empty {
+    display: none;
+  }
+}
+
 /* === SCROLLBAR === */
 ::-webkit-scrollbar {
   width: 8px;

@@ -134,7 +134,7 @@ export default function UserMenu() {
           {user ? (
             <>
               <div className="user-menu-summary">
-                <strong>{user.username || `ID:${user.user_id}`}</strong>
+                <strong>{user.username || `UID:${user.user_id}`}</strong>
                 <span>
                   {t("texts.user_id")}: {user.user_id}
                   {user.telegram_id && (

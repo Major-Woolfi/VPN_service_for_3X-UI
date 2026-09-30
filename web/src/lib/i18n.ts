@@ -133,8 +133,10 @@ function resolveTranslation(
 export function t(
   key: string,
   params?: Record<string, string | number>,
+  langOverride?: string,
 ): string {
-  const lang = getCurrentLang();
+  const lang =
+    langOverride && LANGUAGES[langOverride] ? langOverride : getCurrentLang();
   const text =
     resolveTranslation(LANGUAGES[lang], key) ||
     resolveTranslation(LANGUAGES[FALLBACK_LANG], key) ||
@@ -146,8 +148,9 @@ export function t(
 export function tHtml(
   key: string,
   params?: Record<string, string | number>,
+  langOverride?: string,
 ): string {
-  const text = t(key, params);
+  const text = t(key, params, langOverride);
   return text.replace(/\r?\n/g, "<br>");
 }
 

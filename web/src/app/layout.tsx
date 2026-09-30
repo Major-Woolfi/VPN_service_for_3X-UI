@@ -159,7 +159,7 @@ export default async function RootLayout({
         <ThemeInit />
         <ThemeProvider>
           <AuthProvider initialUser={initialUser}>
-            <LanguageProvider>
+            <LanguageProvider initialLang={lang}>
               <FeaturesProvider initialFeatures={initialFeatures}>
                 <AuthCallback />
                 {children}

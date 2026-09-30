@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,13 +15,23 @@ import type {
 export default function ProfilePage() {
   const { user, loading: authLoading, refreshUser } = useAuth();
   const { t, lang } = useLanguage();
-  const [loading, setLoading] = useState(true);
-  const [subLink, setSubLink] = useState<SubscriptionLinkResponse | null>(null);
+  const router = useRouter();
+  const [fetchedSubLink, setFetchedSubLink] = useState<{
+    key: string;
+    link: SubscriptionLinkResponse | null;
+  } | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [renewLoading, setRenewLoading] = useState(false);
   const [renewResult, setRenewResult] =
     useState<SubscriptionPaymentRequest | null>(null);
   const [renewError, setRenewError] = useState("");
+
+  // У админа ссылка приходит из профиля, у остальных - запросом на бот.
+  const hasAdminSub = Boolean(user?.is_admin && user?.admin_subscription?.url);
+  const needsSubLinkFetch =
+    Boolean(user) && !hasAdminSub && user?.subscription?.status === "active";
+  // Ключ сбрасывает результат запроса при смене пользователя или тарифа.
+  const subLinkKey = `${user?.user_id ?? 0}:${user?.subscription?.plan_id ?? ""}`;
 
   const handleCopy = async (text: string, type: string) => {
     try {
@@ -57,30 +68,36 @@ export default function ProfilePage() {
     }
   }, [user, refreshUser, t]);
 
+  // Загрузка ссылки выводится из состояния, а не из флага в эффекте:
+  // ранний return раньше оставлял страницу в вечной загрузке.
   useEffect(() => {
-    if (authLoading) return;
-    if (!user) return;
+    if (!user) {
+      router.replace(`/login?next=${encodeURIComponent("/profile")}`);
+      return;
+    }
+    if (!needsSubLinkFetch) return;
+    const aborter = new AbortController();
+    getSubscriptionLink(aborter.signal)
+      .then((link) => setFetchedSubLink({ key: subLinkKey, link }))
+      .catch(() => setFetchedSubLink({ key: subLinkKey, link: null }));
+    return () => aborter.abort();
+  }, [user, router, needsSubLinkFetch, subLinkKey]);
 
-    if (user.is_admin && user.admin_subscription?.url) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setSubLink({
+  const subLink = hasAdminSub
+    ? {
         subscription_id: "Admin",
-        vpn_url: user.admin_subscription.url,
-        json_vpn_url: user.admin_subscription.json_url || "",
-        plan_text: "Admin",
+        vpn_url: user?.admin_subscription?.url || "",
+        json_vpn_url: user?.admin_subscription?.json_url || "",
+        plan_text: "",
         traffic_gb: 0,
         ip_limit: 0,
         plan_servers: [],
-      });
-    } else if (user.subscription?.status === "active") {
-      const aborter = new AbortController();
-      getSubscriptionLink(aborter.signal)
-        .then(setSubLink)
-        .catch(() => setSubLink(null));
-      return () => aborter.abort();
-    }
-    setLoading(false);
-  }, [authLoading, user]);
+      }
+    : fetchedSubLink?.key === subLinkKey
+      ? fetchedSubLink.link
+      : null;
+  const loading =
+    authLoading || (needsSubLinkFetch && fetchedSubLink?.key !== subLinkKey);
 
   if (authLoading || loading || !user) {
     return (
@@ -99,7 +116,6 @@ export default function ProfilePage() {
 
   const sub = user?.subscription;
   const isSubscribed = sub?.status === "active";
-  const hasAdminSub = Boolean(user?.is_admin && user?.admin_subscription?.url);
   const isAdminSub = hasAdminSub && !isSubscribed;
 
   const trafficUsed = sub?.used_gb || 0;
@@ -645,6 +661,19 @@ export default function ProfilePage() {
                         }}
                       >
                         {t("texts.setup_client")}
+                      </Link>
+                    )}
+                    {user?.is_admin && (
+                      <Link
+                        href="/subscribe"
+                        className="button"
+                        style={{
+                          display: "block",
+                          textAlign: "center",
+                          textDecoration: "none",
+                        }}
+                      >
+                        {t("buttons.buy")}
                       </Link>
                     )}
                   </div>

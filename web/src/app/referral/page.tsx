@@ -54,6 +54,50 @@ export default function ReferralPage() {
     }
   };
 
+  const tgBotUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME;
+  const refLink =
+    stats?.ref_link ||
+    (tgBotUsername
+      ? `https://t.me/${tgBotUsername}?start=${stats?.ref_code || ""}`
+      : "");
+  const bonusDays = stats?.bonus_days_per_paid ?? 0;
+
+  const shareUrl = refLink
+    ? `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent(
+        t("texts.referral_program"),
+      )}`
+    : null;
+
+  const statCards = stats
+    ? [
+        {
+          value: stats.total_refs || 0,
+          label: t("texts.total_refs"),
+          color: "var(--accent)",
+        },
+        {
+          value: stats.paid_refs || 0,
+          label: t("texts.paid_refs"),
+          color: "var(--success)",
+        },
+        {
+          value: stats.unpaid_refs || 0,
+          label: t("texts.unpaid_refs"),
+          color: "var(--text-secondary)",
+        },
+        {
+          value: `${stats.conversion_rate || 0}%`,
+          label: t("texts.conversion_rate"),
+          color: "var(--warning)",
+        },
+        {
+          value: bonusDays,
+          label: t("texts.bonus_days"),
+          color: "var(--accent)",
+        },
+      ]
+    : [];
+
   if (authLoading || loading || !user) {
     return (
       <>
@@ -89,8 +133,6 @@ export default function ReferralPage() {
     );
   }
 
-  const tgBotUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME;
-
   return (
     <>
       <Header currentPage="/referral" />
@@ -109,9 +151,7 @@ export default function ReferralPage() {
             <h2>{t("texts.how_it_works")}</h2>
             <div className="pinned-content">
               <p style={{ marginTop: "16px", color: "var(--text-secondary)" }}>
-                {t("texts.how_it_works_text", {
-                  days: stats?.bonus_days_per_paid || 7,
-                })}
+                {t("texts.how_it_works_text", { days: bonusDays || 7 })}
               </p>
             </div>
           </div>
@@ -120,17 +160,27 @@ export default function ReferralPage() {
             <div className="pinned-section fade-in delay-1">
               <h2>{t("texts.your_ref_link")}</h2>
               <div className="pinned-content">
-                <div
+                <p
                   style={{
                     marginTop: "16px",
+                    marginBottom: "12px",
+                    color: "var(--text-secondary)",
+                    fontSize: "14px",
+                  }}
+                >
+                  {t("texts.referral_share_hint")}
+                </p>
+                <div
+                  style={{
                     display: "flex",
                     gap: "12px",
                     alignItems: "center",
+                    flexWrap: "wrap",
                   }}
                 >
                   <div
                     style={{
-                      flex: 1,
+                      flex: "1 1 240px",
                       padding: "12px",
                       background: "var(--bg-tertiary)",
                       borderRadius: "var(--radius-sm)",
@@ -139,18 +189,31 @@ export default function ReferralPage() {
                       wordBreak: "break-all",
                     }}
                   >
-                    {stats?.ref_link ||
-                      (tgBotUsername
-                        ? `https://t.me/${tgBotUsername}?start=${stats?.ref_code || ""}`
-                        : t("texts.referral_link_unavailable"))}
+                    {refLink || t("texts.referral_link_unavailable")}
                   </div>
-                  <button
-                    onClick={handleCopy}
-                    className="button"
-                    style={{ whiteSpace: "nowrap" }}
-                  >
-                    {copied ? t("buttons.copied") : t("buttons.referral_copy")}
-                  </button>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button
+                      onClick={handleCopy}
+                      className="button"
+                      disabled={!refLink}
+                      style={{ whiteSpace: "nowrap" }}
+                    >
+                      {copied
+                        ? t("buttons.copied")
+                        : t("buttons.referral_copy")}
+                    </button>
+                    {shareUrl && (
+                      <a
+                        href={shareUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="button"
+                        style={{ whiteSpace: "nowrap" }}
+                      >
+                        {t("buttons.share_telegram")}
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -168,87 +231,36 @@ export default function ReferralPage() {
                     marginTop: "16px",
                   }}
                 >
-                  <div
-                    style={{
-                      padding: "20px",
-                      background: "var(--bg-tertiary)",
-                      borderRadius: "var(--radius-md)",
-                      textAlign: "center",
-                    }}
-                  >
+                  {statCards.map((card) => (
                     <div
+                      key={card.label}
                       style={{
-                        fontSize: "28px",
-                        fontWeight: "700",
-                        color: "var(--accent)",
+                        padding: "20px",
+                        background: "var(--bg-tertiary)",
+                        borderRadius: "var(--radius-md)",
+                        textAlign: "center",
                       }}
                     >
-                      {stats.total_refs || 0}
+                      <div
+                        style={{
+                          fontSize: "28px",
+                          fontWeight: "700",
+                          color: card.color,
+                        }}
+                      >
+                        {card.value}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "14px",
+                          color: "var(--text-secondary)",
+                          marginTop: "8px",
+                        }}
+                      >
+                        {card.label}
+                      </div>
                     </div>
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        color: "var(--text-secondary)",
-                        marginTop: "8px",
-                      }}
-                    >
-                      {t("texts.total_refs")}
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      padding: "20px",
-                      background: "var(--bg-tertiary)",
-                      borderRadius: "var(--radius-md)",
-                      textAlign: "center",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "28px",
-                        fontWeight: "700",
-                        color: "var(--success)",
-                      }}
-                    >
-                      {stats.paid_refs || 0}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        color: "var(--text-secondary)",
-                        marginTop: "8px",
-                      }}
-                    >
-                      {t("texts.paid_refs")}
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      padding: "20px",
-                      background: "var(--bg-tertiary)",
-                      borderRadius: "var(--radius-md)",
-                      textAlign: "center",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "28px",
-                        fontWeight: "700",
-                        color: "var(--warning)",
-                      }}
-                    >
-                      {stats.bonus_days_per_paid || 0}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        color: "var(--text-secondary)",
-                        marginTop: "8px",
-                      }}
-                    >
-                      {t("texts.bonus_days")}
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
             </div>

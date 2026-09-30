@@ -197,66 +197,53 @@ export default function AdminDebugPage() {
                     {t("texts.search_no_results")}
                   </p>
                 ) : (
-                  <div style={{ overflowX: "auto", marginTop: "16px" }}>
-                    <table
-                      style={{
-                        width: "100%",
-                        borderCollapse: "collapse",
-                        fontSize: "14px",
-                      }}
-                    >
+                  <div className="data-table-wrap">
+                    <table className="data-table">
                       <thead>
-                        <tr
-                          style={{
-                            borderBottom: "2px solid var(--border-color)",
-                          }}
-                        >
-                          <th style={{ padding: "12px", textAlign: "left" }}>
-                            {t("texts.user_id")}
-                          </th>
-                          <th style={{ padding: "12px", textAlign: "left" }}>
-                            {t("texts.admin_user_username")}
-                          </th>
-                          <th style={{ padding: "12px", textAlign: "left" }}>
-                            {t("texts.telegram_id_label")}
-                          </th>
-                          <th style={{ padding: "12px", textAlign: "left" }}>
-                            {t("texts.username")}
-                          </th>
-                          <th style={{ padding: "12px", textAlign: "left" }}>
-                            {t("texts.admin_user_vpn_url")}
-                          </th>
-                          <th style={{ padding: "12px", textAlign: "left" }}>
-                            {t("texts.admin_user_trust")}
-                          </th>
-                          <th style={{ padding: "12px", textAlign: "left" }}>
-                            {t("texts.banned")}
-                          </th>
+                        <tr>
+                          <th>{t("texts.user_id")}</th>
+                          <th>{t("texts.admin_user_username")}</th>
+                          <th>{t("texts.telegram_id_label")}</th>
+                          <th>{t("texts.username")}</th>
+                          <th>{t("texts.admin_user_vpn_url")}</th>
+                          <th>{t("texts.admin_user_trust")}</th>
+                          <th>{t("texts.banned")}</th>
                         </tr>
                       </thead>
                       <tbody>
                         {searchResults.users.map((u) => (
-                          <tr
-                            key={u.user_id}
-                            style={{
-                              borderBottom: "1px solid var(--border-color)",
-                            }}
-                          >
-                            <td style={{ padding: "12px" }}>{u.user_id}</td>
-                            <td style={{ padding: "12px" }}>
+                          <tr key={u.user_id}>
+                            <td
+                              className="data-num"
+                              data-label={t("texts.user_id")}
+                            >
+                              {u.user_id}
+                            </td>
+                            <td data-label={t("texts.admin_user_username")}>
                               {u.username || "-"}
                             </td>
-                            <td style={{ padding: "12px" }}>
+                            <td
+                              className="data-num"
+                              data-label={t("texts.telegram_id_label")}
+                            >
                               {u.telegram_id || "-"}
                             </td>
-                            <td style={{ padding: "12px" }}>
+                            <td data-label={t("texts.username")}>
                               {u.login || "-"}
                             </td>
-                            <td style={{ padding: "12px" }}>
+                            <td
+                              data-label={t("texts.admin_user_vpn_url")}
+                              style={{ wordBreak: "break-all" }}
+                            >
                               {u.subscription?.vpn_url || "-"}
                             </td>
-                            <td style={{ padding: "12px" }}>{u.trust_score}</td>
-                            <td style={{ padding: "12px" }}>
+                            <td
+                              className="data-num"
+                              data-label={t("texts.admin_user_trust")}
+                            >
+                              {u.trust_score}
+                            </td>
+                            <td data-label={t("texts.banned")}>
                               {u.banned ? t("texts.yes") : t("texts.no")}
                             </td>
                           </tr>
@@ -311,45 +298,29 @@ export default function AdminDebugPage() {
                   : t("buttons.load_abuse_users")}
               </button>
               {abuseUsers && abuseUsers.length > 0 && (
-                <div style={{ marginTop: "16px", overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <div className="data-table-wrap" style={{ marginTop: "16px" }}>
+                  <table className="data-table">
                     <thead>
-                      <tr
-                        style={{
-                          borderBottom: "2px solid var(--border-color)",
-                        }}
-                      >
-                        <th style={{ padding: "8px", textAlign: "left" }}>
-                          {t("texts.user_id")}
-                        </th>
-                        <th style={{ padding: "8px", textAlign: "left" }}>
-                          {t("texts.username")}
-                        </th>
-                        <th style={{ padding: "8px", textAlign: "left" }}>
-                          {t("texts.status")}
-                        </th>
-                        <th style={{ padding: "8px", textAlign: "left" }}>
-                          {t("texts.daily_traffic_gb")}
-                        </th>
-                        <th style={{ padding: "8px", textAlign: "left" }}>
-                          {t("texts.total_traffic_gb")}
-                        </th>
-                        <th style={{ padding: "8px", textAlign: "left" }}>
-                          {t("texts.actions")}
-                        </th>
+                      <tr>
+                        <th>{t("texts.user_id")}</th>
+                        <th>{t("texts.username")}</th>
+                        <th>{t("texts.status")}</th>
+                        <th>{t("texts.daily_traffic_gb")}</th>
+                        <th>{t("texts.total_traffic_gb")}</th>
+                        <th>{t("texts.actions")}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {abuseUsers.map((u) => (
-                        <tr
-                          key={u.user_id}
-                          style={{
-                            borderBottom: "1px solid var(--border-color)",
-                          }}
-                        >
-                          <td style={{ padding: "8px" }}>{u.user_id}</td>
-                          <td style={{ padding: "8px" }}>{u.username}</td>
-                          <td style={{ padding: "8px" }}>
+                        <tr key={u.user_id}>
+                          <td
+                            className="data-num"
+                            data-label={t("texts.user_id")}
+                          >
+                            {u.user_id}
+                          </td>
+                          <td data-label={t("texts.username")}>{u.username}</td>
+                          <td data-label={t("texts.status")}>
                             <span
                               style={{
                                 padding: "4px 8px",
@@ -362,13 +333,19 @@ export default function AdminDebugPage() {
                               {u.abuse_status}
                             </span>
                           </td>
-                          <td style={{ padding: "8px" }}>
+                          <td
+                            className="data-num"
+                            data-label={t("texts.daily_traffic_gb")}
+                          >
                             {u.daily_traffic_gb.toFixed(2)}
                           </td>
-                          <td style={{ padding: "8px" }}>
+                          <td
+                            className="data-num"
+                            data-label={t("texts.total_traffic_gb")}
+                          >
                             {u.total_traffic_gb.toFixed(2)}
                           </td>
-                          <td style={{ padding: "8px" }}>
+                          <td data-label={t("texts.actions")}>
                             <button
                               onClick={() => handleClearAbuse(u.user_id)}
                               style={{

@@ -2554,6 +2554,75 @@
         }
       }
     },
+    "/api/v1/subscription/test": {
+      "post": {
+        "tags": [ "Subscriptions" ],
+        "summary": "Test subscription (admin only)",
+        "description": "Creates a test subscription for the administrator account without payment. Works for catalog plans and for a custom plan (plan_id = \"custom\" with custom_plan).",
+        "operationId": "test_subscription",
+        "security": [
+          {
+            "bearerAuth": [ ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCheckoutRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Test subscription created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "description": "Success message with subscription links"
+                    },
+                    "plan_name": {
+                      "type": "string",
+                      "description": "Created plan name"
+                    },
+                    "subscription_id": {
+                      "type": "string",
+                      "description": "Subscription identifier"
+                    },
+                    "vpn_url": {
+                      "type": "string",
+                      "description": "VPN subscription URL"
+                    },
+                    "json_vpn_url": {
+                      "type": "string",
+                      "description": "JSON subscription URL"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid parameters"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin only"
+          },
+          "404": {
+            "description": "Tariff not found"
+          }
+        }
+      }
+    },
     "/api/v1/subscription/link": {
       "get": {
         "tags": [ "Subscriptions" ],

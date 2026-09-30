@@ -3,12 +3,14 @@
 import Header from "@/components/Header";
 import { useEffect, useState, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useFeatures } from "@/contexts/FeaturesContext";
 import {
   getTariffs,
   createCheckout,
+  createTestSubscription,
   generateCustomTariff,
   getLocations,
   trialSubscription,
@@ -19,6 +21,7 @@ import type {
   Location,
   CustomTariffParams,
   CheckoutResponse,
+  TestSubscriptionResponse,
   PaymentMethod,
 } from "@/lib/types";
 import TariffGrid from "@/components/TariffGrid";
@@ -46,6 +49,9 @@ export default function SubscribePage() {
   const [error, setError] = useState("");
   const [processing, setProcessing] = useState(false);
   const [checkoutResult, setCheckoutResult] = useState<CheckoutResponse | null>(
+    null,
+  );
+  const [testResult, setTestResult] = useState<TestSubscriptionResponse | null>(
     null,
   );
   const [hasPendingPartnerApplication, setHasPendingPartnerApplication] =
@@ -129,6 +135,9 @@ export default function SubscribePage() {
   const isSubscribed = userSubscriptionStatus === "active";
   const eligibleForTrial = !trialUsed && !isSubscribed && !isAdmin;
   const canBuy = !isSubscribed && !hasPendingPayment;
+  // Админ берёт тестовую подписку без оплаты, поэтому активная подписка
+  // и ожидающий платёж его не блокируют (как в боте).
+  const canSelect = isAdmin || canBuy;
   const visibleTariffs = useMemo(
     () => tariffs.filter((t) => t.active && (!t.is_trial || eligibleForTrial)),
     [tariffs, eligibleForTrial],
@@ -147,11 +156,14 @@ export default function SubscribePage() {
     ? "texts.partner_application_pending_block"
     : !telegramLinked
       ? "texts.subscription_requires_telegram"
-      : !canBuy
+      : !canSelect
         ? "texts.purchase_blocked_wait_admin"
         : "";
   const urlPreselectActive =
-    preselectedTariff !== null && !urlSelectionDismissed && !urlBlockedKey;
+    preselectedTariff !== null &&
+    !urlSelectionDismissed &&
+    !urlBlockedKey &&
+    !isAdmin;
 
   // Активный тариф: явно выбранный пользователем важнее тарифа из URL.
   const activeTariff: Tariff | null = selectedTariff ?? preselectedTariff;
@@ -172,8 +184,12 @@ export default function SubscribePage() {
       setError(t("texts.subscription_requires_telegram"));
       return;
     }
-    if (!canBuy) {
+    if (!canSelect) {
       setError(t("texts.purchase_blocked_wait_admin"));
+      return;
+    }
+    if (isAdmin) {
+      void handleAdminTestPlan(tariff);
       return;
     }
     setUrlSelectionDismissed(true);
@@ -192,6 +208,10 @@ export default function SubscribePage() {
 
   const handleAcceptOffer = async () => {
     if (!activeTariff) return;
+    if (isAdmin) {
+      await handleAdminTestPlan(activeTariff);
+      return;
+    }
     if (activeTariff.is_trial) {
       await handleTrial();
       return;
@@ -200,6 +220,36 @@ export default function SubscribePage() {
     setUrlSelectionDismissed(true);
     setStep("payment");
     setError("");
+  };
+
+  // Тестовая подписка администратора: оформляется сразу, без оплаты.
+  const handleAdminTestPlan = async (tariff: Tariff) => {
+    setProcessing(true);
+    setError("");
+    setUrlSelectionDismissed(true);
+    try {
+      const result = await createTestSubscription({
+        plan_id: tariff.id,
+        method: "manual",
+        ...(tariff.id === "custom"
+          ? {
+              custom_plan: {
+                name: tariff.name,
+                price_rub: tariff.price_rub,
+                traffic_gb: tariff.traffic_gb,
+                ip_limit: tariff.ip_limit,
+                duration_days: tariff.duration_days,
+                servers: tariff.servers,
+              },
+            }
+          : {}),
+      });
+      setTestResult(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("texts.checkout_error"));
+    } finally {
+      setProcessing(false);
+    }
   };
 
   const handleTrial = async () => {
@@ -270,7 +320,7 @@ export default function SubscribePage() {
       setError(t("texts.subscription_requires_telegram"));
       return;
     }
-    if (!canBuy) {
+    if (!canSelect) {
       setError(t("texts.purchase_blocked_wait_admin"));
       return;
     }
@@ -294,6 +344,10 @@ export default function SubscribePage() {
       locations: selectedLocations,
     };
     setUrlSelectionDismissed(true);
+    if (isAdmin) {
+      void handleAdminTestPlan(customTariff);
+      return;
+    }
     setSelectedTariff(customTariff);
     setStep("offer");
     setError("");
@@ -358,13 +412,13 @@ export default function SubscribePage() {
   }, [checkoutResult, activeTariff, userDiscountPercent]);
 
   useEffect(() => {
-    if ((checkoutResult || trialDone) && !processing) {
+    if ((checkoutResult || trialDone || testResult) && !processing) {
       const timer = setTimeout(() => {
         router.push("/profile");
       }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [checkoutResult, processing, router, trialDone]);
+  }, [checkoutResult, processing, router, testResult, trialDone]);
 
   if (authLoading || featuresLoading || loading || !user) {
     return (
@@ -383,7 +437,7 @@ export default function SubscribePage() {
     );
   }
 
-  if (availableMethods.length === 0) {
+  if (availableMethods.length === 0 && !isAdmin) {
     return (
       <>
         <Header currentPage="/subscribe" />
@@ -399,7 +453,7 @@ export default function SubscribePage() {
               <div className="pinned-section fade-in">
                 <h2>{t("texts.tariffs")}</h2>
                 <div className="pinned-content">
-                  {!canBuy && (
+                  {!canSelect && (
                     <div
                       className="card"
                       style={{
@@ -476,7 +530,7 @@ export default function SubscribePage() {
             <div className="pinned-section fade-in">
               <h2>{t("texts.tariffs")}</h2>
               <div className="pinned-content">
-                {!canBuy && (
+                {!canSelect && (
                   <div
                     className="card"
                     style={{
@@ -503,7 +557,7 @@ export default function SubscribePage() {
                       lineHeight: "1.5",
                     }}
                   >
-                    {t("texts.trial_admin_only_bot")}
+                    {t("texts.admin_test_mode_hint")}
                   </div>
                 )}
                 {!telegramLinked && (
@@ -1248,6 +1302,65 @@ export default function SubscribePage() {
                 </div>
               </div>
             )}
+
+          {testResult && (
+            <div className="pinned-section fade-in">
+              <h2>{t("texts.subscription_link")}</h2>
+              <div className="pinned-content">
+                <div
+                  className="success-message"
+                  style={{ marginBottom: "16px" }}
+                >
+                  <p style={{ fontWeight: "600", marginBottom: "8px" }}>
+                    {t("texts.test_subscription_created_short", {
+                      plan_name: testResult.plan_name,
+                    })}
+                  </p>
+                  <p className="text-secondary" style={{ fontSize: "14px" }}>
+                    {t("texts.redirecting_to_profile")}
+                  </p>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "12px",
+                    marginTop: "16px",
+                  }}
+                >
+                  {[testResult.vpn_url, testResult.json_vpn_url]
+                    .filter((url): url is string => Boolean(url))
+                    .map((url) => (
+                      <div
+                        key={url}
+                        style={{
+                          padding: "12px",
+                          background: "var(--bg-tertiary)",
+                          borderRadius: "var(--radius-sm)",
+                          fontFamily: "monospace",
+                          fontSize: "14px",
+                          wordBreak: "break-all",
+                        }}
+                      >
+                        <code>{url}</code>
+                      </div>
+                    ))}
+                </div>
+                <Link
+                  href="/client"
+                  className="button"
+                  style={{
+                    display: "block",
+                    textAlign: "center",
+                    textDecoration: "none",
+                    marginTop: "16px",
+                  }}
+                >
+                  {t("texts.client_setup")}
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
       </main>
     </>

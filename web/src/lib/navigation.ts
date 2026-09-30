@@ -58,8 +58,10 @@ export function useNavigation() {
 
   const authorizedLinks = authorizedNavLinks
     .filter((link) => {
+      // Админ с автоподпиской Admin видит раздел: в боте он может брать
+      // тестовые подписки, скрывать пункт было неверно.
       if (link.href === "/subscribe") {
-        return user?.subscription?.status !== "active";
+        return user?.subscription?.status !== "active" || user.is_admin;
       }
       if (link.href === "/client") {
         return (

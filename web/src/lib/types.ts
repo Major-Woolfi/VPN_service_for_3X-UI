@@ -371,6 +371,15 @@ export interface CheckoutPaymentDetails {
   card_number?: string;
 }
 
+// Тестовая подписка администратора: оформляется сразу, без оплаты.
+export interface TestSubscriptionResponse {
+  message: string;
+  plan_name: string;
+  subscription_id: string;
+  vpn_url: string;
+  json_vpn_url: string;
+}
+
 export interface CheckoutResponse {
   checkout_url: string;
   payment_id: string;

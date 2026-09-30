@@ -35,6 +35,7 @@ import type {
   CreateSubscriptionRequest,
   CreateCheckoutRequest,
   CheckoutResponse,
+  TestSubscriptionResponse,
   CustomTariffParams,
   CustomTariffGenerateResponse,
   SubscriptionPaymentRequest,
@@ -478,6 +479,18 @@ export async function createCheckout(
 ): Promise<CheckoutResponse> {
   return fetchJson<CheckoutResponse>(
     `${API_BASE_URL}/payments/create-checkout`,
+    {
+      method: "POST",
+      body: JSON.stringify(req),
+    },
+  );
+}
+
+export async function createTestSubscription(
+  req: CreateCheckoutRequest,
+): Promise<TestSubscriptionResponse> {
+  return fetchJson<TestSubscriptionResponse>(
+    `${API_BASE_URL}/subscription/test`,
     {
       method: "POST",
       body: JSON.stringify(req),
