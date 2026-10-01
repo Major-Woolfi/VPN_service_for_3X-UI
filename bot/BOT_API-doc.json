@@ -404,13 +404,35 @@
             "type": "string"
           },
           "admin_subscription": {
-            "description": "Admin subscription URLs",
+            "description": "Admin subscription URLs. url/json_url are empty strings when the subscription base URL is not configured.",
             "type": [ "object", "null" ],
             "properties": {
               "url": {
                 "type": "string"
               },
               "json_url": {
+                "type": "string"
+              }
+            }
+          },
+          "admin_test_subscription": {
+            "description": "Active test subscription of the administrator, stored separately from the canonical Admin subscription",
+            "type": [ "object", "null" ],
+            "properties": {
+              "sub_id": {
+                "description": "Test subscription ID",
+                "type": "string"
+              },
+              "expiry": {
+                "description": "Test subscription expiry date",
+                "type": "string"
+              },
+              "url": {
+                "description": "Test VPN subscription URL, empty when the base URL is not configured",
+                "type": "string"
+              },
+              "json_url": {
+                "description": "Test JSON subscription URL, empty when the base URL is not configured",
                 "type": "string"
               }
             }
@@ -2558,7 +2580,7 @@
       "post": {
         "tags": [ "Subscriptions" ],
         "summary": "Test subscription (admin only)",
-        "description": "Creates a test subscription for the administrator account without payment. Works for catalog plans and for a custom plan (plan_id = \"custom\" with custom_plan).",
+        "description": "Creates a request for a test subscription for the administrator account. The request goes through the same approval flow as a regular payment: it is stored as a pending request (plan_type = \"test\") and the subscription is issued only after an administrator confirms it. Works for catalog plans and for a custom plan (plan_id = \"custom\" with custom_plan). The test subscription is stored separately from the canonical Admin subscription and never overwrites its sub_id.",
         "operationId": "test_subscription",
         "security": [
           {
@@ -2576,8 +2598,8 @@
           }
         },
         "responses": {
-          "201": {
-            "description": "Test subscription created",
+          "202": {
+            "description": "Test subscription request created and awaiting administrator confirmation",
             "content": {
               "application/json": {
                 "schema": {
@@ -2585,23 +2607,19 @@
                   "properties": {
                     "message": {
                       "type": "string",
-                      "description": "Success message with subscription links"
+                      "description": "Confirmation that the request awaits administrator approval"
                     },
                     "plan_name": {
                       "type": "string",
-                      "description": "Created plan name"
+                      "description": "Requested plan name"
                     },
-                    "subscription_id": {
+                    "payment_id": {
                       "type": "string",
-                      "description": "Subscription identifier"
+                      "description": "Pending payment id used to track the request"
                     },
-                    "vpn_url": {
-                      "type": "string",
-                      "description": "VPN subscription URL"
-                    },
-                    "json_vpn_url": {
-                      "type": "string",
-                      "description": "JSON subscription URL"
+                    "wait_admin": {
+                      "type": "boolean",
+                      "description": "Always true: the subscription is issued only after approval"
                     }
                   }
                 }
@@ -2619,6 +2637,12 @@
           },
           "404": {
             "description": "Tariff not found"
+          },
+          "409": {
+            "description": "An active request for this user already exists"
+          },
+          "500": {
+            "description": "Internal server error"
           }
         }
       }
@@ -2627,7 +2651,7 @@
       "get": {
         "tags": [ "Subscriptions" ],
         "summary": "Get VPN link",
-        "description": "Returns the VPN link and JSON link for an active subscription.",
+        "description": "Returns the VPN link and JSON link for an active subscription. vpn_url and json_vpn_url are empty strings when the corresponding subscription base URL is not configured on the bot; clients must hide the link block in that case instead of rendering a bare subscription id.",
         "operationId": "get_subscription_link",
         "security": [
           {

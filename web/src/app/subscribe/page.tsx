@@ -412,13 +412,13 @@ export default function SubscribePage() {
   }, [checkoutResult, activeTariff, userDiscountPercent]);
 
   useEffect(() => {
-    if ((checkoutResult || trialDone || testResult) && !processing) {
+    if ((checkoutResult || trialDone) && !processing) {
       const timer = setTimeout(() => {
         router.push("/profile");
       }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [checkoutResult, processing, router, testResult, trialDone]);
+  }, [checkoutResult, processing, router, trialDone]);
 
   if (authLoading || featuresLoading || loading || !user) {
     return (
@@ -1317,37 +1317,11 @@ export default function SubscribePage() {
                     })}
                   </p>
                   <p className="text-secondary" style={{ fontSize: "14px" }}>
-                    {t("texts.redirecting_to_profile")}
+                    {t("texts.test_subscription_awaiting_admin")}
                   </p>
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "12px",
-                    marginTop: "16px",
-                  }}
-                >
-                  {[testResult.vpn_url, testResult.json_vpn_url]
-                    .filter((url): url is string => Boolean(url))
-                    .map((url) => (
-                      <div
-                        key={url}
-                        style={{
-                          padding: "12px",
-                          background: "var(--bg-tertiary)",
-                          borderRadius: "var(--radius-sm)",
-                          fontFamily: "monospace",
-                          fontSize: "14px",
-                          wordBreak: "break-all",
-                        }}
-                      >
-                        <code>{url}</code>
-                      </div>
-                    ))}
-                </div>
                 <Link
-                  href="/client"
+                  href="/profile"
                   className="button"
                   style={{
                     display: "block",
@@ -1356,7 +1330,7 @@ export default function SubscribePage() {
                     marginTop: "16px",
                   }}
                 >
-                  {t("texts.client_setup")}
+                  {t("texts.account")}
                 </Link>
               </div>
             </div>

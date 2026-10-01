@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
+import { CopyableUrl } from "@/components/CopyableUrl";
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -135,6 +136,28 @@ export default function ProfilePage() {
 
   const initials = user?.username?.charAt(0).toUpperCase() || "?";
   const hasTid = Boolean(user?.telegram_id);
+
+  // Блок ссылок показывается только если есть хотя бы одна реальная ссылка.
+  // Без настроенного basepath бот отдаёт пустые url, и раньше здесь
+  // рендерился блок, содержащий только sub_id без самой ссылки.
+  const hasSubLink = Boolean(
+    subLink?.vpn_url ||
+    subLink?.json_vpn_url ||
+    user?.partner_subscription?.url ||
+    user?.partner_subscription?.json_url,
+  );
+
+  const renderCopyableUrl = (
+    url: string,
+    copyType: string,
+    isCopied: string | null,
+  ) => (
+    <CopyableUrl
+      url={url}
+      copied={isCopied === copyType}
+      onCopy={() => handleCopy(url, copyType)}
+    />
+  );
 
   return (
     <>
@@ -441,7 +464,7 @@ export default function ProfilePage() {
 
               {(isSubscribed ||
                 (user?.is_admin && user?.admin_subscription?.url)) &&
-                subLink && (
+                hasSubLink && (
                   <div className="pinned-section fade-in delay-2">
                     <h2>{t("texts.subscription_link")}</h2>
                     <div className="pinned-content">
@@ -453,188 +476,105 @@ export default function ProfilePage() {
                           gap: "12px",
                         }}
                       >
-                        {subLink?.vpn_url && (
-                          <div
-                            style={{
-                              padding: "12px",
-                              background: "var(--bg-tertiary)",
-                              borderRadius: "var(--radius-sm)",
-                              fontFamily: "monospace",
-                              fontSize: "14px",
-                              wordBreak: "break-all",
-                              display: "flex",
-                              gap: "8px",
-                              alignItems: "center",
-                            }}
-                          >
-                            <code style={{ flex: 1 }}>{subLink?.vpn_url}</code>
-                            <button
-                              onClick={() =>
-                                handleCopy(subLink!.vpn_url!, "vpn")
-                              }
-                              className="button"
-                              style={{
-                                whiteSpace: "nowrap",
-                                padding: "6px 12px",
-                              }}
-                            >
-                              {copied === "vpn"
-                                ? t("buttons.copied")
-                                : t("buttons.copy")}
-                            </button>
-                          </div>
-                        )}
-                        {subLink?.json_vpn_url && (
-                          <div
-                            style={{
-                              padding: "12px",
-                              background: "var(--bg-tertiary)",
-                              borderRadius: "var(--radius-sm)",
-                              fontFamily: "monospace",
-                              fontSize: "14px",
-                              wordBreak: "break-all",
-                              display: "flex",
-                              gap: "8px",
-                              alignItems: "center",
-                            }}
-                          >
-                            <code style={{ flex: 1 }}>
-                              {subLink.json_vpn_url}
-                            </code>
-                            <button
-                              onClick={() =>
-                                handleCopy(subLink!.json_vpn_url!, "json")
-                              }
-                              className="button"
-                              style={{
-                                whiteSpace: "nowrap",
-                                padding: "6px 12px",
-                              }}
-                            >
-                              {copied === "json"
-                                ? t("buttons.copied")
-                                : t("buttons.copy")}
-                            </button>
-                          </div>
-                        )}
+                        {subLink?.vpn_url &&
+                          renderCopyableUrl(subLink.vpn_url, "vpn", copied)}
+                        {subLink?.json_vpn_url &&
+                          renderCopyableUrl(
+                            subLink.json_vpn_url,
+                            "json",
+                            copied,
+                          )}
                       </div>
                     </div>
                   </div>
                 )}
 
-              {user?.is_partner && user.partner_subscription?.url && (
-                <div className="pinned-section fade-in delay-2">
-                  <h2>{t("texts.partner_subscription")}</h2>
-                  <div className="pinned-content">
-                    <div
-                      style={{
-                        marginTop: "16px",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "12px",
-                      }}
-                    >
-                      {user.partner_subscription?.url && (
-                        <div
-                          style={{
-                            padding: "12px",
-                            background: "var(--bg-tertiary)",
-                            borderRadius: "var(--radius-sm)",
-                            fontFamily: "monospace",
-                            fontSize: "14px",
-                            wordBreak: "break-all",
-                            display: "flex",
-                            gap: "8px",
-                            alignItems: "center",
-                          }}
-                        >
-                          <code style={{ flex: 1 }}>
-                            {user.partner_subscription.url}
-                          </code>
-                          <button
-                            onClick={() =>
-                              handleCopy(
-                                user.partner_subscription!.url,
-                                "partner-vpn",
-                              )
-                            }
-                            className="button"
-                            style={{
-                              whiteSpace: "nowrap",
-                              padding: "6px 12px",
-                            }}
-                          >
-                            {copied === "partner-vpn"
-                              ? t("buttons.copied")
-                              : t("buttons.copy")}
-                          </button>
-                        </div>
-                      )}
-                      {user.partner_subscription?.json_url && (
-                        <div
-                          style={{
-                            padding: "12px",
-                            background: "var(--bg-tertiary)",
-                            borderRadius: "var(--radius-sm)",
-                            fontFamily: "monospace",
-                            fontSize: "14px",
-                            wordBreak: "break-all",
-                            display: "flex",
-                            gap: "8px",
-                            alignItems: "center",
-                          }}
-                        >
-                          <code style={{ flex: 1 }}>
-                            {user.partner_subscription.json_url}
-                          </code>
-                          <button
-                            onClick={() =>
-                              handleCopy(
-                                user.partner_subscription!.json_url,
-                                "partner-json",
-                              )
-                            }
-                            className="button"
-                            style={{
-                              whiteSpace: "nowrap",
-                              padding: "6px 12px",
-                            }}
-                          >
-                            {copied === "partner-json"
-                              ? t("buttons.copied")
-                              : t("buttons.copy")}
-                          </button>
-                        </div>
-                      )}
-                      {(() => {
-                        const pUsed = user.partner_subscription?.used_gb ?? 0;
-                        const pTotal =
-                          user.partner_subscription?.traffic_gb ?? 0;
-                        const pDisplayTotal =
-                          pTotal === 0
-                            ? t("texts.unlimited")
-                            : t("texts.traffic_gb", { value: pTotal });
-                        return (
-                          <div
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                            }}
-                          >
-                            <span style={{ color: "var(--text-secondary)" }}>
-                              {t("texts.traffic")}
-                            </span>
-                            <span>
-                              {t("texts.traffic_gb", { value: pUsed })} /{" "}
-                              {pDisplayTotal}
-                            </span>
-                          </div>
-                        );
-                      })()}
+              {user?.is_admin &&
+                (user.admin_test_subscription?.url ||
+                  user.admin_test_subscription?.json_url) && (
+                  <div className="pinned-section fade-in delay-2">
+                    <h2>{t("texts.test_subscription")}</h2>
+                    <div className="pinned-content">
+                      <div
+                        style={{
+                          marginTop: "16px",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "12px",
+                        }}
+                      >
+                        {user.admin_test_subscription?.url &&
+                          renderCopyableUrl(
+                            user.admin_test_subscription.url,
+                            "admin-test-vpn",
+                            copied,
+                          )}
+                        {user.admin_test_subscription?.json_url &&
+                          renderCopyableUrl(
+                            user.admin_test_subscription.json_url,
+                            "admin-test-json",
+                            copied,
+                          )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+
+              {user?.is_partner &&
+                (user.partner_subscription?.url ||
+                  user.partner_subscription?.json_url) && (
+                  <div className="pinned-section fade-in delay-2">
+                    <h2>{t("texts.partner_subscription")}</h2>
+                    <div className="pinned-content">
+                      <div
+                        style={{
+                          marginTop: "16px",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "12px",
+                        }}
+                      >
+                        {user.partner_subscription?.url &&
+                          renderCopyableUrl(
+                            user.partner_subscription.url,
+                            "partner-vpn",
+                            copied,
+                          )}
+                        {user.partner_subscription?.json_url &&
+                          renderCopyableUrl(
+                            user.partner_subscription.json_url,
+                            "partner-json",
+                            copied,
+                          )}
+                        {(() => {
+                          const pUsed = user.partner_subscription?.used_gb ?? 0;
+                          const pTotal =
+                            user.partner_subscription?.traffic_gb ?? 0;
+                          const pDisplayTotal =
+                            pTotal === 0
+                              ? t("texts.unlimited")
+                              : t("texts.traffic_gb", { value: pTotal });
+                          return (
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                              }}
+                            >
+                              <span style={{ color: "var(--text-secondary)" }}>
+                                {t("texts.traffic")}
+                              </span>
+                              <span>
+                                {t("texts.traffic_gb", { value: pUsed })} /{" "}
+                                {pDisplayTotal}
+                              </span>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
               <div className="pinned-section fade-in delay-3">
                 <h2>{t("texts.actions")}</h2>

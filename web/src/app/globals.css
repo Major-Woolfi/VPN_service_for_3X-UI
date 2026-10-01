@@ -1414,10 +1414,54 @@ select.form-input {
 }
 
 /* === UTILITIES === */
+/* Статистика: карточки не должны сжиматься в нечитаемые колонки на
+   телефонах. Одна колонка до 480px, две до 900px, дальше - auto-fit. */
 .grid-auto-fit {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: 1fr;
   gap: 12px;
+}
+
+.stat-value {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Сетка нод: одна колонка на телефоне, две на планшете, дальше - auto-fit.
+   Раньше ширина колонки зависела от чётности количества нод, из-за чего
+   сетка вела себя по-разному при добавлении и удалении одной ноды. */
+.node-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 640px) {
+  .node-grid {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  }
+}
+
+.guide-steps {
+  margin: 12px 0 0;
+  padding-left: 20px;
+}
+
+.guide-steps li {
+  margin-bottom: 8px;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 480px) {
+  .grid-auto-fit {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 900px) {
+  .grid-auto-fit {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
 }
 
 .tariff-row {

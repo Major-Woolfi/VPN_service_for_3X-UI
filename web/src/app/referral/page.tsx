@@ -1,6 +1,7 @@
 "use client";
 
 import Header from "@/components/Header";
+import { StatGrid } from "@/components/StatGrid";
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getReferralStats } from "@/lib/api";
@@ -223,45 +224,7 @@ export default function ReferralPage() {
             <div className="pinned-section fade-in delay-2">
               <h2>{t("texts.stats")}</h2>
               <div className="pinned-content">
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-                    gap: "16px",
-                    marginTop: "16px",
-                  }}
-                >
-                  {statCards.map((card) => (
-                    <div
-                      key={card.label}
-                      style={{
-                        padding: "20px",
-                        background: "var(--bg-tertiary)",
-                        borderRadius: "var(--radius-md)",
-                        textAlign: "center",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "28px",
-                          fontWeight: "700",
-                          color: card.color,
-                        }}
-                      >
-                        {card.value}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "14px",
-                          color: "var(--text-secondary)",
-                          marginTop: "8px",
-                        }}
-                      >
-                        {card.label}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <StatGrid cards={statCards} />
               </div>
             </div>
           )}

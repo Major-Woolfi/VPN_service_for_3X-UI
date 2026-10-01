@@ -1,6 +1,7 @@
 "use client";
 
 import Header from "@/components/Header";
+import { StatGrid } from "@/components/StatGrid";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -800,96 +801,25 @@ export default function PartnerPage() {
             <div className="pinned-section fade-in delay-1">
               <h2>{t("texts.stats")}</h2>
               <div className="pinned-content">
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-                    gap: "16px",
-                    marginTop: "16px",
-                  }}
-                >
-                  <div
-                    style={{
-                      padding: "20px",
-                      background: "var(--bg-tertiary)",
-                      borderRadius: "var(--radius-md)",
-                      textAlign: "center",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "28px",
-                        fontWeight: "700",
-                        color: "var(--accent)",
-                      }}
-                    >
-                      {stats.total_refs || 0}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        color: "var(--text-secondary)",
-                        marginTop: "8px",
-                      }}
-                    >
-                      {t("texts.total_refs")}
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      padding: "20px",
-                      background: "var(--bg-tertiary)",
-                      borderRadius: "var(--radius-md)",
-                      textAlign: "center",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "28px",
-                        fontWeight: "700",
-                        color: "var(--success)",
-                      }}
-                    >
-                      {stats.paid_refs || 0}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        color: "var(--text-secondary)",
-                        marginTop: "8px",
-                      }}
-                    >
-                      {t("texts.paid_refs")}
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      padding: "20px",
-                      background: "var(--bg-tertiary)",
-                      borderRadius: "var(--radius-md)",
-                      textAlign: "center",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "28px",
-                        fontWeight: "700",
-                        color: "var(--warning)",
-                      }}
-                    >
-                      {stats.commission_total || 0} {t("texts.currency_rub")}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        color: "var(--text-secondary)",
-                        marginTop: "8px",
-                      }}
-                    >
-                      {t("texts.total_earned")}
-                    </div>
-                  </div>
-                </div>
+                <StatGrid
+                  cards={[
+                    {
+                      label: t("texts.total_refs"),
+                      value: stats?.total_refs || 0,
+                      color: "var(--accent)",
+                    },
+                    {
+                      label: t("texts.paid_refs"),
+                      value: stats?.paid_refs || 0,
+                      color: "var(--success)",
+                    },
+                    {
+                      label: t("texts.total_earned"),
+                      value: `${stats?.commission_total || 0} ${t("texts.currency_rub")}`,
+                      color: "var(--warning)",
+                    },
+                  ]}
+                />
               </div>
             </div>
           )}

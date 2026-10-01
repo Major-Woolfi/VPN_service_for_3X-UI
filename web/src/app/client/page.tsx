@@ -1,6 +1,7 @@
 "use client";
 
 import Header from "@/components/Header";
+import { CopyableUrl } from "@/components/CopyableUrl";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -12,6 +13,25 @@ import { useFeatures } from "@/contexts/FeaturesContext";
 import type { SubscriptionLinkResponse } from "@/lib/types";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useRouter } from "next/navigation";
+
+const INCY_GUIDE_STEPS = [
+  "texts.guide_incy_step_1",
+  "texts.guide_incy_step_2",
+  "texts.guide_incy_step_3",
+  "texts.guide_incy_step_4",
+  "texts.guide_incy_step_5",
+  "texts.guide_incy_step_6",
+  "texts.guide_incy_step_7",
+] as const;
+
+const V2RAYTUN_GUIDE_STEPS = [
+  "texts.guide_v2raytun_step_1",
+  "texts.guide_v2raytun_step_2",
+  "texts.guide_v2raytun_step_3",
+  "texts.guide_v2raytun_step_4",
+  "texts.guide_v2raytun_step_5",
+  "texts.guide_v2raytun_step_6",
+] as const;
 
 export default function ClientPage() {
   const { loading: authLoading, user } = useAuth();
@@ -135,7 +155,7 @@ export default function ClientPage() {
             </div>
           </div>
 
-          {subLink && (
+          {(subLink?.vpn_url || subLink?.json_vpn_url) && (
             <div className="pinned-section fade-in">
               <h2>{t("texts.subscription_link")}</h2>
               <div className="pinned-content">
@@ -148,56 +168,18 @@ export default function ClientPage() {
                   }}
                 >
                   {subLink?.vpn_url && (
-                    <div
-                      style={{
-                        padding: "12px",
-                        background: "var(--bg-tertiary)",
-                        borderRadius: "var(--radius-sm)",
-                        fontFamily: "monospace",
-                        fontSize: "14px",
-                        wordBreak: "break-all",
-                        display: "flex",
-                        gap: "8px",
-                        alignItems: "center",
-                      }}
-                    >
-                      <code style={{ flex: 1 }}>{subLink.vpn_url}</code>
-                      <button
-                        onClick={() => handleCopy(subLink.vpn_url, "vpn")}
-                        className="button"
-                        style={{ whiteSpace: "nowrap", padding: "6px 12px" }}
-                      >
-                        {copied === "vpn"
-                          ? t("buttons.copied")
-                          : t("buttons.copy")}
-                      </button>
-                    </div>
+                    <CopyableUrl
+                      url={subLink.vpn_url}
+                      copied={copied === "vpn"}
+                      onCopy={() => handleCopy(subLink.vpn_url, "vpn")}
+                    />
                   )}
                   {subLink?.json_vpn_url && (
-                    <div
-                      style={{
-                        padding: "12px",
-                        background: "var(--bg-tertiary)",
-                        borderRadius: "var(--radius-sm)",
-                        fontFamily: "monospace",
-                        fontSize: "14px",
-                        wordBreak: "break-all",
-                        display: "flex",
-                        gap: "8px",
-                        alignItems: "center",
-                      }}
-                    >
-                      <code style={{ flex: 1 }}>{subLink.json_vpn_url}</code>
-                      <button
-                        onClick={() => handleCopy(subLink.json_vpn_url, "json")}
-                        className="button"
-                        style={{ whiteSpace: "nowrap", padding: "6px 12px" }}
-                      >
-                        {copied === "json"
-                          ? t("buttons.copied")
-                          : t("buttons.copy")}
-                      </button>
-                    </div>
+                    <CopyableUrl
+                      url={subLink.json_vpn_url}
+                      copied={copied === "json"}
+                      onCopy={() => handleCopy(subLink.json_vpn_url, "json")}
+                    />
                   )}
                 </div>
               </div>
@@ -272,13 +254,27 @@ export default function ClientPage() {
             <h2>{t("texts.steps")}</h2>
             <div className="pinned-content">
               <div style={{ marginTop: "16px" }}>
-                <ol style={{ paddingLeft: "20px" }}>
-                  <li style={{ marginBottom: "12px" }}>{t("texts.step_1")}</li>
-                  <li style={{ marginBottom: "12px" }}>{t("texts.step_2")}</li>
-                  <li style={{ marginBottom: "12px" }}>{t("texts.step_3")}</li>
-                  <li style={{ marginBottom: "12px" }}>{t("texts.step_4")}</li>
-                  <li>{t("texts.step_5")}</li>
+                <p className="text-secondary">{t("texts.guide_intro")}</p>
+
+                <h3>{t("texts.guide_incy")}</h3>
+                <ol className="guide-steps">
+                  {INCY_GUIDE_STEPS.map((stepKey) => (
+                    <li key={stepKey}>{t(stepKey)}</li>
+                  ))}
                 </ol>
+
+                <h3 style={{ marginTop: "24px" }}>
+                  {t("texts.guide_v2raytun")}
+                </h3>
+                <ol className="guide-steps">
+                  {V2RAYTUN_GUIDE_STEPS.map((stepKey) => (
+                    <li key={stepKey}>{t(stepKey)}</li>
+                  ))}
+                </ol>
+
+                <p className="text-secondary" style={{ marginTop: "16px" }}>
+                  {t("texts.guide_support_hint")}
+                </p>
                 <p style={{ marginTop: "16px" }}>
                   {t("texts.guide_available")}{" "}
                   <a

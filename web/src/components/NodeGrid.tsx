@@ -276,13 +276,7 @@ export function NodeGrid({ nodes, mainNode, admin }: NodeGridProps) {
       {renderMainNode()}
 
       {nodes.length > 0 && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: `repeat(auto-fit, minmax(${nodes.length % 2 === 0 ? "260px" : "280px"}, 1fr))`,
-            gap: "16px",
-          }}
-        >
+        <div className="node-grid">
           {nodes.map((node) => (
             <NodeCard key={node.name} node={node} admin={admin} />
           ))}

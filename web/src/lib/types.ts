@@ -68,6 +68,12 @@ export interface SanitizedUser {
     url: string;
     json_url: string;
   } | null;
+  admin_test_subscription: {
+    sub_id: string;
+    expiry: string;
+    url: string;
+    json_url: string;
+  } | null;
   partner_subscription: {
     sub_id: string;
     expiry: string;
@@ -375,9 +381,8 @@ export interface CheckoutPaymentDetails {
 export interface TestSubscriptionResponse {
   message: string;
   plan_name: string;
-  subscription_id: string;
-  vpn_url: string;
-  json_vpn_url: string;
+  payment_id: string;
+  wait_admin: boolean;
 }
 
 export interface CheckoutResponse {
