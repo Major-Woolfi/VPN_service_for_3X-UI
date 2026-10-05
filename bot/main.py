@@ -4836,11 +4836,16 @@ class JSONStorage:
         async def _copy(data: list[dict[str, Any]]) -> list[dict[str, Any]]:
             return [dict(item) for item in data if isinstance(item, dict)]
 
-        try:
-            return await self._transaction(_copy, save=False)
-        except Exception as e:  # noqa: BLE001
-            logger.error(f"Ошибка read_all: {e}")
-            return []
+        last_error: Exception | None = None
+        for attempt in range(3):
+            try:
+                return await self._transaction(_copy, save=False)
+            except Exception as e:  # noqa: BLE001
+                last_error = e
+                logger.warning(f"read_all attempt {attempt + 1}/3 failed: {e}")
+                await asyncio.sleep(0.05)
+        logger.error(f"read_all failed after 3 attempts: {last_error}")
+        return []
 
     @log_error
     async def release_stale_processing_payments(self) -> int:
@@ -7046,17 +7051,19 @@ def build_pending_payment_text(payment: dict[str, Any], tg_id: int = 0) -> str:
         )
     elif not plan_name:
         plan_name = str(plan_id) or plan_type
-    return translate(
-        Config.DEFAULT_LANGUAGE,
-        "texts.pending_payment_text",
-        payment_id=pid,
-        user_id=uid,
-        tg_id=tg_id,
-        plan_name=plan_name,
-        details=details,
-        payment_method=method,
-        amount=amount,
-        timestamp=format_payment_time(payment.get("timestamp")),
+    return truncate(
+        translate(
+            Config.DEFAULT_LANGUAGE,
+            "texts.pending_payment_text",
+            payment_id=pid,
+            user_id=uid,
+            tg_id=tg_id,
+            plan_name=plan_name,
+            details=details,
+            payment_method=method,
+            amount=amount,
+            timestamp=format_payment_time(payment.get("timestamp")),
+        )
     )
 
 
@@ -9637,6 +9644,7 @@ async def show_fixed_tariffs(
     text += "\n\n" + translate(lang, "texts.buy_fixed_hint")
     if is_admin:
         text += translate(lang, "texts.buy_admin_custom_hint")
+    text = truncate(text)
     keyboard: list[list[dict[str, str]]] = []
     if is_admin:
         keyboard.append(
@@ -12334,7 +12342,7 @@ def build_partner_op_text(
     return ""
 
 
-async def is_partner_withdrawal_mirror(payment: dict[str, Any]) -> bool:
+def is_partner_withdrawal_mirror(payment: dict[str, Any]) -> bool:
     """Заявка на вывод средств - не платёж.
 
     Старые версии зеркалили её в список ожидающих платежей, из-за чего
@@ -12438,11 +12446,22 @@ async def cmd_partner_operations(event: CallbackQuery, **kwargs):
         text = build_partner_op_text(
             enriched_op, lang, tg_id=user_data.get("telegram_id", 0) if user_data else 0
         )
+        text = truncate(text)
         markup = build_partner_op_keyboard(op_id, op_type, lang)
-        if isinstance(event, Message):
-            await event.answer(text, reply_markup=markup)
-        elif isinstance(event, CallbackQuery) and event.message:
-            await event.message.answer(text, reply_markup=markup)
+        try:
+            if isinstance(event, Message):
+                await event.answer(text, reply_markup=markup)
+            elif isinstance(event, CallbackQuery) and event.message:
+                await event.message.answer(text, reply_markup=markup)
+        except TelegramBadRequest as e:
+            if "MESSAGE_TOO_LONG" in str(e):
+                logger.warning(f"Операция {op_id} слишком длинная, пропускаем")
+                continue
+            logger.error(f"Ошибка отправки операции {op_id}: {e}")
+            continue
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Ошибка отправки операции {op_id}: {e}")
+            continue
 
 
 @router.callback_query(F.data.startswith(f"{PARTNER_OP_ACCEPT_CB}:"))
@@ -13037,9 +13056,11 @@ async def cmd_pay_await(event: CallbackQuery, **kwargs):
     if not await ensure_admin_access(event):
         return
     payments = await json_db.read_all()
+    logger.info(f"pay_await: read {len(payments)} payments from json_db")
     pending = [
         p for p in payments if p.get("status") == "pending" and not is_partner_withdrawal_mirror(p)
     ]
+    logger.info(f"pay_await: {len(pending)} pending payments after filtering")
     if not pending:
         await smart_answer(
             event,
@@ -13070,10 +13091,20 @@ async def cmd_pay_await(event: CallbackQuery, **kwargs):
                 tg_id = to_int(user_data.get("telegram_id", 0), 0)
         text = build_pending_payment_text(p, tg_id=tg_id)
         markup = build_pending_payment_keyboard(pid)
-        if isinstance(event, Message):
-            await event.answer(text, reply_markup=markup)
-        elif isinstance(event, CallbackQuery) and event.message:
-            await event.message.answer(text, reply_markup=markup)
+        try:
+            if isinstance(event, Message):
+                await event.answer(text, reply_markup=markup)
+            elif isinstance(event, CallbackQuery) and event.message:
+                await event.message.answer(text, reply_markup=markup)
+        except TelegramBadRequest as e:
+            if "MESSAGE_TOO_LONG" in str(e):
+                logger.warning(f"Платёж {pid} слишком длинный, пропускаем")
+                continue
+            logger.error(f"Ошибка отправки платежа {pid}: {e}")
+            continue
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Ошибка отправки платежа {pid}: {e}")
+            continue
 
 
 @router.callback_query(F.data.startswith("pay_await_accept:"))
@@ -15626,14 +15657,17 @@ async def cmd_debug_manual_issue_mode(event: CallbackQuery, state: FSMContext, *
     await state.update_data(manual_issue_mode=mode)
     await state.set_state(ManualIssueState.waiting_for_plan)
     back_to = await _debug_return_to(state, "debug_subscription")
-    await event.answer(
+    body = (
         translate(
             lang,
             "texts.manual_issue_plan_prompt",
             **user_ident(internal_uid, tg_id),
         )
         + "\n\n"
-        + build_fixed_tariffs_text(plans, lang=lang),
+        + build_fixed_tariffs_text(plans, lang=lang)
+    )
+    await event.answer(
+        truncate(body),
         reply_markup=kb(
             [
                 [
