@@ -16,7 +16,7 @@ import time
 import uuid
 from collections import OrderedDict
 from collections.abc import Callable
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, ClassVar, Literal, Self, TypeVar
@@ -86,7 +86,7 @@ if not logger.handlers:
     file_handler: logging.FileHandler | None = None
     try:
         LOGS_DIR.mkdir(parents=True, exist_ok=True)
-        os.chmod(LOGS_DIR, 0o755)
+        os.chmod(LOGS_DIR, 0o755)  # noqa: S103
         file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8", mode="a")
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(formatter)
@@ -119,10 +119,8 @@ def _generate_missing_secrets() -> None:
             value = secrets.token_urlsafe(48)
             set_key(str(ENV_FILE), name, value)
             os.environ[name] = value
-        try:
+        with suppress(PermissionError, OSError):
             os.chmod(ENV_FILE, 0o600)
-        except (PermissionError, OSError):
-            pass
         logger.info(f"Сгенерированы отсутствующие секреты: {', '.join(missing)}")
     except Exception as e:  # noqa: BLE001
         logger.warning(f"Не удалось сгенерировать секреты: {e}")
@@ -132,6 +130,20 @@ _generate_missing_secrets()
 
 # --- Константы ---
 ADMIN_LEGACY_SUB_ID: str = "Admin"
+HTTP_STATUS_OK = 200
+MAX_LOG_TEXT_LENGTH = 500
+MIN_SECRET_LENGTH = 32
+MAX_PERCENT = 100
+MAX_EMAIL_LENGTH = 254
+MAX_IN_MEMORY_TRACK_ENTRIES = 10000
+GB_PER_TB = 1024
+DAYS_PER_MONTH = 30
+MAX_NICKNAME_LENGTH = 30
+MAX_COMPENSATION_DAYS = 365
+WEB_LOGIN_TIMEOUT_SECONDS = 120
+SEARCH_RESULTS_LIMIT = 5
+COUNTRY_CODE_LENGTH = 2
+REGIONAL_INDICATOR_BASE = 0x1F1E6
 
 # --- Типы для строгой типизации ---
 T = TypeVar("T")
@@ -222,8 +234,8 @@ def _mask_sensitive(data: Any) -> Any:
     text = str(data)
     for _name, pattern in _SENSITIVE_PATTERNS:
         text = pattern.sub(lambda m: m.group(0)[:12] + "***", text)
-    if len(text) > 500:
-        text = text[:500] + "... [truncated]"
+    if len(text) > MAX_LOG_TEXT_LENGTH:
+        text = text[:MAX_LOG_TEXT_LENGTH] + "... [truncated]"
     return text
 
 
@@ -271,7 +283,7 @@ def truncate(text: str, limit: int = 4096) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
-async def safe_send_message(
+async def safe_send_message(  # noqa: PLR0911
     bot: Bot,
     user_id: int,
     text: str,
@@ -324,14 +336,10 @@ async def smart_answer(
             if event.message:
                 await event.message.answer(text, reply_markup=reply_markup)
                 if delete_origin:
-                    try:
+                    with suppress(Exception):
                         await event.message.delete()
-                    except Exception:  # noqa: BLE001, S110
-                        pass
-            try:
+            with suppress(Exception):
                 await event.answer()
-            except Exception:  # noqa: BLE001, S110
-                pass
         return True
     except Exception as e:  # noqa: BLE001
         logger.error(f"smart_answer error: {e}")
@@ -485,7 +493,7 @@ class Config:
     ADMIN_SUB_EMAIL: str = os.getenv("ADMIN_SUB_EMAIL", "").strip()
     ADMIN_SUB_ID: str = os.getenv("ADMIN_SUB_ID", "Admin").strip()
 
-    FASTAPI_HOST: str = os.getenv("FASTAPI_HOST", "0.0.0.0").strip()
+    FASTAPI_HOST: str = os.getenv("FASTAPI_HOST", "0.0.0.0").strip()  # noqa: S104
     FASTAPI_PORT: int = env_int("FASTAPI_PORT", 2005)
     FASTAPI_DOCS: bool = str_to_bool(os.getenv("FASTAPI_DOCS", "false"))
     FASTAPI_CORS_ENABLED: bool = str_to_bool(os.getenv("FASTAPI_CORS_ENABLED", "false"))
@@ -610,16 +618,16 @@ class Config:
         return [s.strip().lower() for s in cls.PARTNER_REQUIRED_SOCIALS.split(",") if s.strip()]
 
     @classmethod
-    def validate(cls) -> None:
+    def validate(cls) -> None:  # noqa: PLR0912, PLR0915
         errors: list[str] = []
 
         if not cls.BOT_TOKEN:
             errors.append("BOT_TOKEN не установлен")
 
-        if len(cls.BOT_API_KEY) < 32:
+        if len(cls.BOT_API_KEY) < MIN_SECRET_LENGTH:
             errors.append("BOT_API_KEY должен быть уникальным ключом не короче 32 символов")
 
-        if len(cls.BOT_ADMIN_KEY) < 32:
+        if len(cls.BOT_ADMIN_KEY) < MIN_SECRET_LENGTH:
             errors.append("BOT_ADMIN_KEY должен быть уникальным ключом не короче 32 символов")
 
         if not cls.PANEL_BASE:
@@ -650,12 +658,12 @@ class Config:
             errors.append("SESSION_MAX_AGE должен быть больше 0")
 
         if (
-            len(cls.SESSION_SECRET) < 32
-            or cls.SESSION_SECRET == "change-this-to-a-random-secret-string"
+            len(cls.SESSION_SECRET) < MIN_SECRET_LENGTH
+            or cls.SESSION_SECRET == "change-this-to-a-random-secret-string"  # noqa: S105
         ):
             errors.append("SESSION_SECRET должен быть уникальной строкой не короче 32 символов")
 
-        if len(cls.JWT_SECRET_KEY) < 32:
+        if len(cls.JWT_SECRET_KEY) < MIN_SECRET_LENGTH:
             errors.append("JWT_SECRET_KEY должен быть уникальной строкой не короче 32 символов")
 
         if cls.TRUST_SCORE_MIN < 0:
@@ -664,7 +672,7 @@ class Config:
             errors.append("TRUST_SCORE_MAX должен быть больше TRUST_SCORE_MIN")
         if cls.TRUST_SCORE_EARN_PERCENT < 0:
             errors.append("TRUST_SCORE_EARN_PERCENT не может быть отрицательным")
-        if not 0 <= cls.TRUST_SCORE_DISCOUNT_PERCENT_PER_POINT <= 100:
+        if not 0 <= cls.TRUST_SCORE_DISCOUNT_PERCENT_PER_POINT <= MAX_PERCENT:
             errors.append("TRUST_SCORE_DISCOUNT_PERCENT_PER_POINT должен быть от 0 до 100")
         if cls.TRUST_SCORE_PENALTY_TRAFFIC_EXHAUSTED < 0:
             errors.append("TRUST_SCORE_PENALTY_TRAFFIC_EXHAUSTED не может быть отрицательным")
@@ -689,7 +697,7 @@ class Config:
             errors.append("ADMIN_SUB_ID должен содержать 3-64 символов A-Za-z0-9, _ или -")
 
         if cls.ADMIN_SUB_EMAIL and (
-            len(cls.ADMIN_SUB_EMAIL) > 254
+            len(cls.ADMIN_SUB_EMAIL) > MAX_EMAIL_LENGTH
             or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", cls.ADMIN_SUB_EMAIL)
         ):
             errors.append("ADMIN_SUB_EMAIL должен быть корректным email-адресом")
@@ -989,7 +997,7 @@ def _record_auth_failure(username: str, client_ip: str) -> None:
         "count": _auth_failures.get(key, {}).get("count", 0) + 1,
         "last_failure": now,
     }
-    if len(_auth_failures) > 10000:
+    if len(_auth_failures) > MAX_IN_MEMORY_TRACK_ENTRIES:
         oldest = min(_auth_failures.items(), key=lambda x: x[1].get("last_failure", 0))
         if oldest:
             del _auth_failures[oldest[0]]
@@ -1013,10 +1021,8 @@ async def _notify_account_change(user_id: int, text_template: str, **kwargs: Any
     if not tg_id:
         return
     lang = await db.get_user_language_by_user_id(user_id) or Config.DEFAULT_LANGUAGE
-    try:
+    with suppress(Exception):
         await safe_send_message(bot, tg_id, translate(lang, text_template, **kwargs))
-    except Exception:  # noqa: BLE001, S110
-        pass
 
 
 # --- Tech work mode ---
@@ -1134,7 +1140,7 @@ async def switch_all_clients_to_backup() -> dict[str, int]:
                     for x in current_inbounds
                     if to_int(x, 0) > 0 and x != backup_inbound_id
                 ]
-                new_inbounds = [backup_inbound_id] + clean_ids
+                new_inbounds = [backup_inbound_id, *clean_ids]
                 payload = panel._client_payload_for_update(client)
                 payload["inboundIds"] = new_inbounds
                 payload["enable"] = True
@@ -1380,7 +1386,7 @@ def is_cancel_text(text: str, lang: str) -> bool:
         cancel_label = translate(lang, "buttons.cancel").strip().lower()
     except Exception:  # noqa: BLE001
         cancel_label = ""
-    return normalized == "/cancel" or bool(cancel_label) and normalized == cancel_label
+    return normalized == "/cancel" or (bool(cancel_label) and normalized == cancel_label)
 
 
 def is_yes_text(text: str, lang: str) -> bool:
@@ -1388,10 +1394,8 @@ def is_yes_text(text: str, lang: str) -> bool:
     if not normalized:
         return False
     candidates = {"да", "yes", "ja", "tak", "是", "はい"}
-    try:
+    with suppress(Exception):
         candidates.add(translate(lang, "buttons.yes").strip().lower())
-    except Exception:  # noqa: BLE001, S110
-        pass
     return normalized in {c for c in candidates if c}
 
 
@@ -1463,19 +1467,21 @@ async def resolve_payment_id_candidates(raw_id: int) -> set[str]:
 
 def country_code_to_flag(value: Any) -> str:
     code = str(value or "").strip().upper()
-    if len(code) != 2 or not code.isalpha() or not code.isascii():
+    if len(code) != COUNTRY_CODE_LENGTH or not code.isalpha() or not code.isascii():
         return ""
-    return "".join(chr(0x1F1E6 + ord(ch) - ord("A")) for ch in code)
+    return "".join(chr(REGIONAL_INDICATOR_BASE + ord(ch) - ord("A")) for ch in code)
 
 
 def flag_to_country_code(value: Any) -> str:
     text = str(value or "").strip()
-    if len(text) < 2:
+    if len(text) < COUNTRY_CODE_LENGTH:
         return ""
-    regional = [ch for ch in text if 0x1F1E6 <= ord(ch) <= 0x1F1E6 + 25]
-    if len(regional) < 2:
+    regional = [
+        ch for ch in text if REGIONAL_INDICATOR_BASE <= ord(ch) <= REGIONAL_INDICATOR_BASE + 25
+    ]
+    if len(regional) < COUNTRY_CODE_LENGTH:
         return ""
-    return "".join(chr(ord(ch) - 0x1F1E6 + ord("A")) for ch in regional[:2])
+    return "".join(chr(ord(ch) - REGIONAL_INDICATOR_BASE + ord("A")) for ch in regional[:2])
 
 
 def normalize_server_code(value: Any) -> str:
@@ -1524,8 +1530,8 @@ def format_traffic(traffic_gb: Any, lang: str = Config.DEFAULT_LANGUAGE) -> str:
         return str(traffic_gb)
     if v <= 0:
         return translate(lang, "texts.unlimited")
-    if v >= 1024 and v % 1024 == 0:
-        return translate(lang, "texts.traffic_tb", value=int(v / 1024))
+    if v >= GB_PER_TB and v % GB_PER_TB == 0:
+        return translate(lang, "texts.traffic_tb", value=int(v / GB_PER_TB))
     if v.is_integer():
         return translate(lang, "texts.traffic_gb", value=int(v))
     return translate(lang, "texts.traffic_gb", value=v)
@@ -1594,7 +1600,7 @@ def normalize_sub_id(raw: Any) -> str:
     value = value.split("?", 1)[0].split("#", 1)[0].rstrip("/")
     if "/" in value:
         value = value.rsplit("/", 1)[-1]
-    if len(value) < 3:
+    if len(value) < 3:  # noqa: PLR2004
         logger.warning(f"Подозрительный sub_id: {value[:20]}...")
         return ""
     return value.strip()
@@ -1883,12 +1889,12 @@ class TariffCatalog:
             return False
         return plan.get("id") == "trial" or plan.get("price_rub", 0) == 0
 
-    def load(self) -> None:
+    def load(self) -> None:  # noqa: PLR0912, PLR0915
         if not os.path.exists(self.path):
             logger.error(f"Файл тарифов не найден: {self.path}")
             raise FileNotFoundError(f"Файл тарифов не найден: {self.path}")
         try:
-            with open(self.path, "r", encoding="utf-8") as f:
+            with open(self.path, encoding="utf-8") as f:
                 data = json.load(f)
         except json.JSONDecodeError as e:
             logger.error(f"Ошибка парсинга тарифов: {e}")
@@ -1924,7 +1930,7 @@ class TariffCatalog:
                 match = raw.get("match") or []
                 if not isinstance(match, list):
                     match = [match]
-                match_tokens = normalize_servers([code, flag] + aliases + match)
+                match_tokens = normalize_servers([code, flag, *aliases, *match])
                 loc = {
                     "code": code,
                     "flag": flag,
@@ -2304,7 +2310,7 @@ def apply_trust_discount(price: float, trust_score: int) -> tuple[float, int]:
     return price - (price * disc / 100.0), disc
 
 
-async def apply_trust_score_delta(user_id: int, delta: int) -> tuple[bool, int, int, int]:
+async def apply_trust_score_delta(user_id: int, delta: int) -> tuple[bool, int, int, int]:  # noqa: PLR0911
     if not TRUST_SCORE_ENABLED:
         return False, 0, 0, 0
     user = await db.get_user_by_any_id(user_id)
@@ -2427,10 +2433,8 @@ class Database:
             parent = os.path.dirname(self.db_path)
             if parent:
                 os.makedirs(parent, exist_ok=True)
-                try:
-                    os.chmod(parent, 0o755)
-                except (PermissionError, OSError):
-                    pass
+                with suppress(PermissionError, OSError):
+                    os.chmod(parent, 0o755)  # noqa: S103
 
             async def _connect() -> aiosqlite.Connection:
                 conn = await asyncio.wait_for(
@@ -2451,7 +2455,7 @@ class Database:
                 logger.warning(
                     f"Не удалось открыть БД по пути {self.db_path}, пробуем временный каталог"
                 )
-                fallback_dir = os.path.join("/tmp", os.getenv("VPN_NAME", "vpn"))
+                fallback_dir = os.path.join("/tmp", os.getenv("VPN_NAME", "vpn"))  # noqa: S108
                 os.makedirs(fallback_dir, exist_ok=True)
                 fallback_path = os.path.join(fallback_dir, "users.db")
                 self.db_path = fallback_path
@@ -2643,12 +2647,12 @@ class Database:
 
     async def _migrate_json_user_ids(self) -> None:
         for path in (Config.DATA_AWAIT, Config.PARTNER_OPS_FILE):
-            if not os.path.exists(path):
+            if not await asyncio.to_thread(os.path.exists, path):
                 continue
             try:
                 import aiofiles
 
-                async with aiofiles.open(path, "r", encoding="utf-8") as f:
+                async with aiofiles.open(path, encoding="utf-8") as f:
                     content = await f.read()
                 data = json.loads(content) if content else []
                 if not isinstance(data, list):
@@ -2722,7 +2726,7 @@ class Database:
         logger.info("init_db._cleanup_duplicate_users: конец")
 
     @log_error
-    async def add_user(self, telegram_id: int, *, force: bool = False) -> bool:
+    async def add_user(self, telegram_id: int, *, force: bool = False) -> bool:  # noqa: PLR0911
         if not force and await is_admin_user(telegram_id):
             return False
         if not self.conn:
@@ -2873,7 +2877,7 @@ class Database:
             placeholders = ",".join("?" for _ in user_ids)
             async with self.lock:
                 cur = await self.conn.execute(
-                    f"SELECT * FROM users WHERE user_id IN ({placeholders})",
+                    f"SELECT * FROM users WHERE user_id IN ({placeholders})",  # noqa: S608
                     user_ids,
                 )
                 return [dict(row) for row in await cur.fetchall()]
@@ -2889,7 +2893,7 @@ class Database:
             placeholders = ",".join("?" for _ in telegram_ids)
             async with self.lock:
                 cur = await self.conn.execute(
-                    f"SELECT * FROM users WHERE telegram_id IN ({placeholders})",
+                    f"SELECT * FROM users WHERE telegram_id IN ({placeholders})",  # noqa: S608
                     telegram_ids,
                 )
                 return [dict(row) for row in await cur.fetchall()]
@@ -2917,7 +2921,7 @@ class Database:
         try:
             placeholders = ",".join("?" for _ in user_ids)
             cur = await self.conn.execute(
-                f"SELECT ref_by, COUNT(*) FROM users WHERE ref_by IN ({placeholders}) GROUP BY ref_by",
+                f"SELECT ref_by, COUNT(*) FROM users WHERE ref_by IN ({placeholders}) GROUP BY ref_by",  # noqa: S608
                 user_ids,
             )
             return {row[0]: row[1] for row in await cur.fetchall()}
@@ -2932,7 +2936,7 @@ class Database:
         try:
             placeholders = ",".join("?" for _ in user_ids)
             cur = await self.conn.execute(
-                f"""SELECT ref_by, COUNT(*) FROM users WHERE ref_by IN ({placeholders}) AND ref_rewarded = 1 AND telegram_id != 0 GROUP BY ref_by""",
+                f"""SELECT ref_by, COUNT(*) FROM users WHERE ref_by IN ({placeholders}) AND ref_rewarded = 1 AND telegram_id != 0 GROUP BY ref_by""",  # noqa: S608
                 user_ids,
             )
             return {row[0]: row[1] for row in await cur.fetchall()}
@@ -2962,12 +2966,12 @@ class Database:
             return False
 
         set_clause: str = ", ".join(f"{k} = ?" for k in values_by_column)
-        values: list[Any] = list(values_by_column.values()) + [user_id]
+        values: list[Any] = [*list(values_by_column.values()), user_id]
 
         try:
             async with self.lock:
                 await self.conn.execute(
-                    f"UPDATE users SET {set_clause} WHERE user_id = ?",
+                    f"UPDATE users SET {set_clause} WHERE user_id = ?",  # noqa: S608
                     values,
                 )
                 await self.conn.commit()
@@ -2998,12 +3002,12 @@ class Database:
             return False
 
         set_clause: str = ", ".join(f"{k} = ?" for k in values_by_column)
-        values: list[Any] = list(values_by_column.values()) + [telegram_id]
+        values: list[Any] = [*list(values_by_column.values()), telegram_id]
 
         try:
             async with self.lock:
                 await self.conn.execute(
-                    f"UPDATE users SET {set_clause} WHERE telegram_id = ?",
+                    f"UPDATE users SET {set_clause} WHERE telegram_id = ?",  # noqa: S608
                     values,
                 )
                 await self.conn.commit()
@@ -3142,7 +3146,7 @@ class Database:
         return await self.update_user(internal_uid, banned=False, ban_reason="")
 
     @log_error
-    async def set_subscription(
+    async def set_subscription(  # noqa: PLR0913, PLR0917
         self,
         user_id: int,
         plan_text: str,
@@ -3312,7 +3316,7 @@ class Database:
             return False
 
     @log_error
-    async def set_ref_by(self, user_id: int, referrer_id: int) -> bool:
+    async def set_ref_by(self, user_id: int, referrer_id: int) -> bool:  # noqa: PLR0911
         if await is_admin_user(user_id) or await is_admin_user(referrer_id):
             return False
         if user_id <= 0 or referrer_id <= 0:
@@ -3636,7 +3640,7 @@ class Database:
         internal_uid = user.get("user_id", user_id)
         if user.get("ref_code"):
             return user.get("ref_code")
-        for attempt in range(20):
+        for _attempt in range(20):
             code = generate_ref_code()
             existing = await self.get_user_by_ref_code(code)
             if existing:
@@ -3655,7 +3659,7 @@ class Database:
                 return None
             if user.get("ref_code"):
                 return user.get("ref_code")
-            for attempt in range(20):
+            for _attempt in range(20):
                 code = generate_ref_code()
                 existing = await self.get_user_by_ref_code(code)
                 if existing:
@@ -3721,7 +3725,7 @@ class Database:
         return await self.count_referrals_paid(await self.resolve_internal_uid(user_id))
 
     @log_error
-    async def set_user_as_partner(
+    async def set_user_as_partner(  # noqa: PLR0913
         self,
         user_id: int,
         *,
@@ -3878,7 +3882,7 @@ class Database:
             return False
 
     @log_error
-    async def add_partner_application(
+    async def add_partner_application(  # noqa: PLR0913, PLR0917
         self,
         telegram_id: int,
         followers: int,
@@ -4090,7 +4094,7 @@ class Database:
             return None
 
     @log_error
-    async def update_web_auth(
+    async def update_web_auth(  # noqa: PLR0913
         self,
         user_id: int,
         *,
@@ -4141,7 +4145,7 @@ class Database:
             values.append(user_id)
             async with self.lock:
                 await self.conn.execute(
-                    f"UPDATE users SET {', '.join(updates)} WHERE user_id = ?",
+                    f"UPDATE users SET {', '.join(updates)} WHERE user_id = ?",  # noqa: S608
                     values,
                 )
                 await self.conn.commit()
@@ -4177,7 +4181,7 @@ class Database:
             return {}
 
     @log_error
-    async def _compare_subscriptions(self, user_a: dict[str, Any], user_b: dict[str, Any]) -> int:
+    async def _compare_subscriptions(self, user_a: dict[str, Any], user_b: dict[str, Any]) -> int:  # noqa: PLR0911
         try:
             a_sub = user_a.get("has_subscription", 0)
             b_sub = user_b.get("has_subscription", 0)
@@ -4220,7 +4224,7 @@ class Database:
             return 0
 
     @log_error
-    async def merge_accounts(self, user_a_id: int, user_b_id: int) -> bool:
+    async def merge_accounts(self, user_a_id: int, user_b_id: int) -> bool:  # noqa: PLR0912
         if not self.conn or user_a_id == user_b_id:
             return False
         try:
@@ -4265,7 +4269,7 @@ class Database:
                 updates = {}
                 for field in sub_fields:
                     val = delete_data.get(field)
-                    if val is not None and val != "" and val != 0:  # noqa: SIM102
+                    if val is not None and val not in {"", 0}:  # noqa: SIM102
                         if (
                             not keep_data.get(field)
                             or keep_data.get(field) == ""
@@ -4286,9 +4290,9 @@ class Database:
 
                 if updates:
                     set_clause = ", ".join(f"{k} = ?" for k in updates)
-                    values = list(updates.values()) + [keep_id]
+                    values = [*list(updates.values()), keep_id]
                     await self.conn.execute(
-                        f"UPDATE users SET {set_clause} WHERE user_id = ?",
+                        f"UPDATE users SET {set_clause} WHERE user_id = ?",  # noqa: S608
                         values,
                     )
 
@@ -4325,10 +4329,8 @@ class Database:
             if not q:
                 return []
             query_int = None
-            try:
+            with suppress(ValueError, TypeError):
                 query_int = int(q)
-            except (ValueError, TypeError):
-                pass
 
             sql = "SELECT * FROM users WHERE 1=0"
             params: list[Any] = []
@@ -4372,10 +4374,10 @@ class Database:
                     d["_match_type"] = "user_id"
                     results.append(d)
 
-                if len(results) < 5:
+                if len(results) < SEARCH_RESULTS_LIMIT:
                     cur = await self.conn.execute(
                         "SELECT * FROM users WHERE telegram_id = ? LIMIT ?",
-                        (query, 5 - len(results)),
+                        (query, SEARCH_RESULTS_LIMIT - len(results)),
                     )
                     by_tgid = await cur.fetchall()
                     for row in by_tgid:
@@ -4390,7 +4392,7 @@ class Database:
             return []
 
     @log_error
-    async def reconcile_telegram_account(self, telegram_id: int) -> int | None:
+    async def reconcile_telegram_account(self, telegram_id: int) -> int | None:  # noqa: PLR0912
         if not self.conn or not telegram_id:
             return None
         try:
@@ -4458,12 +4460,7 @@ class Database:
             for other in rows:
                 if other["user_id"] == keeper["user_id"]:
                     continue
-                for field in sub_fields + [
-                    "ref_code",
-                    "ref_by",
-                    "trust_score",
-                    "discount_percent",
-                ]:
+                for field in [*sub_fields, "ref_code", "ref_by", "trust_score", "discount_percent"]:
                     val = other.get(field)
                     if val not in (None, "", 0) and not keeper.get(field):
                         updates[field] = val
@@ -4482,10 +4479,10 @@ class Database:
             updates["telegram_id"] = telegram_id
             if updates:
                 set_clause = ", ".join(f"{k} = ?" for k in updates)
-                values = list(updates.values()) + [keeper["user_id"]]
+                values = [*list(updates.values()), keeper["user_id"]]
                 async with self.lock:
                     await self.conn.execute(
-                        f"UPDATE users SET {set_clause} WHERE user_id = ?",
+                        f"UPDATE users SET {set_clause} WHERE user_id = ?",  # noqa: S608
                         values,
                     )
                     await self.conn.commit()
@@ -4498,7 +4495,7 @@ class Database:
             return None
 
     @log_error
-    async def delete_phantom_account(self, user_id: int) -> bool:
+    async def delete_phantom_account(self, user_id: int) -> bool:  # noqa: PLR0911
         if not self.conn:
             return False
         try:
@@ -4620,12 +4617,12 @@ class _InterProcessFileLock:
                         return
                     except OSError:
                         if time.monotonic() >= deadline:
-                            try:
+                            with suppress(OSError):
                                 fh.close()
-                            except OSError:
-                                pass
                             self._fh = None  # type: ignore[attr-defined]
-                            raise TimeoutError(f"Не удалось получить блокировку {self.lock_path}")
+                            raise TimeoutError(
+                                f"Не удалось получить блокировку {self.lock_path}"
+                            ) from None
                         time.sleep(0.1)
             elif _msvcrt:
                 _msvcrt.locking(fh.fileno(), _msvcrt.LK_LOCK, 1)
@@ -4647,10 +4644,8 @@ class _InterProcessFileLock:
         except (OSError, ValueError):
             pass
         finally:
-            try:
+            with suppress(OSError):
                 fh.close()
-            except OSError:
-                pass
             self._fh = None  # type: ignore[attr-defined]
 
 
@@ -4662,7 +4657,7 @@ class JSONStorage:
         self._data: list[dict[str, Any]] = []
 
     async def _ensure_file(self) -> None:
-        if os.path.exists(self.path):
+        if await asyncio.to_thread(os.path.exists, self.path):
             return
         try:
             parent = os.path.dirname(self.path)
@@ -4670,7 +4665,7 @@ class JSONStorage:
                 os.makedirs(parent, exist_ok=True)
         except Exception:  # noqa: BLE001, S110
             pass
-        if not os.path.exists(self.path):
+        if not await asyncio.to_thread(os.path.exists, self.path):
             try:
                 async with aiofiles.open(self.path, "w", encoding="utf-8") as f:
                     await f.write("[]")
@@ -4679,9 +4674,9 @@ class JSONStorage:
 
     @log_error
     async def _load_data(self) -> list[dict[str, Any]]:
-        if os.path.exists(self.path):
+        if await asyncio.to_thread(os.path.exists, self.path):
             try:
-                async with aiofiles.open(self.path, "r", encoding="utf-8") as f:
+                async with aiofiles.open(self.path, encoding="utf-8") as f:
                     content = await f.read()
                     if content:
                         parsed = json.loads(content)
@@ -5532,7 +5527,7 @@ class PanelAPI:
             logger.error(f"_add_clients_traffic_one_by_one: не удалось начислить {add_gb} ГБ")
         return updated_any
 
-    async def set_client_total_traffic(self, base_email: str, total_gb: int) -> bool:
+    async def set_client_total_traffic(self, base_email: str, total_gb: int) -> bool:  # noqa: PLR0912
         if total_gb <= 0:
             return False
         target_bytes = int(total_gb * BYTES_IN_GB)
@@ -5629,7 +5624,7 @@ class PanelAPI:
                     self.connector = None
 
     @log_error
-    async def create_client(
+    async def create_client(  # noqa: PLR0913, PLR0917
         self,
         email: str,
         limit_ip: int,
@@ -5691,7 +5686,7 @@ class PanelAPI:
             return None
 
     @log_error
-    async def create_client_in_inbound(
+    async def create_client_in_inbound(  # noqa: PLR0913, PLR0917
         self,
         inbound_id: int,
         email: str,
@@ -5816,7 +5811,7 @@ class PanelAPI:
                 status, data, _ = await self._request_json_with_reauth(
                     "POST", url, headers=self._headers()
                 )
-                if status != 200 or not data.get("success"):
+                if status != HTTP_STATUS_OK or not data.get("success"):
                     success = False
                     logger.error(f"Ошибка удаления {email}: {data.get('msg')}")
             except Exception as e:  # noqa: BLE001
@@ -6027,7 +6022,7 @@ class PanelAPI:
             status, data, _ = await self._request_json_with_reauth(
                 "GET", url, headers=self._headers()
             )
-            if status == 200 and data.get("success"):
+            if status == HTTP_STATUS_OK and data.get("success"):
                 obj = data.get("obj") or {}
                 if isinstance(obj, dict) and isinstance(obj.get("client"), dict):
                     client = dict(obj["client"])
@@ -6056,7 +6051,7 @@ class PanelAPI:
             status, data, _ = await self._request_json_with_reauth(
                 "GET", url, headers=self._headers()
             )
-            if status == 200 and data.get("success"):
+            if status == HTTP_STATUS_OK and data.get("success"):
                 self._clients_cache = data
                 self._clients_cache_ts = now
                 return data
@@ -6088,7 +6083,7 @@ class PanelAPI:
             status, data, _ = await self._request_json_with_reauth(
                 "GET", url, headers=self._headers()
             )
-            if status == 200 and data.get("success"):
+            if status == HTTP_STATUS_OK and data.get("success"):
                 obj = data.get("obj")
                 if isinstance(obj, dict):
                     items = obj.get("items") or obj.get("data") or obj.get("inbounds")
@@ -6116,7 +6111,7 @@ class PanelAPI:
         await self.ensure_auth()
         url = f"{self.apibase}/panel/api/nodes/list"
         status, data, _ = await self._request_json_with_reauth("GET", url, headers=self._headers())
-        if status == 200 and data.get("success"):
+        if status == HTTP_STATUS_OK and data.get("success"):
             obj = data.get("obj", [])
             if isinstance(obj, dict):
                 obj = obj.get("nodes") or obj.get("data") or obj.get("list") or []
@@ -6179,7 +6174,7 @@ class PanelAPI:
         await self.ensure_auth()
         url = f"{self.apibase}/panel/api/server/status"
         status, data, _ = await self._request_json_with_reauth("GET", url, headers=self._headers())
-        if status == 200 and data.get("success"):
+        if status == HTTP_STATUS_OK and data.get("success"):
             obj = data.get("obj", {})
             if isinstance(obj, dict):
                 if sanitize:
@@ -6197,7 +6192,7 @@ class PanelAPI:
         await self.ensure_auth()
         url = f"{self.apibase}/panel/api/version"
         status, data, _ = await self._request_json_with_reauth("GET", url, headers=self._headers())
-        if status == 200 and data.get("success"):
+        if status == HTTP_STATUS_OK and data.get("success"):
             obj = data.get("obj")
             if isinstance(obj, dict):
                 return str(obj.get("version") or obj.get("panel_version") or "")
@@ -6209,7 +6204,7 @@ class PanelAPI:
         await self.ensure_auth()
         url = f"{self.apibase}/panel/api/xray/version"
         status, data, _ = await self._request_json_with_reauth("GET", url, headers=self._headers())
-        if status == 200 and data.get("success"):
+        if status == HTTP_STATUS_OK and data.get("success"):
             obj = data.get("obj")
             if isinstance(obj, dict):
                 return str(obj.get("version") or obj.get("xray_version") or "")
@@ -6240,7 +6235,7 @@ class PanelAPI:
                         data = json.loads(raw_text) if raw_text else {}
                     except json.JSONDecodeError:
                         data = {}
-                    if resp.status == 200 and data.get("success"):
+                    if resp.status == HTTP_STATUS_OK and data.get("success"):
                         self.logged_in = True
                         logger.info("Авторизация в панели успешна")
                         return True
@@ -6404,7 +6399,7 @@ async def is_cancel_fsm(
     return True
 
 
-async def resolve_admin_target(
+async def resolve_admin_target(  # noqa: PLR0913
     event: Message,
     state: FSMContext,
     val: str,
@@ -6908,7 +6903,7 @@ def _build_price_line(plan: dict[str, Any], lang: str) -> str:
     duration = int(plan.get("duration_days", 30))
     if price == 0:
         return translate(lang, "texts.price_free_for_days", days=format_duration(duration, lang))
-    if duration == 30:
+    if duration == DAYS_PER_MONTH:
         return translate(lang, "texts.price_monthly", price=price)
     return translate(lang, "texts.price_fixed_days", price=price, duration=duration)
 
@@ -7102,7 +7097,7 @@ async def notify_admins_pending_payment(payment: dict[str, Any]) -> None:
             logger.warning(f"notify_admins_pending_payment {admin_id}: {e}")
 
 
-async def store_api_subscription_payment(
+async def store_api_subscription_payment(  # noqa: PLR0913
     session_user: dict[str, Any],
     *,
     plan_id: str,
@@ -7355,7 +7350,7 @@ async def show_custom_summary(event: Message | CallbackQuery, state: FSMContext)
     await state.set_state(CustomTariffState.waiting_for_confirm)
 
     ip_part = "IP × D"
-    if abs(Config.CUSTOM_TARIFF_IP_DAY_COEF - 1.0) > 1e-9:
+    if abs(Config.CUSTOM_TARIFF_IP_DAY_COEF - 1.0) > 1e-9:  # noqa: PLR2004
         ip_part = f"IP × D × {format_number(Config.CUSTOM_TARIFF_IP_DAY_COEF)}"
     formula = f"total = {format_number(Config.CUSTOM_TARIFF_BASE_PRICE)} + GB × {format_number(Config.CUSTOM_TARIFF_GB_COEF)} + {ip_part} + LOC × D"
     if disc > 0:
@@ -7446,7 +7441,7 @@ async def show_offer_agreement(
     await smart_answer(event, text, reply_markup=kb(keyboard), delete_origin=True)
 
 
-async def get_subscription_state(user_id: int) -> dict[str, Any]:
+async def get_subscription_state(user_id: int) -> dict[str, Any]:  # noqa: PLR0911
     user = await db.get_user_by_any_id(user_id)
     if not user:
         return {"status": "no_user", "panel_available": True}
@@ -7459,10 +7454,8 @@ async def get_subscription_state(user_id: int) -> dict[str, Any]:
     ):
         await db.remove_subscription(internal_uid)
         base_email_admin_check = get_user_panel_email(internal_uid, user_data_admin)
-        try:
+        with suppress(Exception):
             await panel.delete_client(base_email_admin_check)
-        except Exception:  # noqa: BLE001, S110
-            pass
         logger.info(f"Автоудалена подписка Admin у не-админа {internal_uid}")
         return {"status": "no_subscription", "panel_available": True}
     sub_id = normalize_sub_id(user.get("vpn_url"))
@@ -7728,7 +7721,7 @@ async def ensure_startup_admin_accounts() -> None:
     _admin_startup_completed = True
 
 
-async def _ensure_admin_subscription(admin_id: int) -> bool:
+async def _ensure_admin_subscription(admin_id: int) -> bool:  # noqa: PLR0911, PLR0912, PLR0915
     async with _admin_sub_lock:
         try:
             user_data = await db.get_user_by_any_id(admin_id)
@@ -7874,8 +7867,7 @@ async def _ensure_admin_subscription(admin_id: int) -> bool:
             if (
                 stale_email
                 and stale_email_is_free
-                and stale_email != admin_email
-                and stale_email != existing_email
+                and stale_email not in (admin_email, existing_email)
             ):
                 try:
                     await panel.delete_client(stale_email)
@@ -7944,7 +7936,7 @@ async def _notify_subscription_creation_failed(
         logger.error(f"_notify_subscription_creation_failed {user_id}: {e}")
 
 
-async def create_subscription(
+async def create_subscription(  # noqa: PLR0913
     user_id: int,
     plan: dict[str, Any],
     *,
@@ -7968,7 +7960,7 @@ async def create_subscription(
         )
 
 
-async def _create_subscription_unlocked(
+async def _create_subscription_unlocked(  # noqa: PLR0911, PLR0912, PLR0913, PLR0915
     user_id: int,
     plan: dict[str, Any],
     *,
@@ -8308,7 +8300,7 @@ async def is_active_subscription(user_id: int, *, notify_user_about_cleanup: boo
     )
 
 
-async def notify_expiring_subscription(
+async def notify_expiring_subscription(  # noqa: PLR0911
     user_id: int, state: dict[str, Any], days: int | None = None
 ) -> bool:
     if days is None:
@@ -8478,7 +8470,7 @@ async def grant_referee_bonus_on_registration(uid: int, referrer: dict[str, Any]
     )
 
 
-async def reward_referrer(
+async def reward_referrer(  # noqa: PLR0911, PLR0912, PLR0915
     referrer_id: int,
     bonus_days: int,
     is_partner: bool = False,
@@ -8545,10 +8537,8 @@ async def reward_referrer(
                     logger.critical(
                         f"Не удалось очистить bonus_days_pending для {referrer_id}: {e}"
                     )
-                    try:
+                    with suppress(Exception):
                         await db.add_bonus_days_pending(referrer_id, bonus_days)
-                    except Exception:  # noqa: BLE001, S110
-                        pass
             try:
                 await notify_user(
                     tg_id,
@@ -8785,10 +8775,8 @@ async def append_payment_decision_label(message: Message | None, status_label: s
         return
     current = message.text or ""
     new_text = f"{current}\n\n{status_label}" if current else status_label
-    try:
+    with suppress(Exception):
         await message.edit_text(new_text, parse_mode="HTML")
-    except Exception:  # noqa: BLE001, S110
-        pass
 
 
 async def show_active_subscription_guard(event: Message | CallbackQuery) -> None:
@@ -8968,7 +8956,7 @@ async def rate_limit_middleware(handler: Callable, event: Any, data: dict[str, A
         return None
 
     _user_request_times[user_id] = now
-    if len(_user_request_times) > 10000:
+    if len(_user_request_times) > MAX_IN_MEMORY_TRACK_ENTRIES:
         _user_request_times.clear()
     return await handler(event, data)
 
@@ -9091,7 +9079,7 @@ async def error_handler(event: ErrorEvent) -> bool:
 @router.message(Command("start"))
 @router.callback_query(F.data == "start")
 @log_error
-async def cmd_start(event: Message | CallbackQuery, state: FSMContext, **kwargs: Any) -> None:
+async def cmd_start(event: Message | CallbackQuery, state: FSMContext, **kwargs: Any) -> None:  # noqa: PLR0911, PLR0912, PLR0915
     await state.clear()
     user = getattr(event, "from_user", None)
     if not user:
@@ -9423,12 +9411,10 @@ async def cmd_start(event: Message | CallbackQuery, state: FSMContext, **kwargs:
                     return
             except Exception as e:  # noqa: BLE001
                 logger.error(f"Ошибка инициализации пользователя {user_id}: {e}")
-                try:
+                with suppress(Exception):
                     await event.answer(
                         translate(lang or Config.DEFAULT_LANGUAGE, "texts.init_error")
                     )
-                except Exception:  # noqa: BLE001, S110
-                    pass
                 return
         else:
             lang = await db.get_user_language(user_id) or Config.DEFAULT_LANGUAGE
@@ -9468,10 +9454,8 @@ async def cmd_start(event: Message | CallbackQuery, state: FSMContext, **kwargs:
         await smart_answer(event, text, reply_markup=kb(keyboard), delete_origin=True)
     except Exception:
         logger.exception("Ошибка в cmd_start")
-        try:
+        with suppress(Exception):
             await event.answer(translate(lang or Config.DEFAULT_LANGUAGE, "texts.unexpected_error"))
-        except Exception:  # noqa: BLE001, S110
-            pass
 
 
 @router.callback_query(F.data == "cancel")
@@ -9979,7 +9963,7 @@ async def cmd_custom_show_offer(event: CallbackQuery, state: FSMContext, **kwarg
         return
     lang = await get_lang(event)
     parts = event.data.split(":")
-    if len(parts) < 3:
+    if len(parts) < 3:  # noqa: PLR2004
         await event.answer(
             translate(lang, "texts.request_processing_error"),
             show_alert=True,
@@ -10009,7 +9993,7 @@ async def cmd_custom_show_offer(event: CallbackQuery, state: FSMContext, **kwarg
 async def cmd_custom_choose_payment_method(event: CallbackQuery, state: FSMContext, **kwargs):
     lang = await get_lang(event)
     parts = event.data.split(":")
-    if len(parts) < 3:
+    if len(parts) < 3:  # noqa: PLR2004
         await event.answer(
             translate(lang, "texts.request_processing_error"),
             show_alert=True,
@@ -10088,14 +10072,7 @@ async def cmd_custom_choose_payment_method(event: CallbackQuery, state: FSMConte
             await cmd_custom_show_p2p(event, state, **kwargs)
         return
 
-    keyboard = [methods] + [
-        [
-            {
-                "text": translate(lang, "buttons.cancel"),
-                "callback_data": "cancel",
-            }
-        ]
-    ]
+    keyboard = [methods, [{"text": translate(lang, "buttons.cancel"), "callback_data": "cancel"}]]
     await smart_answer(
         event,
         translate(lang, "texts.choose_payment_method"),
@@ -10104,7 +10081,7 @@ async def cmd_custom_choose_payment_method(event: CallbackQuery, state: FSMConte
     )
 
 
-async def _build_yoomoney_payment(
+async def _build_yoomoney_payment(  # noqa: PLR0913, PLR0917
     event: CallbackQuery,
     uid: int,
     amount: int,
@@ -10162,7 +10139,7 @@ async def cmd_custom_show_yoomoney(event: CallbackQuery, state: FSMContext, **kw
         return
     lang = await get_lang(event)
     parts = event.data.split(":")
-    if len(parts) < 3:
+    if len(parts) < 3:  # noqa: PLR2004
         await event.answer(
             translate(lang, "texts.request_processing_error"),
             show_alert=True,
@@ -10206,11 +10183,11 @@ async def cmd_custom_show_yoomoney(event: CallbackQuery, state: FSMContext, **kw
 
 
 @router.callback_query(F.data.startswith("custom:confirm_payment:test:"))
-async def cmd_custom_confirm_test(event: CallbackQuery, state: FSMContext, **kwargs):
+async def cmd_custom_confirm_test(event: CallbackQuery, state: FSMContext, **kwargs):  # noqa: PLR0911
     if not await ensure_custom_tariff_access(event, state):
         return
     parts = event.data.split(":")
-    if len(parts) < 4:
+    if len(parts) < 4:  # noqa: PLR2004
         await event.answer(
             translate(Config.DEFAULT_LANGUAGE, "texts.request_processing_error"),
             show_alert=True,
@@ -10301,11 +10278,11 @@ async def cmd_custom_confirm_test(event: CallbackQuery, state: FSMContext, **kwa
 @router.callback_query(
     CustomTariffState.waiting_for_confirm, F.data.startswith("custom:confirm_payment:")
 )
-async def cmd_custom_confirm_payment(event: CallbackQuery, state: FSMContext, **kwargs):
+async def cmd_custom_confirm_payment(event: CallbackQuery, state: FSMContext, **kwargs):  # noqa: PLR0911
     if not await ensure_custom_tariff_access(event, state):
         return
     parts = event.data.split(":")
-    if len(parts) < 4:
+    if len(parts) < 4:  # noqa: PLR2004
         await event.answer(
             translate(Config.DEFAULT_LANGUAGE, "texts.request_processing_error"),
             show_alert=True,
@@ -10513,7 +10490,7 @@ async def open_plan_offer(event: CallbackQuery, *, is_renewal: bool) -> None:
 async def cmd_show_payment_details(event: CallbackQuery):
     lang = await get_lang(event)
     parts = event.data.split(":")
-    if len(parts) < 3:
+    if len(parts) < 3:  # noqa: PLR2004
         await event.answer(
             translate(lang, "texts.request_processing_error"),
             show_alert=True,
@@ -10576,7 +10553,7 @@ async def cmd_show_payment_details(event: CallbackQuery):
         plan_name=plan.get("name", plan_id),
         price_line=(
             translate(lang, "texts.price_monthly", price=price)
-            if duration == 30
+            if duration == DAYS_PER_MONTH
             else translate(lang, "texts.price_fixed_days", price=price, duration=duration)
         ),
         locations_line=loc_line,
@@ -10734,7 +10711,7 @@ async def cmd_trial_plan(event: CallbackQuery, **kwargs):
 async def cmd_choose_payment_method(event: CallbackQuery, **kwargs):
     lang = await get_lang(event)
     parts = event.data.split(":")
-    if len(parts) < 3:
+    if len(parts) < 3:  # noqa: PLR2004
         await event.answer(
             translate(lang, "texts.request_processing_error"),
             show_alert=True,
@@ -10792,14 +10769,7 @@ async def cmd_choose_payment_method(event: CallbackQuery, **kwargs):
             await cmd_show_p2p_payment(event, **kwargs)
         return
 
-    keyboard = [methods] + [
-        [
-            {
-                "text": translate(lang, "buttons.cancel"),
-                "callback_data": "cancel",
-            }
-        ]
-    ]
+    keyboard = [methods, [{"text": translate(lang, "buttons.cancel"), "callback_data": "cancel"}]]
     await smart_answer(
         event,
         translate(lang, "texts.choose_payment_method"),
@@ -10812,7 +10782,7 @@ async def cmd_choose_payment_method(event: CallbackQuery, **kwargs):
 async def cmd_show_yoomoney_payment(event: CallbackQuery, **kwargs):
     lang = await get_lang(event)
     parts = event.data.split(":")
-    if len(parts) < 3:
+    if len(parts) < 3:  # noqa: PLR2004
         await event.answer(
             translate(lang, "texts.request_processing_error"),
             show_alert=True,
@@ -10858,7 +10828,7 @@ async def cmd_show_yoomoney_payment(event: CallbackQuery, **kwargs):
 async def cmd_show_p2p_payment(event: CallbackQuery, **kwargs):
     lang = await get_lang(event)
     parts = event.data.split(":")
-    if len(parts) < 3:
+    if len(parts) < 3:  # noqa: PLR2004
         await event.answer(
             translate(lang, "texts.request_processing_error"),
             show_alert=True,
@@ -10921,7 +10891,7 @@ async def cmd_custom_show_p2p(event: CallbackQuery, state: FSMContext, **kwargs)
         return
     lang = await get_lang(event)
     parts = event.data.split(":")
-    if len(parts) < 3:
+    if len(parts) < 3:  # noqa: PLR2004
         await event.answer(
             translate(lang, "texts.request_processing_error"),
             show_alert=True,
@@ -10982,11 +10952,11 @@ async def cmd_custom_show_p2p(event: CallbackQuery, state: FSMContext, **kwargs)
 async def cmd_confirm_payment(event: CallbackQuery, **kwargs: Any) -> None:
     lang = await get_lang(event)
     parts = event.data.split(":")
-    if len(parts) == 3:
+    if len(parts) == 3:  # noqa: PLR2004
         method = "p2p"
         plan_id = parts[1]
         raw_uid = parts[2]
-    elif len(parts) >= 4:
+    elif len(parts) >= 4:  # noqa: PLR2004
         method = parts[1]
         plan_id = parts[2]
         raw_uid = parts[3]
@@ -11056,7 +11026,7 @@ async def cmd_confirm_payment(event: CallbackQuery, **kwargs: Any) -> None:
 
 
 @router.callback_query(F.data == "mysub")
-async def cmd_mysub(event: CallbackQuery, **kwargs):
+async def cmd_mysub(event: CallbackQuery, **kwargs):  # noqa: PLR0911, PLR0912, PLR0915
     user_id = get_event_user_id(event) or 0
     lang = await get_user_language(user_id)
     panel_types = Features.available_panel_types()
@@ -11623,7 +11593,7 @@ async def process_partner_social_links_msg(message: Message, state: FSMContext):
         )
         return
 
-    if not text or len(text) < 5:
+    if not text or len(text) < 5:  # noqa: PLR2004
         await message.answer(
             translate(lang, "texts.partner_empty_socials"),
         )
@@ -11692,7 +11662,7 @@ async def process_partner_nickname_msg(message: Message, state: FSMContext):
             translate(lang, "texts.partner_nickname_empty"),
         )
         return
-    if len(nickname) > 30:
+    if len(nickname) > MAX_NICKNAME_LENGTH:
         await message.answer(
             translate(lang, "texts.partner_nickname_invalid"),
         )
@@ -12380,7 +12350,7 @@ def build_partner_op_keyboard(
 
 
 @router.callback_query(F.data == "partner_operations")
-async def cmd_partner_operations(event: CallbackQuery, **kwargs):
+async def cmd_partner_operations(event: CallbackQuery, **kwargs):  # noqa: PLR0915
     if not await ensure_admin_access(event):
         return
     lang = await get_lang(event)
@@ -12536,7 +12506,7 @@ async def _notify_partner_vpn_failure(uid: int, nickname: str, reason: str) -> N
         logger.error(f"Не удалось уведомить админов о сбое VPN партнёра {uid}: {e}")
 
 
-async def _create_partner_vpn_client(
+async def _create_partner_vpn_client(  # noqa: PLR0913, PLR0917
     uid: int,
     sanitized: str,
     existing: dict[str, Any] | None,
@@ -12651,7 +12621,7 @@ async def _handle_partner_new_accept(event: CallbackQuery, op: dict[str, Any], u
             event.message,
             translate(lang, "texts.payment_decision_accepted"),
         )
-        try:
+        with suppress(Exception):
             await safe_send_message(
                 bot,
                 uid,
@@ -12661,8 +12631,6 @@ async def _handle_partner_new_accept(event: CallbackQuery, op: dict[str, Any], u
                     nickname=nickname,
                 ),
             )
-        except Exception:  # noqa: BLE001, S110
-            pass
     else:
         await event.answer(translate(lang, "texts.partner_accept_error"), show_alert=True)
 
@@ -12683,14 +12651,12 @@ async def _handle_partner_new_reject(event: CallbackQuery, op: dict[str, Any], u
         event.message,
         translate(lang, "texts.payment_decision_rejected"),
     )
-    try:
+    with suppress(Exception):
         await safe_send_message(
             bot,
             uid,
             translate(user_lang, "texts.partner_rejected_notification"),
         )
-    except Exception:  # noqa: BLE001, S110
-        pass
 
 
 async def _handle_partner_renewal_accept(
@@ -12749,7 +12715,7 @@ async def _handle_partner_renewal_accept(
             expiry_sub_datatime=new_expiry.replace(hour=23, minute=59, second=59).isoformat(),
             expiry_alert_sent=0,
         )
-    try:
+    with suppress(Exception):
         await safe_send_message(
             bot,
             uid,
@@ -12760,8 +12726,6 @@ async def _handle_partner_renewal_accept(
                 new_expiry=new_expiry.strftime("%d.%m.%Y"),
             ),
         )
-    except Exception:  # noqa: BLE001, S110
-        pass
     await event.answer(
         translate(lang, "texts.payment_accept_alert", payment_id=op.get("operation_id", "")),
         show_alert=True,
@@ -12790,14 +12754,12 @@ async def _handle_partner_renewal_reject(
         event.message,
         translate(lang, "texts.payment_decision_rejected"),
     )
-    try:
+    with suppress(Exception):
         await safe_send_message(
             bot,
             uid,
             translate(user_lang, "texts.partner_rejected_notification"),
         )
-    except Exception:  # noqa: BLE001, S110
-        pass
 
 
 async def _handle_partner_withdrawal_accept(
@@ -12863,7 +12825,7 @@ async def _handle_partner_withdrawal_accept(
         event.message,
         translate(lang, "texts.payment_decision_accepted"),
     )
-    try:
+    with suppress(Exception):
         await safe_send_message(
             bot,
             uid,
@@ -12873,8 +12835,6 @@ async def _handle_partner_withdrawal_accept(
                 amount=amount,
             ),
         )
-    except Exception:  # noqa: BLE001, S110
-        pass
 
 
 async def _handle_partner_withdrawal_reject(
@@ -12896,7 +12856,7 @@ async def _handle_partner_withdrawal_reject(
         event.message,
         translate(lang, "texts.payment_decision_rejected"),
     )
-    try:
+    with suppress(Exception):
         await safe_send_message(
             bot,
             uid,
@@ -12906,8 +12866,6 @@ async def _handle_partner_withdrawal_reject(
                 amount=amount,
             ),
         )
-    except Exception:  # noqa: BLE001, S110
-        pass
 
 
 async def claim_partner_operation_or_alert(
@@ -12989,7 +12947,7 @@ async def _deactivate_partner(raw_id: int) -> None:
     ident = format_uid(db_uid, tg_id)
     logger.info(f"Деактивация партнёрства для {ident}")
     if tg_id:
-        try:
+        with suppress(Exception):
             await safe_send_message(
                 bot,
                 tg_id,
@@ -12998,8 +12956,6 @@ async def _deactivate_partner(raw_id: int) -> None:
                     "texts.partner_expiry_expired",
                 ),
             )
-        except Exception:  # noqa: BLE001, S110
-            pass
     vpn_url = user_data.get("vpn_url", "")
     if vpn_url and normalize_sub_id(vpn_url):
         try:
@@ -13108,7 +13064,7 @@ async def cmd_pay_await(event: CallbackQuery, **kwargs):
 
 
 @router.callback_query(F.data.startswith("pay_await_accept:"))
-async def cmd_pay_await_accept(event: CallbackQuery, **kwargs):
+async def cmd_pay_await_accept(event: CallbackQuery, **kwargs):  # noqa: PLR0911, PLR0915
     if not await ensure_admin_access(event):
         return
     payment_id = event.data.split(":", 1)[1]
@@ -13206,7 +13162,7 @@ async def cmd_pay_await_accept(event: CallbackQuery, **kwargs):
         )
         user_lang = await get_user_language(uid)
         setup_keyboard = build_setup_keyboard(user_lang)
-        try:
+        with suppress(Exception):
             await notify_user(
                 uid,
                 translate(
@@ -13228,8 +13184,6 @@ async def cmd_pay_await_accept(event: CallbackQuery, **kwargs):
                 ),
                 reply_markup=setup_keyboard,
             )
-        except Exception:  # noqa: BLE001, S110
-            pass
         await grant_referral_bonus(uid, to_int(ref_by, 0), ref_rewarded, paid_amount)
         await event.answer(
             translate(
@@ -13374,7 +13328,7 @@ async def cmd_pay_await_reject(event: CallbackQuery, **kwargs):
             trust_line = build_trust_change_line(delta, before, after)
     if uid > 0:
         user_lang = await get_user_language(uid)
-        try:
+        with suppress(Exception):
             await notify_user(
                 uid,
                 translate(
@@ -13384,8 +13338,6 @@ async def cmd_pay_await_reject(event: CallbackQuery, **kwargs):
                 ),
                 reply_markup=support_keyboard(include_main=True),
             )
-        except Exception:  # noqa: BLE001, S110
-            pass
     await event.answer(
         translate(Config.DEFAULT_LANGUAGE, "texts.payment_reject_alert", payment_id=payment_id),
         show_alert=True,
@@ -14085,10 +14037,8 @@ async def process_search_user(event: Message, state: FSMContext, **kwargs):
         return
 
     query_int: int | None = None
-    try:
+    with suppress(ValueError, TypeError):
         query_int = int(query_str)
-    except (ValueError, TypeError):
-        pass
 
     if query_int is None:
         try:
@@ -14360,11 +14310,11 @@ async def process_tech_work_compensate(event: Message, state: FSMContext, **kwar
         await event.answer(translate(lang, "texts.compensate_positive_days"))
         return
 
-    if days > 365:
+    if days > MAX_COMPENSATION_DAYS:
         await event.answer(translate(lang, "texts.compensate_days_too_many"))
         return
 
-    if days > 30:
+    if days > DAYS_PER_MONTH:
         await state.set_state(TechWorkCompensateState.waiting_for_confirmation)
         await state.update_data(pending_days=days)
         text = translate(
@@ -14402,7 +14352,7 @@ async def confirm_compensate_handler(event: CallbackQuery, state: FSMContext, **
     lang = await get_lang(event)
     data = await state.get_data()
     days = to_int(data.get("pending_days"), 0)
-    if days < 31 or days > 365:
+    if days <= DAYS_PER_MONTH or days > MAX_COMPENSATION_DAYS:
         await smart_answer(event, translate(lang, "texts.invalid_period"))
         await state.clear()
         return
@@ -14480,7 +14430,7 @@ async def cmd_debug_view_abuse_user(event: CallbackQuery, **kwargs):
         return
     lang = await get_lang(event)
     parts = event.data.split(":")
-    if len(parts) < 2:
+    if len(parts) < 2:  # noqa: PLR2004
         await event.answer(translate(lang, "texts.error_generic"), show_alert=True)
         return
     uid = to_int(parts[1], 0)
@@ -14537,7 +14487,7 @@ async def cmd_debug_clear_abuse(event: CallbackQuery, **kwargs):
         return
     lang = await get_lang(event)
     parts = event.data.split(":")
-    if len(parts) < 2:
+    if len(parts) < 2:  # noqa: PLR2004
         await event.answer(translate(lang, "texts.error_generic"), show_alert=True)
         return
     raw_id = to_int(parts[1], 0)
@@ -14662,7 +14612,7 @@ async def process_trust_user_id(event: Message, state: FSMContext, **kwargs):
 
 
 @router.message(TrustScoreState.waiting_for_amount)
-async def process_trust_amount(event: Message, state: FSMContext, **kwargs):
+async def process_trust_amount(event: Message, state: FSMContext, **kwargs):  # noqa: PLR0911, PLR0915
     lang = await get_lang(event)
     if not Config.TRUST_SCORE_ENABLED:
         await state.clear()
@@ -14746,7 +14696,7 @@ async def process_trust_amount(event: Message, state: FSMContext, **kwargs):
         admin_action = translate(lang, f"texts.trust_action_success_{action}")
         user_lang = await get_user_language(uid)
         if tg_id > 0:
-            try:
+            with suppress(Exception):
                 await notify_user(
                     tg_id,
                     translate(
@@ -14760,8 +14710,6 @@ async def process_trust_amount(event: Message, state: FSMContext, **kwargs):
                         discount=calculate_discount_percent(final),
                     ),
                 )
-            except Exception:  # noqa: BLE001, S110
-                pass
         else:
             logger.info("trust_update_notification: у пользователя UID %s нет telegram_id", uid)
     else:
@@ -15081,13 +15029,11 @@ async def process_add_traffic_gb(event: Message, state: FSMContext, **kwargs):
     panel_ok = await panel.add_client_traffic(base_email, gb)
     if tg_id > 0:
         user_lang = await get_user_language(tg_id)
-        try:
+        with suppress(Exception):
             await notify_user(
                 tg_id,
                 translate(user_lang, "texts.add_traffic_notification", gb=gb),
             )
-        except Exception:  # noqa: BLE001, S110
-            pass
     else:
         logger.info("add_traffic: у UID %s нет telegram_id, уведомление пропущено", internal_uid)
 
@@ -15154,7 +15100,7 @@ async def process_compensate_user_id(event: Message, state: FSMContext, **kwargs
 
 
 @router.message(CompensateDaysState.waiting_for_days)
-async def process_compensate_days(event: Message, state: FSMContext, **kwargs):
+async def process_compensate_days(event: Message, state: FSMContext, **kwargs):  # noqa: PLR0912, PLR0915
     lang = await get_lang(event)
     val = (event.text or "").strip()
     if is_cancel_text(val, lang):
@@ -15251,7 +15197,7 @@ async def process_compensate_days(event: Message, state: FSMContext, **kwargs):
         tg_id_str = format_tg_suffix(tg_id)
         # notify_user принимает TID (это chat_id), а не внутренний UID.
         if tg_id:
-            try:
+            with suppress(Exception):
                 await notify_user(
                     tg_id,
                     translate(
@@ -15260,8 +15206,6 @@ async def process_compensate_days(event: Message, state: FSMContext, **kwargs):
                         days=days,
                     ),
                 )
-            except Exception:  # noqa: BLE001, S110
-                pass
 
         text = translate(
             lang,
@@ -15539,10 +15483,8 @@ async def _debug_return_to(state: FSMContext, default: str) -> str:
 async def _debug_notify_user(tg_id: int, template: str, **kwargs: Any) -> None:
     if tg_id <= 0:
         return
-    try:
+    with suppress(Exception):
         await notify_user(tg_id, translate(await get_user_language(tg_id), template, **kwargs))
-    except Exception:  # noqa: BLE001, S110
-        pass
 
 
 # --- Ручная выдача / перевыдача подписки ---
@@ -16533,7 +16475,7 @@ async def process_delete_account_confirm(event: Message, state: FSMContext, **kw
     )
 
 
-async def normalize_all_subscriptions_with_retry(
+async def normalize_all_subscriptions_with_retry(  # noqa: PLR0912, PLR0915
     max_iterations: int = 5, delay_between_iterations: int = 2
 ) -> dict[str, Any]:
     report = {
@@ -16687,7 +16629,7 @@ async def normalize_all_subscriptions_with_retry(
                         update_fields["ip_limit"] = plan_ip
                         needs_update = True
 
-                    if abs(stored_gb - plan_gb) > 0.1:
+                    if abs(stored_gb - plan_gb) > 0.1:  # noqa: PLR2004
                         logger.info(f"  🔄 Обновление трафика: {stored_gb} -> {plan_gb}")
                         update_fields["traffic_gb"] = plan_gb
                         needs_update = True
@@ -16924,7 +16866,7 @@ async def normalize_all_subscriptions_with_retry(
                         extra_gb = to_int((fresh_user or user).get("extra_sub_gb"), 0)
                         total_gb = plan_gb + extra_gb
 
-                        if curr_ip != plan_ip or abs(curr_gb - total_gb) > 0.1:
+                        if curr_ip != plan_ip or abs(curr_gb - total_gb) > 0.1:  # noqa: PLR2004
                             logger.info(
                                 f"  🔄 Обновление настроек на сервере: IP {curr_ip}->{plan_ip}, GB {curr_gb}->{total_gb}"
                             )
@@ -17264,7 +17206,7 @@ async def check_traffic_abuse() -> None:
         await asyncio.sleep(Config.TRAFFIC_ABUSE_CHECK_INTERVAL_SEC)
 
 
-async def _run_traffic_abuse_check() -> None:
+async def _run_traffic_abuse_check() -> None:  # noqa: PLR0912, PLR0915
     subscribed = await db.get_subscribed_user_ids()
     logger.info(f"Проверка трафика: {len(subscribed)} подписок")
 
@@ -17358,7 +17300,7 @@ async def _abuse_admin_header(header_key: str, internal_uid: int, telegram_id: i
     )
 
 
-async def _notify_admins_about_abuse(
+async def _notify_admins_about_abuse(  # noqa: PLR0913
     internal_uid: int,
     telegram_id: int,
     *,
@@ -17484,7 +17426,7 @@ async def cleanup_old_payments() -> None:
 
 class SSLUpdateTask:
     @staticmethod
-    async def _run_ssh_update() -> bool:
+    async def _run_ssh_update() -> bool:  # noqa: PLR0912, PLR0915
         if not Config.SSH_HOST or not Config.SSH_USER:
             logger.warning("SSL задача пропущена: SSH_HOST/SSH_USER не настроены")
             return False
@@ -17495,7 +17437,7 @@ class SSLUpdateTask:
 
             def _connect() -> paramiko.SSHClient:
                 client = paramiko.SSHClient()
-                client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                client.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # noqa: S507
                 if Config.SSH_PASSWORD:
                     client.connect(
                         Config.SSH_HOST,
@@ -17519,7 +17461,7 @@ class SSLUpdateTask:
                     break
                 except Exception as exc:
                     last_error = exc
-                    if attempt < 2:
+                    if attempt < 2:  # noqa: PLR2004
                         await asyncio.sleep(1.0 * (2.0**attempt))
                     else:
                         raise
@@ -17640,7 +17582,7 @@ def sanitize_user(user: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in user.items() if k not in _SENSITIVE_USER_FIELDS}
 
 
-async def _build_profile_response(user: dict[str, Any]) -> dict[str, Any]:
+async def _build_profile_response(user: dict[str, Any]) -> dict[str, Any]:  # noqa: PLR0912, PLR0915
     lang = await db.get_user_language_by_user_id(user["user_id"]) or Config.DEFAULT_LANGUAGE
     db_uid = user["user_id"]
     sub_state = await get_subscription_state(db_uid)
@@ -17942,16 +17884,12 @@ class BOT_FastAPI:
                 logger.info("FastAPI lifespan: shutdown")
                 for conns in _active_connections.values():
                     for ws in conns:
-                        try:
+                        with suppress(Exception):
                             spawn_tracked_task(ws.close(code=1001))
-                        except Exception:  # noqa: BLE001, S110
-                            pass
                 _active_connections.clear()
                 for ws in _admin_connections:
-                    try:
+                    with suppress(Exception):
                         spawn_tracked_task(ws.close(code=1001))
-                    except Exception:  # noqa: BLE001, S110
-                        pass
                 _admin_connections.clear()
                 for task in _scheduled_tasks:
                     if not task.done():
@@ -17979,7 +17917,7 @@ class BOT_FastAPI:
             )
         self._setup_routes()
 
-    def _setup_routes(self) -> None:
+    def _setup_routes(self) -> None:  # noqa: PLR0915
         # === Middleware ---
 
         @self.app.middleware("http")
@@ -18476,7 +18414,7 @@ class BOT_FastAPI:
 
         # === Auth (public) ---
         @self.app.post("/api/v1/auth/register")
-        async def api_auth_register(req: WebRegisterRequest, request: Request) -> JSONResponse:
+        async def api_auth_register(req: WebRegisterRequest, request: Request) -> JSONResponse:  # noqa: PLR0911
             logger.info(f"API auth_register: username={req.username}")
             try:
                 username = req.username.strip()
@@ -18745,7 +18683,7 @@ class BOT_FastAPI:
             )
 
         @self.app.post("/api/v1/auth/telegram/link")
-        async def api_auth_telegram_link(
+        async def api_auth_telegram_link(  # noqa: PLR0911
             req: WebTelegramLinkRequest,
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
         ) -> JSONResponse:
@@ -18818,16 +18756,15 @@ class BOT_FastAPI:
                     user = existing
                 else:
                     await db.update_web_auth(user["user_id"], telegram_id=req.tg_id)
-            else:
-                if to_int(user.get("telegram_id"), 0) != req.tg_id:
-                    await db.update_web_auth(user["user_id"], telegram_id=req.tg_id)
+            elif to_int(user.get("telegram_id"), 0) != req.tg_id:
+                await db.update_web_auth(user["user_id"], telegram_id=req.tg_id)
             await db.cleanup_telegram_phantoms(req.tg_id, user["user_id"])
             return JSONResponse(
                 content={"message": translate(Config.DEFAULT_LANGUAGE, "texts.api_telegram_linked")}
             )
 
         @self.app.post("/api/v1/auth/telegram/login")
-        async def api_auth_telegram_login(
+        async def api_auth_telegram_login(  # noqa: PLR0911
             req: TelegramLoginRequest,
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
         ) -> JSONResponse:
@@ -18999,7 +18936,7 @@ class BOT_FastAPI:
                     try:
                         created_at = datetime.fromisoformat(created_at_str)
                         elapsed = (datetime.now(UTC) - created_at).total_seconds()
-                        if elapsed > 120:
+                        if elapsed > WEB_LOGIN_TIMEOUT_SECONDS:
                             return JSONResponse(content={"status": "timeout"})
                     except (ValueError, TypeError):
                         pass
@@ -19612,7 +19549,7 @@ class BOT_FastAPI:
                 )
 
         @self.app.post("/api/v1/payments/create-checkout")
-        async def api_create_checkout(
+        async def api_create_checkout(  # noqa: PLR0911, PLR0912, PLR0915
             req: CreateCheckoutRequest,
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
         ) -> JSONResponse:
@@ -20016,7 +19953,7 @@ class BOT_FastAPI:
 
         # === Создание подписки через API ---
         @self.app.post("/api/v1/subscription/create")
-        async def api_create_subscription(
+        async def api_create_subscription(  # noqa: PLR0911
             req: CreateSubscriptionRequest,
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
         ) -> JSONResponse:
@@ -20154,7 +20091,7 @@ class BOT_FastAPI:
 
         # === Продление подписки ---
         @self.app.post("/api/v1/subscription/renew")
-        async def api_renew_subscription(
+        async def api_renew_subscription(  # noqa: PLR0911
             req: CreateSubscriptionRequest,
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
         ) -> JSONResponse:
@@ -20264,7 +20201,7 @@ class BOT_FastAPI:
 
         # === Пробный тариф ---
         @self.app.post("/api/v1/subscription/trial")
-        async def api_trial_subscription(
+        async def api_trial_subscription(  # noqa: PLR0911
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
         ) -> JSONResponse:
             if not credentials:
@@ -20365,7 +20302,7 @@ class BOT_FastAPI:
 
         # === Тестовая подписка (только для администраторов) ===
         @self.app.post("/api/v1/subscription/test")
-        async def api_test_subscription(
+        async def api_test_subscription(  # noqa: PLR0911
             req: CreateCheckoutRequest,
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
         ) -> JSONResponse:
@@ -20733,7 +20670,7 @@ class BOT_FastAPI:
                 )
 
         @self.app.post("/api/v1/partner/apply")
-        async def api_partner_apply(
+        async def api_partner_apply(  # noqa: PLR0911
             req: dict[str, Any],
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
         ) -> JSONResponse:
@@ -20919,7 +20856,7 @@ class BOT_FastAPI:
                 )
 
         @self.app.post("/api/v1/partner/renew")
-        async def api_partner_renew(
+        async def api_partner_renew(  # noqa: PLR0911
             req: dict[str, Any],
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
         ) -> JSONResponse:
@@ -21015,7 +20952,7 @@ class BOT_FastAPI:
                 )
 
         @self.app.post("/api/v1/partner/withdraw")
-        async def api_partner_withdraw(
+        async def api_partner_withdraw(  # noqa: PLR0911
             req: dict[str, Any],
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
         ) -> JSONResponse:
@@ -21177,7 +21114,7 @@ class BOT_FastAPI:
 
         # === Custom Tariff Generation API ---
         @self.app.post("/api/v1/tariffs/custom/generate")
-        async def api_generate_custom_tariff(
+        async def api_generate_custom_tariff(  # noqa: PLR0911
             req: CustomTariffRequest,
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
         ) -> JSONResponse:
@@ -21411,7 +21348,7 @@ class BOT_FastAPI:
 
         # === Payment Verification API ---
         @self.app.post("/api/v1/payments/verify/{payment_id}")
-        async def api_verify_payment(
+        async def api_verify_payment(  # noqa: PLR0911, PLR0912, PLR0915
             payment_id: str,
             req: PaymentVerifyRequest,
             admin: str = Depends(_require_admin),
@@ -21522,21 +21459,20 @@ class BOT_FastAPI:
                             )
                             await notify_user(uid, text)
                         logger.info(f"✅ Payment {payment_id} confirmed, subscription created")
-                else:
-                    if Config.TRUST_SCORE_ENABLED:
-                        if resolved:
+                elif Config.TRUST_SCORE_ENABLED:
+                    if resolved:
+                        await apply_trust_score_delta(
+                            resolved.telegram_id,
+                            -TRUST_SCORE_PENALTY_PAYMENT_REJECTED,
+                        )
+                    else:
+                        raw_uid = to_int(payment.get("user_id"), 0)
+                        uid = await resolve_tg_id(raw_uid) if raw_uid > 0 else 0
+                        if uid > 0:
                             await apply_trust_score_delta(
-                                resolved.telegram_id,
-                                -TRUST_SCORE_PENALTY_PAYMENT_REJECTED,
+                                uid, -TRUST_SCORE_PENALTY_PAYMENT_REJECTED
                             )
-                        else:
-                            raw_uid = to_int(payment.get("user_id"), 0)
-                            uid = await resolve_tg_id(raw_uid) if raw_uid > 0 else 0
-                            if uid > 0:
-                                await apply_trust_score_delta(
-                                    uid, -TRUST_SCORE_PENALTY_PAYMENT_REJECTED
-                                )
-                        logger.info(f"⚠️ Payment {payment_id} rejected, trust penalty applied")
+                    logger.info(f"⚠️ Payment {payment_id} rejected, trust penalty applied")
                 return JSONResponse(
                     content={
                         "message": f"Payment {req.status}",
@@ -22022,7 +21958,7 @@ class BOT_FastAPI:
 
 
 # --- Запуск ---
-async def main() -> None:
+async def main() -> None:  # noqa: PLR0912, PLR0915
     background_tasks: list[asyncio.Task] = []
     loop = asyncio.get_running_loop()
     shutdown_event = asyncio.Event()
@@ -22045,10 +21981,8 @@ async def main() -> None:
         background_tasks.append(polling_stop_task)
 
     for sig in (signal.SIGINT, signal.SIGTERM):
-        try:
+        with suppress(AttributeError, ValueError):
             signal.signal(sig, signal_handler)
-        except (AttributeError, ValueError):
-            pass
 
     try:
         Config.validate()
@@ -22067,10 +22001,8 @@ async def main() -> None:
                 default=DefaultBotProperties(parse_mode=ParseMode.HTML),
             )
             for admin_id in Config.ADMIN_USER_IDS:
-                try:
+                with suppress(Exception):
                     await safe_send_message(bot_temp, admin_id, error_msg)
-                except Exception:  # noqa: BLE001, S110
-                    pass
             await bot_temp.session.close()
         except Exception:  # noqa: BLE001, S110
             pass
@@ -22191,21 +22123,17 @@ async def main() -> None:
             if not task.done():
                 task.cancel()
         if background_tasks:
-            try:
+            with suppress(asyncio.CancelledError):
                 await asyncio.gather(*background_tasks, return_exceptions=True)
-            except asyncio.CancelledError:
-                pass
 
         try:
             for admin_id in Config.ADMIN_USER_IDS:
-                try:
+                with suppress(Exception):
                     await safe_send_message(
                         bot,
                         admin_id,
                         translate(Config.DEFAULT_LANGUAGE, "texts.bot_stopped"),
                     )
-                except Exception:  # noqa: BLE001, S110
-                    pass
         except Exception:  # noqa: BLE001, S110
             pass
 
