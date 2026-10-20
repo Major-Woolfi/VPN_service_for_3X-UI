@@ -183,7 +183,7 @@
     "change_username_prompt": "✏️ 请输入要修改用户名的用户 ID。",
     "change_username_success": "✅ 用户 UID <code>{user_id}</code>{tg_id} 的用户名已更改为 <b>{new_username}</b>。",
     "choose_payment_method": "💳 <b>请选择便捷的支付方式：</b>",
-    "client_setup_guide": "📌 <b>客户端设置</b>\n\n\n\n⚙️ <b>配置文件：</b> <a href=\"{setup_guide_url}\">打开</a>\n📥 <b>下载 INCY：</b> <a href=\"{client_app_url}\">打开</a>\n\n不同客户端的指南不同。请在列表中找到您的客户端，并严格按照步骤操作。\n\n<b>INCY（推荐）</b>\n1. 下载适用于您操作系统的 INCY 文件。\n2. 打开 INCY。\n3. 进入：「设置」→「备份」→「选择文件」。\n4. 选择之前从配置文件帖子中下载的配置。\n5. 选择「替换」并点击「应用」。\n6. 在 INCY 主界面再次进入「设置」→「按应用代理」，并选择所有无法使用 VPN 的亲俄应用。\n7. 粘贴来自我们机器人的订阅。\n\n<b>v2RayTun（旧内核，可能有问题）</b>\n1. 下载 v2RayTun 文件。\n2. 打开 v2RayTun。\n3. 进入：「设置」→「应用设置」→「恢复设置」。\n4. 选择之前从配置文件帖子中下载的配置。\n5. 在 v2RayTun 主界面再次进入「设置」→「路由」，并选择所有无法使用 VPN 的亲俄应用。\n6. 粘贴来自我们机器人的订阅。\n\nℹ️ 如需其他客户端的帮助，或需要关于 INCY 和 v2RayTun 的额外帮助，请联系支持。\n\n⚠️ <b>重要：</b> 我们使用 XRay 26.7.28+，采用 XHTTP 传输和 REALITY 插件。",
+    "client_setup_guide": "📌 <b>客户端设置</b>\n\n\n\n⚙️ <b>配置文件：</b> <a href=\"{setup_guide_url}\">打开</a>\n📥 <b>下载 INCY：</b> <a href=\"{client_app_url}\">打开</a>\n\n不同客户端的指南不同。请在列表中找到您的客户端，并严格按照步骤操作。\n\n<b>INCY（推荐）</b>\n1. 下载适用于您操作系统的 INCY 文件。\n2. 打开 INCY。\n3. 进入：「设置」→「备份」→「选择文件」。\n4. 选择之前从配置文件帖子中下载的配置。\n5. 选择「替换」并点击「应用」。\n6. 在 INCY 主界面再次进入「设置」→「按应用代理」，并选择所有无法使用 VPN 的亲俄应用。\n7. 粘贴来自我们机器人的订阅。\n\n<b>v2RayTun（旧内核，可能有问题）</b>\n1. 下载 v2RayTun 文件。\n2. 打开 v2RayTun。\n3. 进入：「设置」→「应用设置」→「恢复设置」。\n4. 选择之前从配置文件帖子中下载的配置。\n5. 在 v2RayTun 主界面再次进入「设置」→「路由」，并选择所有无法使用 VPN 的亲俄应用。\n6. 粘贴来自我们机器人的订阅。\n\nℹ️ 如需其他客户端的帮助，或需要关于 INCY 和 v2RayTun 的额外帮助，请联系支持。\n\n⚠️ <b>重要：</b> 我们使用 XRay 26.10.17+，采用 XHTTP 传输和 REALITY 插件。",
     "compensate_cancelled": "❌ 补偿已取消。",
     "compensate_confirm": "⚠️ 您确定要向所有用户补偿 <b>{days}</b> 天吗？",
     "compensate_days_bulk_prompt": "请输入为所有 {count} 位活跃订阅者补偿的天数：",

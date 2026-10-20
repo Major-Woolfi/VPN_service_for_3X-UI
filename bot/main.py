@@ -330,6 +330,7 @@ async def smart_answer(
     delete_origin: bool = False,
 ) -> bool:
     try:
+        text = truncate(text)
         if isinstance(event, Message):
             await event.answer(text, reply_markup=reply_markup)
         elif isinstance(event, CallbackQuery):
@@ -341,6 +342,21 @@ async def smart_answer(
             with suppress(Exception):
                 await event.answer()
         return True
+    except TelegramBadRequest:
+        # truncate может перерезать HTML-тег - повторяем plain-текстом.
+        try:
+            plain = truncate(strip_html(text))
+            if isinstance(event, Message):
+                await event.answer(plain, reply_markup=reply_markup)
+            elif isinstance(event, CallbackQuery) and event.message:
+                await event.message.answer(plain, reply_markup=reply_markup)
+            with suppress(Exception):
+                if isinstance(event, CallbackQuery):
+                    await event.answer()
+            return True
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"smart_answer error: {e}")
+            return False
     except Exception as e:  # noqa: BLE001
         logger.error(f"smart_answer error: {e}")
         return False
@@ -965,10 +981,16 @@ def _cleanup_registrations_per_ip() -> None:
         del _registrations_per_ip[ip]
 
 
-def get_subscription_lock(user_id: int) -> asyncio.Lock:
-    if user_id not in _subscription_creation_locks:
-        _subscription_creation_locks[user_id] = asyncio.Lock()
-    return _subscription_creation_locks[user_id]
+@asynccontextmanager
+async def get_subscription_lock(user_id: int):
+    # Лок берётся строго по внутреннему UID: TID и UID одного пользователя
+    # должны делить один лок, иначе гонка create/renew остаётся.
+    internal_uid = await db.resolve_internal_uid(user_id)
+    key = internal_uid if internal_uid > 0 else user_id
+    if key not in _subscription_creation_locks:
+        _subscription_creation_locks[key] = asyncio.Lock()
+    async with _subscription_creation_locks[key]:
+        yield
 
 
 def _get_auth_key(username: str, client_ip: str) -> str:
@@ -2807,7 +2829,9 @@ class Database:
         user = await self.find_user_by_any_id(value)
         if not user:
             return 0
-        return to_int(user.get("user_id"), 0) or value
+        # Без fallback на raw value: TID не является внутренним UID и
+        # может совпасть с user_id другого пользователя.
+        return to_int(user.get("user_id"), 0)
 
     @log_error
     async def get_user_by_id(self, user_id: int) -> dict[str, Any] | None:
@@ -7452,7 +7476,8 @@ async def get_subscription_state(user_id: int) -> dict[str, Any]:  # noqa: PLR09
     if "admin" in plan_text_admin_check.lower() and not await is_admin_user(
         to_int(user.get("telegram_id"), 0)
     ):
-        await db.remove_subscription(internal_uid)
+        if not await db.remove_subscription(internal_uid):
+            logger.error(f"Не удалось автоудалить подписку Admin у не-админа {internal_uid}")
         base_email_admin_check = get_user_panel_email(internal_uid, user_data_admin)
         with suppress(Exception):
             await panel.delete_client(base_email_admin_check)
@@ -7524,7 +7549,7 @@ async def get_subscription_state(user_id: int) -> dict[str, Any]:  # noqa: PLR09
     }
 
 
-async def cleanup_subscription(
+async def cleanup_subscription(  # noqa: PLR0912
     user_id: int,
     reason: str,
     *,
@@ -7592,9 +7617,14 @@ async def cleanup_subscription(
         logger.error(f"cleanup_subscription: ошибка удаления с панели {user_id}: {e}")
 
     if deleted:
-        await db.remove_subscription(internal_uid)
-        logger.info(f"🗑 Подписка {user_id} очищена из БД (reason={reason})")
-        result["success"] = True
+        if await db.remove_subscription(internal_uid):
+            logger.info(f"🗑 Подписка {user_id} очищена из БД (reason={reason})")
+            result["success"] = True
+        else:
+            logger.error(
+                f"⚠️ Подписка {user_id} не удалена из БД после удаления "
+                f"клиента с панели (reason={reason})"
+            )
     else:
         logger.warning(
             f"⚠️ Подписка {user_id} не удалена из БД, т.к. клиент не удалён с панели (reason={reason})"
@@ -7778,6 +7808,7 @@ async def _ensure_admin_subscription(admin_id: int) -> bool:  # noqa: PLR0911, P
                         f"_ensure_admin_subscription: не удалось обновить Admin клиент: "
                         f"{data.get('msg')}"
                     )
+                    return False
                 panel._invalidate_clients_cache()
                 await panel.attach_client_to_inbounds(existing_email, inbound_ids)
                 logger.info(
@@ -8112,7 +8143,7 @@ async def _create_subscription_unlocked(  # noqa: PLR0911, PLR0912, PLR0913, PLR
         logger.info(f"✅ Тестовая подписка создана для админа {user_id}, sub_id={sub_id}")
         return sub_id
 
-    await db.set_subscription(
+    if not await db.set_subscription(
         internal_user_id,
         plan_text=plan_name,
         ip_limit=int(plan.get("ip_limit", 0)),
@@ -8121,7 +8152,13 @@ async def _create_subscription_unlocked(  # noqa: PLR0911, PLR0912, PLR0913, PLR
         plan_servers=plan_servers,
         subscription_id=plan_id_for_db,
         expiry_sub_datatime=expiry_sub_datatime,
-    )
+    ):
+        logger.error(
+            f"create_subscription: не удалось сохранить подписку в БД "
+            f"для user {user_id} (панель создала клиента {base_email})"
+        )
+        await _notify_subscription_creation_failed(user_id, plan_name, error="db_write_failed")
+        return None
 
     if pending > 0:
         await db.clear_bonus_days_pending(user_id)
@@ -8165,7 +8202,7 @@ async def renew_subscription(
         )
 
 
-async def _renew_subscription_unlocked(
+async def _renew_subscription_unlocked(  # noqa: PLR0912
     user_id: int,
     plan: dict[str, Any],
     *,
@@ -8232,7 +8269,7 @@ async def _renew_subscription_unlocked(
     expiry_sub_datatime = (
         datetime.fromtimestamp(max_expiry / 1000, tz=UTC) + timedelta(days=days)
     ).isoformat()
-    await db.set_subscription(
+    if not await db.set_subscription(
         internal_uid,
         plan_text=str(plan.get("name", plan.get("id", ""))),
         ip_limit=int(plan.get("ip_limit", 0)),
@@ -8241,7 +8278,11 @@ async def _renew_subscription_unlocked(
         plan_servers=plan_servers,
         subscription_id=str(plan.get("id", "")),
         expiry_sub_datatime=expiry_sub_datatime,
-    )
+    ):
+        logger.error(
+            f"renew_subscription: не удалось сохранить продление в БД для user {internal_uid}"
+        )
+        return None
     if pending > 0:
         await db.clear_bonus_days_pending(internal_uid)
 
@@ -8896,10 +8937,13 @@ async def ban_middleware(handler: Callable, event: Any, data: dict[str, Any]) ->
                 except Exception as e:  # noqa: BLE001
                     logger.warning(f"Ошибка fallback-отправки в ban_middleware: {e}")
             return None
-        return await handler(event, data)
-    except Exception as e:  # noqa: BLE001
-        logger.error(f"Ошибка в ban_middleware для {user_id}: {e}")
-        return await handler(event, data)
+    except Exception:
+        # Ошибка самой проверки бана (БД, переводы) не должна глушить событие,
+        # но получает traceback для диагностики. Handler здесь НЕ вызывается
+        # повторно: он идёт ниже, вне except, чтобы исключения обработчика
+        # уходили в глобальный обработчик ошибок без двойных побочных эффектов.
+        logger.exception(f"Ошибка проверки бана в ban_middleware для {user_id}")
+    return await handler(event, data)
 
 
 async def language_middleware(handler: Callable, event: Any, data: dict[str, Any]) -> Any:
@@ -9002,6 +9046,8 @@ _IGNORED_TG_ERROR_MARKERS: tuple[str, ...] = (
     "message is not modified",
     "message to edit not found",
     "message to delete not found",
+    "message is too long",
+    "button_data_invalid",
     "query is too old",
     "query_id is invalid",
     "inline message you tried to edit not found",
@@ -11391,7 +11437,7 @@ async def cmd_ref(event: CallbackQuery, **kwargs):
     db_uid = user_data.get("user_id", 0) if user_data else 0
     total = await db.count_referrals(db_uid)
     paid = await db.count_referrals_paid(db_uid)
-    link = get_ref_link(await resolve_display_ref_code(user_data) or ref_code)
+    link = get_ref_link(resolve_display_ref_code(user_data) or ref_code)
     # Партнёр и обычный пользователь видят разные экраны: у партнёра своя
     # ссылка, свой никнейм и свой бонус, а не дефолт реферальной программы.
     if user_data and user_data.get("is_mate"):
@@ -12548,8 +12594,9 @@ async def _create_partner_vpn_client(  # noqa: PLR0913, PLR0917
     expiry_dt = datetime.strptime(expiry_display, "%d.%m.%Y").replace(
         hour=23, minute=59, second=59, tzinfo=UTC
     )
-    await db.update_partner_subscription(uid, subscription_id=sub_id, expiry=expiry_display)
-    await db.set_subscription(
+    if not await db.update_partner_subscription(uid, subscription_id=sub_id, expiry=expiry_display):
+        raise RuntimeError(f"Не удалось сохранить партнёрскую подписку в БД для {uid}")
+    if not await db.set_subscription(
         uid,
         plan_text=translate(user_lang, "texts.partner_plan_name"),
         plan_servers=json.dumps(get_all_location_codes()),
@@ -12560,7 +12607,8 @@ async def _create_partner_vpn_client(  # noqa: PLR0913, PLR0917
         # нормализация искала план по нику партнёра и не находила его.
         subscription_id=PARTNER_PLAN_ID,
         expiry_sub_datatime=expiry_dt.isoformat(),
-    )
+    ):
+        raise RuntimeError(f"Не удалось записать подписку партнёра {uid} в БД")
     logger.info(f"✅ VPN-подписка создана для партнёра {uid}: {sub_id}")
 
 
@@ -13401,7 +13449,14 @@ async def process_ban_reason(event: Message, state: FSMContext, **kwargs):
         )
         return
 
-    await cleanup_subscription(internal_uid, f"banned: {reason}", notify_user_about_cleanup=False)
+    cleanup = await cleanup_subscription(
+        internal_uid, f"banned: {reason}", notify_user_about_cleanup=False
+    )
+    if not cleanup.get("success"):
+        logger.warning(
+            f"Бан пользователя {internal_uid} выполнен, но клиент на панели "
+            f"не удалён (нормализатор повторит попытку)"
+        )
     await notify_user_safely(
         telegram_id,
         translate(
@@ -13996,6 +14051,14 @@ def _split_markdown_message(text: str, max_length: int = MAX_TG_LENGTH) -> list[
         if len(candidate) > max_length and current:
             parts.append(current)
             candidate = sep + block
+        # Сам блок тоже может быть длиннее лимита (огромный код-блок) -
+        # режем его по кускам, иначе parts содержит сверхдлинную часть.
+        if len(candidate) > max_length:
+            piece = candidate
+            while len(piece) > max_length:
+                parts.append(piece[:max_length])
+                piece = piece[max_length:]
+            candidate = piece
         current = candidate
     if current:
         parts.append(current)
@@ -15720,9 +15783,21 @@ async def cmd_debug_manual_issue_confirm(event: CallbackQuery, state: FSMContext
         if mode == "replace" and had_sub:
             # Замена: старая подписка сносится целиком, неиспользованные
             # дни и трафик при этом теряются - об этом предупреждает текст.
-            await cleanup_subscription(
+            cleanup = await cleanup_subscription(
                 internal_uid, "admin_manual_replace", notify_user_about_cleanup=False
             )
+            if not cleanup.get("success"):
+                logger.error(
+                    f"Ручная замена подписки для {internal_uid}: старую подписку "
+                    f"удалить не удалось, выдача прервана"
+                )
+                await _debug_finish(
+                    event,
+                    lang,
+                    translate(lang, "texts.manual_issue_fail", **ident),
+                    back_to,
+                )
+                return
             vpn_url = await create_subscription(internal_uid, plan, extra_days=0, paid_amount=0.0)
         elif mode == "renew" and had_sub:
             vpn_url = await renew_subscription(internal_uid, plan, extra_days=0, earn_trust=False)
@@ -16302,9 +16377,14 @@ async def cmd_debug_full_reset_confirm(event: CallbackQuery, state: FSMContext, 
     was_partner = bool(user_data.get("is_mate"))
     # 1. Подписка и клиент в панели.
     if normalize_sub_id(user_data.get("vpn_url")):
-        await cleanup_subscription(
+        cleanup = await cleanup_subscription(
             internal_uid, "admin_full_reset", notify_user_about_cleanup=False
         )
+        if not cleanup.get("success"):
+            logger.warning(
+                f"Полный сброс {internal_uid}: подписка на панели не удалена, "
+                f"сброс БД продолжается (нормализатор повторит попытку)"
+            )
     # 2. Партнёрство: ссылка перегенерируется заново по текущим правилам.
     if was_partner:
         sanitized = sanitize_mate_nickname_or_uid(user_data.get("mate_nickname", ""), internal_uid)
@@ -16417,7 +16497,9 @@ async def process_delete_account_user_id(event: Message, state: FSMContext, **kw
 
 
 @router.message(DeleteAccountState.waiting_for_confirm)
-async def process_delete_account_confirm(event: Message, state: FSMContext, **kwargs):
+async def process_delete_account_confirm(  # noqa: PLR0911
+    event: Message, state: FSMContext, **kwargs
+):
     lang = await get_lang(event)
     val = (event.text or "").strip()
     back_to = await _debug_return_to(state, "debug_account")
@@ -16458,9 +16540,18 @@ async def process_delete_account_confirm(event: Message, state: FSMContext, **kw
 
     # 1. Клиент на панели, иначе он останется висеть после удаления строки.
     if normalize_sub_id(user_data.get("vpn_url")):
-        await cleanup_subscription(
+        cleanup = await cleanup_subscription(
             internal_uid, "admin_account_deleted", notify_user_about_cleanup=False
         )
+        if not cleanup.get("success"):
+            logger.error(
+                f"Удаление аккаунта {internal_uid}: клиент на панели не удалён, "
+                f"удаление строки прервано (нормализатор повторит попытку)"
+            )
+            await _debug_finish(
+                event, lang, translate(lang, "texts.delete_account_fail", **ident), back_to
+            )
+            return
     # 2. Рефералы обоих направлений.
     await db.clear_referrals_of(internal_uid)
 
@@ -16473,6 +16564,28 @@ async def process_delete_account_confirm(event: Message, state: FSMContext, **kw
     await _debug_finish(
         event, lang, translate(lang, "texts.delete_account_success", **ident), back_to
     )
+
+
+async def _try_rewrite_panel_sub_id(email: str, client: dict[str, Any], db_sub_id: str) -> str:
+    # "updated" - переписано; "skipped" - subId занят другим клиентом на панели
+    # (конфликт БД↔панель, повторная попытка бессмысленна); "failed" - ошибка.
+    client["subId"] = db_sub_id
+    payload = panel._client_payload_for_update(client)
+    url = f"{panel.apibase}/panel/api/clients/update/{panel._quote_path(email)}"
+    status, data, _ = await panel._request_json_with_reauth(
+        "POST", url, headers=panel._headers(), json=payload
+    )
+    if status in (200, 201) and data.get("success"):
+        return "updated"
+    msg = str(data.get("msg") or "")
+    if "duplicate subid" in msg.lower():
+        logger.info(
+            f"  ℹ️ subId '{db_sub_id}' занят другим клиентом на панели, "
+            f"переписывание для {email} пропущено"
+        )
+        return "skipped"
+    logger.error(f"  ❌ Не удалось исправить subId для {email}: {msg}")
+    return "failed"
 
 
 async def normalize_all_subscriptions_with_retry(  # noqa: PLR0912, PLR0915
@@ -16772,27 +16885,18 @@ async def normalize_all_subscriptions_with_retry(  # noqa: PLR0912, PLR0915
 
                         db_sub_id = normalize_sub_id(user.get("vpn_url") or "")
                         panel_sub_id = str(client.get("subId") or "")
-                        if db_sub_id and panel_sub_id != db_sub_id:
+                        # У админа канонический subId из .env управляет
+                        # _ensure_admin_subscription - generic-переписывание
+                        # вечно конфликтует с Duplicate subId.
+                        if db_sub_id and panel_sub_id != db_sub_id and not is_admin:
                             logger.info(f"  🔄 Исправляем subId: {panel_sub_id} -> {db_sub_id}")
-                            client["subId"] = db_sub_id
-                            payload = panel._client_payload_for_update(client)
-                            url = (
-                                f"{panel.apibase}/panel/api/clients/update/"
-                                f"{panel._quote_path(email)}"
-                            )
-                            status, data, _ = await panel._request_json_with_reauth(
-                                "POST", url, headers=panel._headers(), json=payload
-                            )
-                            if status in (200, 201) and data.get("success"):
+                            sub_fix = await _try_rewrite_panel_sub_id(email, client, db_sub_id)
+                            if sub_fix == "updated":
                                 report["subscriptions_updated"] += 1
                                 iter_changes += 1
                                 logger.info(f"  ✅ subId исправлен для {email}")
-                            else:
+                            elif sub_fix == "failed":
                                 report["panel_errors"] += 1
-                                logger.error(
-                                    f"  ❌ Не удалось исправить subId для {email}: "
-                                    f"{data.get('msg')}"
-                                )
 
                         if not client.get("enable"):
                             logger.info(f"  🔓 Включаем отключённого клиента: {email}")
@@ -16999,29 +17103,19 @@ async def normalize_all_subscriptions_with_retry(  # noqa: PLR0912, PLR0915
                         if existing:
                             logger.info(f"  ✅ Клиент уже существует на панели: {email}")
                             existing_sub_id = str(existing.get("subId") or "")
-                            if db_sub_id and existing_sub_id != db_sub_id:
+                            if db_sub_id and existing_sub_id != db_sub_id and not is_admin:
                                 logger.info(
                                     f"  🔄 Исправляем subId: {existing_sub_id} -> {db_sub_id}"
                                 )
-                                existing["subId"] = db_sub_id
-                                payload = panel._client_payload_for_update(existing)
-                                url = (
-                                    f"{panel.apibase}/panel/api/clients/update/"
-                                    f"{panel._quote_path(email)}"
+                                sub_fix = await _try_rewrite_panel_sub_id(
+                                    email, existing, db_sub_id
                                 )
-                                status, data, _ = await panel._request_json_with_reauth(
-                                    "POST", url, headers=panel._headers(), json=payload
-                                )
-                                if status in (200, 201) and data.get("success"):
+                                if sub_fix == "updated":
                                     report["subscriptions_updated"] += 1
                                     iter_changes += 1
                                     logger.info(f"  ✅ subId исправлен для {email}")
-                                else:
+                                elif sub_fix == "failed":
                                     report["panel_errors"] += 1
-                                    logger.error(
-                                        f"  ❌ Не удалось исправить subId для {email}: "
-                                        f"{data.get('msg')}"
-                                    )
                         else:
                             sub_clients = None
                             if db_sub_id:
@@ -17373,8 +17467,18 @@ async def _handle_total_abuse(
 async def _suspend_subscription(telegram_id: int, user: dict[str, Any]) -> None:
     internal_uid = user.get("user_id", telegram_id)
     base_email = get_user_panel_email(internal_uid, user)
-    await panel.delete_client(base_email)
-    await db.remove_subscription(internal_uid)
+    try:
+        deleted = await panel.delete_client(base_email)
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"_suspend_subscription: ошибка удаления клиента {base_email}: {e}")
+        deleted = False
+    if not deleted:
+        logger.warning(
+            f"_suspend_subscription: клиент {base_email} не удалён с панели, "
+            f"запись из БД удаляется (нормализатор повторит попытку)"
+        )
+    if not await db.remove_subscription(internal_uid):
+        logger.error(f"_suspend_subscription: не удалось удалить подписку {internal_uid} из БД")
     await _notify_admins_about_abuse(
         internal_uid,
         telegram_id,
@@ -21590,7 +21694,7 @@ class BOT_FastAPI:
 
         # === Admin: Bulk User Actions ---
         @self.app.post("/api/v1/admin/users/bulk-action")
-        async def api_admin_bulk_action(
+        async def api_admin_bulk_action(  # noqa: PLR0912
             req: BulkActionRequest,
             admin: str = Depends(_require_admin),
         ) -> JSONResponse:
@@ -21623,17 +21727,35 @@ class BOT_FastAPI:
                                 internal_uid, reason=req.reason or "bulk_ban"
                             )
                             if success:
-                                await cleanup_subscription(
+                                cleanup = await cleanup_subscription(
                                     internal_uid,
                                     "bulk_ban",
                                     notify_user_about_cleanup=False,
                                 )
+                                if not cleanup.get("success"):
+                                    logger.warning(
+                                        f"Массовый бан {internal_uid}: бан выполнен, "
+                                        f"клиент на панели не удалён"
+                                    )
+                            else:
+                                result["errors"] += 1
+                                result["results"].append({"user_id": uid, "error": "ban failed"})
+                                continue
                         elif req.action == "unban":
                             internal_uid = user.get("user_id", uid) if user else uid
                             success = await db.unban_user_by_uid(internal_uid)
+                            if not success:
+                                result["errors"] += 1
+                                result["results"].append({"user_id": uid, "error": "unban failed"})
+                                continue
                         elif req.action == "remove_subscription":
                             internal_uid = user.get("user_id", uid) if user else uid
-                            await db.remove_subscription(internal_uid)
+                            if not await db.remove_subscription(internal_uid):
+                                result["errors"] += 1
+                                result["results"].append(
+                                    {"user_id": uid, "error": "remove_subscription failed"}
+                                )
+                                continue
                         elif req.action == "reset_trial":
                             tg_id = user.get("telegram_id", uid) if user else uid
                             await db.mark_trial_used(tg_id)
@@ -21818,7 +21940,21 @@ class BOT_FastAPI:
                             )
                         },
                     )
-                await cleanup_subscription(user_id, "admin_reset", notify_user_about_cleanup=True)
+                cleanup_result = await cleanup_subscription(
+                    user_id, "admin_reset", notify_user_about_cleanup=True
+                )
+                if not cleanup_result.get("success"):
+                    return JSONResponse(
+                        status_code=500,
+                        content={
+                            "error": translate(
+                                Config.DEFAULT_LANGUAGE,
+                                "texts.api_user_state_reset_fail",
+                                user_id=user_id,
+                                tg_id=tg_id_str,
+                            )
+                        },
+                    )
                 return JSONResponse(
                     content={
                         "message": translate(

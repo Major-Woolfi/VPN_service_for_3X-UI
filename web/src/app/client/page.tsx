@@ -21,7 +21,6 @@ const INCY_GUIDE_STEPS = [
   "texts.guide_incy_step_4",
   "texts.guide_incy_step_5",
   "texts.guide_incy_step_6",
-  "texts.guide_incy_step_7",
 ] as const;
 
 const V2RAYTUN_GUIDE_STEPS = [
@@ -30,7 +29,13 @@ const V2RAYTUN_GUIDE_STEPS = [
   "texts.guide_v2raytun_step_3",
   "texts.guide_v2raytun_step_4",
   "texts.guide_v2raytun_step_5",
-  "texts.guide_v2raytun_step_6",
+] as const;
+
+const HAPP_GUIDE_STEPS = [
+  "texts.guide_happ_step_1",
+  "texts.guide_happ_step_2",
+  "texts.guide_happ_step_3",
+  "texts.guide_happ_step_4",
 ] as const;
 
 export default function ClientPage() {
@@ -259,6 +264,13 @@ export default function ClientPage() {
                 <h3>{t("texts.guide_incy")}</h3>
                 <ol className="guide-steps">
                   {INCY_GUIDE_STEPS.map((stepKey) => (
+                    <li key={stepKey}>{t(stepKey)}</li>
+                  ))}
+                </ol>
+
+                <h3 style={{ marginTop: "24px" }}>{t("texts.guide_happ")}</h3>
+                <ol className="guide-steps">
+                  {HAPP_GUIDE_STEPS.map((stepKey) => (
                     <li key={stepKey}>{t(stepKey)}</li>
                   ))}
                 </ol>
