@@ -8,22 +8,11 @@ import type {
   TariffsResponse,
 } from "../types";
 
-/**
- * Запросы к боту из Server Component.
- *
- * Клиентские хелперы в lib/api.ts бьют в относительный `/api/bot/...`,
- * который существует только в браузере. На сервере такой fetch падает
- * ("Failed to parse URL"), и данные молча превращаются в пустые -
- * именно поэтому блок тарифов на главной не отображался.
- *
- * Здесь идём напрямую в апстрим по BOT_API_URL.
- */
-
 const SERVER_TIMEOUT_MS = UPSTREAM_TIMEOUT_MS;
 
 function describe(error: unknown): string {
   if (error instanceof Error) {
-    // fetch к недоступному хосту теряет исходную причину в cause
+
     const cause = (error as { cause?: unknown }).cause;
     const reason =
       cause instanceof Error
@@ -52,8 +41,7 @@ export async function getTariffsServer(): Promise<Tariff[]> {
     const data = await serverGet<TariffsResponse>("/tariffs");
     return data.tariffs || [];
   } catch (error) {
-    // Молчаливый return [] раньше скрывал поломку: блок тарифов просто
-    // исчезал. Ошибку обязаны видеть в логах.
+
     console.error(
       `[bot-data] не удалось получить /tariffs: ${describe(error)}`,
     );

@@ -12,11 +12,6 @@ interface StatGridProps {
   cards: StatCard[];
 }
 
-/**
- * Сетка карточек статистики.
- * Адаптив задаётся классом .grid-auto-fit: одна колонка на телефоне,
- * две на планшете, auto-fit на широких экранах.
- */
 export function StatGrid({ cards }: StatGridProps) {
   const { t } = useLanguage();
 

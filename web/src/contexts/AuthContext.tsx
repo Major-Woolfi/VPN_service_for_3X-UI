@@ -65,7 +65,6 @@ export function AuthProvider({
     return userData;
   }, []);
 
-  // Автовыход: proxy вернул 401 (сессия истекла или была отозвана).
   const dropSession = useCallback(
     (banned = false, reason = "") => {
       clearStoredUser();
@@ -93,21 +92,19 @@ export function AuthProvider({
       } catch (error) {
         if (!mountedRef.current) return null;
         if (error instanceof ApiError && error.authExpired) {
-          // Прокси ставит auth_expired только когда cookie была,
-          // а апстрим ответил 401: сессия действительно потеряна.
+
           dropSession();
           return null;
         }
         if (error instanceof ApiError && error.status === 401) {
-          // Голый 401 без auth_expired - cookie не было вовсе.
-          // Это обычный ответ гостя, автовыход здесь не нужен.
+
           return null;
         }
         if (error instanceof ApiError && error.status === 403) {
           dropSession(true, error.message);
           return null;
         }
-        // Сеть недоступна - не выкидываем пользователя, оставляем кэш.
+
         return readStoredUser<SanitizedUser>();
       } finally {
         inFlightRef.current = null;
@@ -125,12 +122,6 @@ export function AuthProvider({
     };
   }, []);
 
-  // После server-side логина router.refresh() приносит новый initialUser.
-  // Без синхронизации состояние оставалось null и /profile вечно показывал
-  // «Загрузка» до ручного F5.
-  // Синхронизация выполняется в render-фазе (документированный паттерн React
-  // «Adjusting state when a prop changes»), а не через setState в эффекте:
-  // это не даёт каскадных ререндеров и не нарушает правила линтера.
   const initialUserSignature = initialUser ? JSON.stringify(initialUser) : "";
   const [syncedSignature, setSyncedSignature] = useState(initialUserSignature);
   if (initialUserSignature && initialUserSignature !== syncedSignature) {
@@ -141,8 +132,6 @@ export function AuthProvider({
     setLoading(false);
   }
 
-  // localStorage, язык и флаг потери сессии - внешние системы,
-  // их синхронизируем в эффекте, а не в render-фазе.
   useEffect(() => {
     if (!initialUser) return;
     sessionLostRef.current = false;
@@ -158,11 +147,10 @@ export function AuthProvider({
 
   useEffect(() => {
     if (initialUser) {
-      // loading уже инициализирован как false, когда initialUser пришёл с сервера.
+
       return;
     }
-    // Кэш из localStorage нужен только до ответа сервера, поэтому он
-    // обновляется в асинхронном колбэке, а не синхронно в теле эффекта.
+
     const cached = readStoredUser<SanitizedUser>();
     if (cached) {
       queueMicrotask(() => {
@@ -179,12 +167,9 @@ export function AuthProvider({
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
-  // Сессия истекла на сервере - proxy сам сообщит через 401.
-  // Дополнительно синхронизируемся раз в минуту, чтобы поймать
-  // отозванную сессию даже без активных запросов.
+  }, [initialUser, loadUser]);
+
   useEffect(() => {
     if (initialUser) return;
     const interval = setInterval(() => {

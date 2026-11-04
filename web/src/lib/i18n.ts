@@ -1,6 +1,3 @@
-// i18n для веб-сайта - переводы импортируются из auto-generated файла
-// Смена языка: localStorage/cookie → AuthContext (из БД) → настройка по умолчанию
-
 import { LANGUAGES } from "./i18n-generated";
 import type { TranslationData } from "./i18n-types";
 
@@ -40,7 +37,7 @@ function initCurrentLang(): void {
         return;
       }
     } catch {
-      // Storage can be unavailable in private/restricted browser contexts.
+
     }
     const cookieLang = getCookieValue(LANG_KEY);
     if (cookieLang && LANGUAGES[cookieLang]) {
@@ -65,7 +62,7 @@ export function setCurrentLang(lang: string): boolean {
     try {
       localStorage.setItem(LANG_KEY, lang);
     } catch {
-      // Continue with the in-memory language when storage is unavailable.
+
     }
     const secure = window.location.protocol === "https:" ? "; secure" : "";
     document.cookie = `${LANG_KEY}=${encodeURIComponent(lang)}; path=/; max-age=31536000; samesite=lax${secure}`;
@@ -115,7 +112,7 @@ function replacePlaceholders(
 function resolveTranslation(
   data: TranslationData | undefined,
   key: string,
-): string | undefined {
+): unknown {
   if (!data) return undefined;
 
   if (key.startsWith("buttons.")) {
@@ -127,6 +124,15 @@ function resolveTranslation(
   if (key.startsWith("legal.")) {
     return resolveNested(data.legal || {}, key.replace("legal.", ""));
   }
+  if (key.startsWith("qa.")) {
+    const qaData = data.qa;
+    if (!qaData) return undefined;
+    const nestedKey = key.replace("qa.", "");
+    if (nestedKey === "category") {
+      return qaData.category;
+    }
+    return resolveNested(qaData, nestedKey);
+  }
   return undefined;
 }
 
@@ -137,12 +143,27 @@ export function t(
 ): string {
   const lang =
     langOverride && LANGUAGES[langOverride] ? langOverride : getCurrentLang();
-  const text =
+  const result =
     resolveTranslation(LANGUAGES[lang], key) ||
     resolveTranslation(LANGUAGES[FALLBACK_LANG], key) ||
     key;
 
-  return replacePlaceholders(text, params);
+  if (typeof result === "string") {
+    return replacePlaceholders(result, params);
+  }
+  return key;
+}
+
+export function tObject(
+  key: string,
+  langOverride?: string,
+): unknown {
+  const lang =
+    langOverride && LANGUAGES[langOverride] ? langOverride : getCurrentLang();
+  const result =
+    resolveTranslation(LANGUAGES[lang], key) ||
+    resolveTranslation(LANGUAGES[FALLBACK_LANG], key);
+  return result;
 }
 
 export function tHtml(

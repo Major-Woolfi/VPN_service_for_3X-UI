@@ -34,9 +34,6 @@ export function FeaturesProvider({
   const [loading, setLoading] = useState(initialFeatures === null);
   const [error, setError] = useState<string | null>(null);
 
-  // Синхронизация нового server-provided features - в render-фазе
-  // (паттерн React "Adjusting state when a prop changes"), а не setState
-  // в эффекте: это не вызывает каскадных ререндеров.
   const initialSignature = initialFeatures
     ? JSON.stringify(initialFeatures)
     : "";
@@ -47,9 +44,6 @@ export function FeaturesProvider({
     setLoading(false);
   }
 
-  // Сервер уже получил features в layout - повторный клиентский запрос
-  // /config/features был дублирующим обращением к боту на каждой странице.
-  // Клиентский запрос остаётся только как fallback, если серверный не удался.
   useEffect(() => {
     if (initialFeatures) return;
     let cancelled = false;

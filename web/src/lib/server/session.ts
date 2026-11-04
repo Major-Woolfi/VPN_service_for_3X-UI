@@ -24,8 +24,6 @@ export type ServerSessionState =
   | { kind: "banned"; reason: string }
   | { kind: "unavailable" };
 
-// Сессия проверяется на сервере: cookie есть, но профиль не отдаётся -
-// значит токен истёк или был отозван, и разлогинивать нужно сразу.
 export async function resolveServerSession(): Promise<ServerSessionState> {
   const token = await readSessionTokenFromCookies();
   if (!token) return { kind: "anonymous" };
@@ -36,8 +34,7 @@ export async function resolveServerSession(): Promise<ServerSessionState> {
       cache: "no-store",
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
-    // 403 от бота - это бан аккаунта, а не истёкшая сессия.
-    // Разлогинивать забаненного нельзя: он должен увидеть причину.
+
     if (response.status === 403) {
       const data = (await response.json().catch(() => null)) as {
         ban_reason?: unknown;

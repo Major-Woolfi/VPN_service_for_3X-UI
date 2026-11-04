@@ -27,11 +27,10 @@ export default function ProfilePage() {
     useState<SubscriptionPaymentRequest | null>(null);
   const [renewError, setRenewError] = useState("");
 
-  // У админа ссылка приходит из профиля, у остальных - запросом на бот.
   const hasAdminSub = Boolean(user?.is_admin && user?.admin_subscription?.url);
   const needsSubLinkFetch =
     Boolean(user) && !hasAdminSub && user?.subscription?.status === "active";
-  // Ключ сбрасывает результат запроса при смене пользователя или тарифа.
+
   const subLinkKey = `${user?.user_id ?? 0}:${user?.subscription?.plan_id ?? ""}`;
 
   const handleCopy = async (text: string, type: string) => {
@@ -69,8 +68,6 @@ export default function ProfilePage() {
     }
   }, [user, refreshUser, t]);
 
-  // Загрузка ссылки выводится из состояния, а не из флага в эффекте:
-  // ранний return раньше оставлял страницу в вечной загрузке.
   useEffect(() => {
     if (!user) {
       router.replace(`/login?next=${encodeURIComponent("/profile")}`);
@@ -137,9 +134,6 @@ export default function ProfilePage() {
   const initials = user?.username?.charAt(0).toUpperCase() || "?";
   const hasTid = Boolean(user?.telegram_id);
 
-  // Блок ссылок показывается только если есть хотя бы одна реальная ссылка.
-  // Без настроенного basepath бот отдаёт пустые url, и раньше здесь
-  // рендерился блок, содержащий только sub_id без самой ссылки.
   const hasSubLink = Boolean(
     subLink?.vpn_url ||
     subLink?.json_vpn_url ||

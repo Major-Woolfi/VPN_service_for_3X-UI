@@ -1,6 +1,3 @@
-// Серверный i18n - переводы импортируются из auto-generated файла
-// Используется в Server Components; fallback берётся из доступных языков
-
 import { SERVER_LANGUAGES } from "./i18n-generated";
 import type { LegalDocument, TranslationData } from "./i18n-types";
 
@@ -46,11 +43,10 @@ function replacePlaceholders(
   text: string,
   params?: Record<string, string | number>,
 ): string {
-  // Глобальная замена {vpnName} и {siteName}
+
   let result = text.replace(/\{vpnName\}/g, VPN_NAME);
   result = result.replace(/\{siteName\}/g, VPN_NAME);
 
-  // Замена пользовательских плейсхолдеров
   if (params) {
     Object.entries(params).forEach(([k, v]) => {
       const escapedK = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -84,12 +80,15 @@ export function tServer(
   key: string,
   params?: Record<string, string | number>,
 ): string {
-  const text =
+  const result =
     resolveTranslation(SERVER_LANGUAGES[lang], key) ||
     resolveTranslation(SERVER_LANGUAGES[FALLBACK_LANG], key) ||
     key;
 
-  return replacePlaceholders(text, params);
+  if (typeof result === "string") {
+    return replacePlaceholders(result, params);
+  }
+  return key;
 }
 
 export function getServerLanguageName(code: string): string {

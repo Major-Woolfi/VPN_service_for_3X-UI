@@ -18,4 +18,13 @@ export interface TranslationData {
   buttons: Record<string, string>;
   texts: Record<string, string>;
   legal?: Record<string, LegalDocument>;
+  qa?: {
+    category: Record<string, {
+      title: string;
+      content: Record<string, {
+        question: string;
+        answer: string;
+      }>;
+    }>;
+  };
 }

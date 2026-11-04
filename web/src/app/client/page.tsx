@@ -49,8 +49,6 @@ export default function ClientPage() {
   const [requested, setRequested] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
 
-  // У партнёра и админа своя подписка - ссылка выводится из профиля,
-  // это производное значение, а не результат запроса.
   const ownSub = user?.partner_subscription || user?.admin_subscription;
   const derivedLink: SubscriptionLinkResponse | null =
     user && user.subscription?.status !== "active" && ownSub?.url
@@ -81,7 +79,6 @@ export default function ClientPage() {
       return;
     }
 
-    // У партнёра и админа своя подписка - ссылка уже в профиле.
     if (user.subscription?.status !== "active") return;
 
     let cancelled = false;
@@ -91,7 +88,7 @@ export default function ClientPage() {
         if (!cancelled) setFetchedLink(link);
       } catch (error) {
         if (cancelled) return;
-        // Истёкшая сессия обрабатывается AuthContext - уводим на /login.
+
         if (error instanceof ApiError && error.authExpired) return;
         setLinkFailed(true);
       } finally {

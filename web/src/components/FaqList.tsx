@@ -3,78 +3,89 @@
 import { useState, useMemo, useCallback } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 
-const QUESTION_CATEGORY = [
-  5, 7, 8, 9, 7, 7, 2, 2, 2, 1, 1, 1, 3, 3, 3, 3, 4, 4, 4, 4, 6, 6, 6, 6, 6, 6,
-  10, 10, 10, 11, 14, 14, 12, 13, 15,
-];
-
 type FaqItem = {
-  id: number;
+  id: string;
   question: string;
   answer: string;
   category: string;
-  categoryIndex: number;
+  categoryKey: string;
+};
+
+type FaqCategory = {
+  key: string;
+  title: string;
+  items: FaqItem[];
 };
 
 export default function FaqList() {
-  const { t } = useLanguage();
+  const { t, tObject, lang } = useLanguage();
   const [query, setQuery] = useState("");
-  const [openId, setOpenId] = useState<number | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
 
-  const allFaq = useMemo(() => {
-    const items: FaqItem[] = [];
-    for (let i = 0; i < QUESTION_CATEGORY.length; i++) {
-      const id = i + 1;
-      const question = t(`texts.qa_question_${id}`);
-      const answer = t(`texts.qa_answer_${id}`);
-      const categoryIndex = QUESTION_CATEGORY[i];
-      const category = t(`texts.qa_category_${categoryIndex}`);
-      if (
-        question &&
-        answer &&
-        question !== `texts.qa_question_${id}` &&
-        answer !== `texts.qa_answer_${id}`
-      ) {
-        items.push({ id, question, answer, category, categoryIndex });
+  const allCategories = useMemo((): FaqCategory[] => {
+    const qaData = tObject("qa.category", lang) as Record<string, { title?: string; content?: Record<string, { question: string; answer: string }> }> | undefined;
+    if (!qaData) return [];
+
+    const categories: FaqCategory[] = [];
+
+    for (const [categoryKey, categoryData] of Object.entries(qaData)) {
+      if (!categoryData || typeof categoryData !== "object") continue;
+
+      const catData = categoryData as { title?: string; content?: Record<string, { question: string; answer: string }> };
+      if (!catData.content) continue;
+
+      const items: FaqItem[] = [];
+      for (const [qId, qData] of Object.entries(catData.content)) {
+        if (qData.question && qData.answer) {
+          items.push({
+            id: `${categoryKey}-${qId}`,
+            question: qData.question,
+            answer: qData.answer,
+            category: catData.title || categoryKey,
+            categoryKey,
+          });
+        }
+      }
+
+      if (items.length > 0) {
+        items.sort((a, b) => Number(a.id.split("-")[1]) - Number(b.id.split("-")[1]));
+        categories.push({
+          key: categoryKey,
+          title: catData.title || categoryKey,
+          items,
+        });
       }
     }
-    return items;
-  }, [t]);
 
-  const allCategories = useMemo(() => {
-    const cats = new Map<number, string>();
-    for (const item of allFaq) {
-      cats.set(item.categoryIndex, item.category);
-    }
-    return Array.from(cats.entries())
-      .sort((a, b) => a[0] - b[0])
-      .map(([index, category]) => ({ index, category }));
-  }, [allFaq]);
+    return categories;
+  }, [tObject, lang]);
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
-    if (!q) return allFaq;
-    return allFaq.filter(
-      (item) =>
-        item.question.toLowerCase().includes(q) ||
-        item.answer.toLowerCase().includes(q),
-    );
-  }, [query, allFaq]);
+    if (!q) return allCategories;
 
-  const grouped = useMemo(() => {
-    const map = new Map<number, FaqItem[]>();
-    for (const item of filtered) {
-      const arr = map.get(item.categoryIndex) || [];
-      arr.push(item);
-      map.set(item.categoryIndex, arr);
-    }
-    for (const arr of map.values()) {
-      arr.sort((a, b) => a.id - b.id);
-    }
-    return map;
-  }, [filtered]);
+    return allCategories
+      .map((cat) => ({
+        ...cat,
+        items: cat.items.filter(
+          (item) =>
+            item.question.toLowerCase().includes(q) ||
+            item.answer.toLowerCase().includes(q),
+        ),
+      }))
+      .filter((cat) => cat.items.length > 0);
+  }, [query, allCategories]);
 
-  const toggle = useCallback((id: number) => {
+  const totalQuestions = useMemo(
+    () => allCategories.reduce((sum, cat) => sum + cat.items.length, 0),
+    [allCategories],
+  );
+  const filteredCount = useMemo(
+    () => filtered.reduce((sum, cat) => sum + cat.items.length, 0),
+    [filtered],
+  );
+
+  const toggle = useCallback((id: string) => {
     setOpenId((prev) => (prev === id ? null : id));
   }, []);
 
@@ -101,11 +112,11 @@ export default function FaqList() {
         />
         <div className="faq-count">
           {t("texts.qa_show_count", {
-            count: filtered.length,
-            total: allFaq.length,
+            count: filteredCount,
+            total: totalQuestions,
           })}
         </div>
-        {filtered.length === 0 && (
+        {filteredCount === 0 && (
           <div className="faq-no-results">
             <p>{t("texts.qa_no_results")}</p>
           </div>
@@ -113,47 +124,43 @@ export default function FaqList() {
       </div>
 
       <div className="faq-list">
-        {allCategories.map(({ index, category }) => {
-          const items = grouped.get(index);
-          if (!items || items.length === 0) return null;
-          return (
-            <div key={category}>
-              <h3>{category}</h3>
-              {items.map((item, index) => {
-                const isOpen = openId === item.id;
-                return (
-                  <section
-                    key={item.id}
-                    className={`faq-item${isOpen ? " open" : ""}`}
+        {filtered.map((category) => (
+          <div key={category.key}>
+            <h3>{category.title}</h3>
+            {category.items.map((item, index) => {
+              const isOpen = openId === item.id;
+              return (
+                <section
+                  key={item.id}
+                  className={`faq-item${isOpen ? " open" : ""}`}
+                >
+                  <button
+                    type="button"
+                    className="faq-question"
+                    aria-expanded={isOpen}
+                    aria-controls={`faq-answer-${item.id}`}
+                    onClick={() => toggle(item.id)}
                   >
-                    <button
-                      type="button"
-                      className="faq-question"
-                      aria-expanded={isOpen}
-                      aria-controls={`faq-answer-${item.id}`}
-                      onClick={() => toggle(item.id)}
+                    <span>
+                      {index + 1}. {item.question}
+                    </span>
+                  </button>
+                  <div className="faq-answer-wrapper">
+                    <div
+                      id={`faq-answer-${item.id}`}
+                      className="faq-answer"
+                      role="region"
                     >
-                      <span>
-                        {index + 1}. {item.question}
-                      </span>
-                    </button>
-                    <div className="faq-answer-wrapper">
-                      <div
-                        id={`faq-answer-${item.id}`}
-                        className="faq-answer"
-                        role="region"
-                      >
-                        <div className="faq-answer-inner">
-                          <p>{item.answer}</p>
-                        </div>
+                      <div className="faq-answer-inner">
+                        <p>{item.answer}</p>
                       </div>
                     </div>
-                  </section>
-                );
-              })}
-            </div>
-          );
-        })}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        ))}
       </div>
     </div>
   );

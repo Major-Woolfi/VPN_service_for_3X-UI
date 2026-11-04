@@ -170,26 +170,16 @@ export default function LoginPage() {
           <div className="pinned-section fade-in">
             <div className="pinned-content">
               <div className="flex flex-col gap-4 mt-5">
-                <div className="flex gap-2 mb-2">
+                <div className="auth-method-tabs">
                   <button
                     onClick={() => setMethod("password")}
-                    className={
-                      "flex-1 px-3 py-3.5 rounded-md text-sm cursor-pointer border transition-colors " +
-                      (method === "password"
-                        ? "bg-[var(--accent-glow)] border-[var(--accent)] text-[var(--text-primary)]"
-                        : "border-[var(--border-color)] text-[var(--text-primary)] bg-transparent")
-                    }
+                    className={`auth-method-btn ${method === "password" ? "active" : ""}`}
                   >
                     {t("buttons.password_login")}
                   </button>
                   <button
                     onClick={() => setMethod("telegram")}
-                    className={
-                      "flex-1 px-3 py-3.5 rounded-md text-sm cursor-pointer border transition-colors " +
-                      (method === "telegram"
-                        ? "bg-[var(--accent-glow)] border-[var(--accent)] text-[var(--text-primary)]"
-                        : "border-[var(--border-color)] text-[var(--text-primary)] bg-transparent")
-                    }
+                    className={`auth-method-btn ${method === "telegram" ? "active" : ""}`}
                   >
                     {t("buttons.telegram_login")}
                   </button>
@@ -237,15 +227,8 @@ export default function LoginPage() {
                   <div className="flex flex-col gap-3">
                     <button
                       onClick={handleTelegramLogin}
-                      className="button"
+                      className="btn-telegram w-full"
                       disabled={loading}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "8px",
-                        textDecoration: "none",
-                      }}
                     >
                       <svg
                         width="20"
@@ -258,30 +241,8 @@ export default function LoginPage() {
                       {t("buttons.telegram_login")}
                     </button>
                     {tgWaiting && (
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: "8px",
-                          padding: "12px",
-                          background: "rgba(59, 130, 246, 0.1)",
-                          border: "1px solid rgba(59, 130, 246, 0.3)",
-                          borderRadius: "var(--radius-sm)",
-                          color: "var(--text-primary)",
-                          fontSize: "14px",
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: "16px",
-                            height: "16px",
-                            border: "2px solid var(--border-color)",
-                            borderTopColor: "var(--accent)",
-                            borderRadius: "50%",
-                            animation: "spin 0.8s linear infinite",
-                          }}
-                        />
+                      <div className="waiting-indicator">
+                        <div className="spinner" />
                         {t("texts.telegram_waiting")}
                       </div>
                     )}

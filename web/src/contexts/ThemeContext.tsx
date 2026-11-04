@@ -26,7 +26,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         const stored = localStorage.getItem(THEME_KEY) as Theme | null;
         if (stored === "light" || stored === "dark") return stored;
       } catch {
-        // Use the system preference when browser storage is unavailable.
+
       }
       if (window.matchMedia("(prefers-color-scheme: light)").matches)
         return "light";
@@ -40,7 +40,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     try {
       localStorage.setItem(THEME_KEY, theme);
     } catch {
-      // The theme still applies for this session without persistent storage.
+
     }
   }, [theme]);
 

@@ -6,7 +6,7 @@ export async function POST(req: NextRequest) {
   try {
     body = await req.json();
   } catch {
-    // пустое тело
+
   }
 
   return proxyAdminRequest(req, "/api/v1/admin/debug/cleanup", {

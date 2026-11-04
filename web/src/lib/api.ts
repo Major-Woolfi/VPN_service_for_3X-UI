@@ -1,9 +1,3 @@
-// API client для бота - все эндпоинты идут через same-origin прокси /api/bot/*.
-// Прокси живёт на сервере Next (src/app/api/bot/[...path]), поэтому:
-//  - нет CORS и preflight-запросов вообще;
-//  - токен сессии живёт только в httpOnly cookie, недоступной из JS;
-//  - 401 от бота превращается в 401 + auth_expired, клиент сам разлогинивает.
-
 import type {
   UserSession,
   WebRegisterRequest,
@@ -73,7 +67,7 @@ function writeRateLimits(limits: Record<string, number>): void {
   try {
     localStorage.setItem(RATE_LIMIT_STORAGE_KEY, JSON.stringify(limits));
   } catch {
-    // ignore
+
   }
 }
 
@@ -86,10 +80,6 @@ function rateLimit(key: string, minIntervalMs: number): boolean {
   writeRateLimits(limits);
   return true;
 }
-
-// ==========================================
-// Кулдаун после сетевых ошибок и 429
-// ==========================================
 
 const COOLDOWN_STORAGE_PREFIX = "vpn_cooldown:";
 
@@ -116,7 +106,7 @@ function setEndpointCooldown(path: string, ms: number): void {
       String(Date.now() + ms),
     );
   } catch {
-    // ignore
+
   }
 }
 
@@ -125,26 +115,18 @@ function clearEndpointCooldown(path: string): void {
   try {
     localStorage.removeItem(COOLDOWN_STORAGE_PREFIX + path);
   } catch {
-    // ignore
+
   }
 }
-
-// ==========================================
-// Автовыход при потере сессии
-// ==========================================
 
 function notifySessionLost(): void {
   if (typeof window === "undefined") return;
   try {
     window.dispatchEvent(new CustomEvent(SESSION_LOST_EVENT));
   } catch {
-    // ignore
+
   }
 }
-
-// ==========================================
-// Вспомогательные функции
-// ==========================================
 
 function endpointPath(path: string): string {
   return path.split("?")[0];
@@ -245,10 +227,6 @@ export async function fetchJson<T>(
     const message = extractErrorMessage(payload, res.status);
     const code = typeof payload.error === "string" ? payload.error : "error";
 
-    // Автовыход - ТОЛЬКО когда прокси подтвердил потерю сессии
-    // (auth_expired выставляется им только при наличии cookie).
-    // Голый 401 у гостя - это обычный ответ на запрос без токена,
-    // и реагировать на него нельзя, иначе гостя выкидывает на /login.
     if (authExpired) {
       clearStoredUser();
       notifySessionLost();
@@ -264,9 +242,7 @@ export async function fetchJson<T>(
       message,
       res.status,
       code,
-      // authExpired приходит только от прокси и означает реальную
-      // потерю сессии. Эвристика по тексту сообщения больше не нужна:
-      // она срабатывала на любом 401, включая запросы гостя.
+
       authExpired,
     );
   }
@@ -279,10 +255,6 @@ export async function fetchJson<T>(
 
   return payload as T;
 }
-
-// ==========================================
-// ПУБЛИЧНЫЕ ЭНДПОИНТЫ (без авторизации)
-// ==========================================
 
 export async function getPartnerPublicInfo(): Promise<PartnerPublicInfoResponse> {
   return fetchJson<PartnerPublicInfoResponse>(
@@ -384,10 +356,6 @@ export async function loginUser(req: WebLoginRequest): Promise<UserSession> {
   });
 }
 
-// ==========================================
-// AUTHORIZED ЭНДПОИНТЫ (сессия в httpOnly cookie)
-// ==========================================
-
 export async function getMe(signal?: AbortSignal): Promise<SanitizedUser> {
   return fetchJson<SanitizedUser>(`${API_BASE_URL}/profile`, { signal });
 }
@@ -402,7 +370,7 @@ export async function logoutUser(): Promise<void> {
   try {
     await fetchJson(`${API_BASE_URL}/auth/logout`, { method: "POST" });
   } catch {
-    // Сессия всё равно должна быть забыта локально.
+
   }
   clearStoredUser();
 }
@@ -556,10 +524,6 @@ export async function partnerWithdraw(req: {
   });
 }
 
-// ==========================================
-// ADMIN ЭНДПОИНТЫ (через server-side proxy, ключ на сервере)
-// ==========================================
-
 export async function getAdminHealth(): Promise<AdminHealthResponse> {
   if (!rateLimit("admin-health", 2000)) {
     throw new ApiError(t("texts.rate_limited"), 429, "rate_limited");
@@ -646,10 +610,6 @@ export async function debugSearch(query: string): Promise<DebugSearchResponse> {
   );
 }
 
-// ==========================================
-// ABUSE ЭНДПОИНТЫ
-// ==========================================
-
 export async function getAbuseUsers(): Promise<AbuseUsersResponse> {
   return fetchJson<AbuseUsersResponse>(`/api/admin/abuse-users`);
 }
@@ -660,10 +620,6 @@ export async function clearAbuse(req: ClearAbuseRequest) {
     body: JSON.stringify(req),
   });
 }
-
-// ==========================================
-// Кэш пользователя (только для мгновенной отрисовки, не источник истины)
-// ==========================================
 
 const USER_KEY = "vpn_user";
 
@@ -682,7 +638,7 @@ export function writeStoredUser(value: unknown): void {
   try {
     localStorage.setItem(USER_KEY, JSON.stringify(value));
   } catch {
-    // ignore
+
   }
 }
 
@@ -692,6 +648,6 @@ export function clearStoredUser(): void {
     localStorage.removeItem(USER_KEY);
     localStorage.removeItem(RATE_LIMIT_STORAGE_KEY);
   } catch {
-    // ignore
+
   }
 }

@@ -35,8 +35,6 @@ export function proxy(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
   const authenticated = hasSessionCookie(request);
 
-  // Server Component'ы (layout) читают путь, чтобы не устроить
-  // петлю редиректов на гостевых страницах.
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-pathname", pathname);
 
@@ -53,9 +51,7 @@ export function proxy(request: NextRequest): NextResponse {
   );
 
   if (isGuestOnly && authenticated) {
-    // Сессия уже помечена как истёкшая или забанена - редирект обратно
-    // на /profile замкнул бы петлю. Пропускаем на страницу входа,
-    // cookie будет удалена в /api/session/expired.
+
     const reason = request.nextUrl.searchParams.get("reason");
     if (reason === "session_expired" || reason === "banned") {
       return NextResponse.next({ request: { headers: requestHeaders } });

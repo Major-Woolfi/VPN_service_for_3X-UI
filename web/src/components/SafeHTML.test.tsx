@@ -58,9 +58,9 @@ test("disallowed tags are escaped to text", () => {
 });
 
 test("unsafe hrefs are dropped but their text is kept", () => {
-  assert.equal(render('<a href="javascript:alert(1)">x</a>'), "x");
-  assert.equal(render('<a href="data:text/html,x">y</a>'), "y");
-  assert.equal(render('<a href="vbscript:x">y</a>'), "y");
+  assert.equal(render('<a href=__STR_44__>x</a>'), "x");
+  assert.equal(render('<a href=__STR_46__>y</a>'), "y");
+  assert.equal(render('<a href=__STR_48__>y</a>'), "y");
 });
 
 test("safe hrefs become anchors with rel protection", () => {
@@ -79,7 +79,7 @@ test("safe hrefs become anchors with rel protection", () => {
 });
 
 test("anchor attributes never leak event handlers or self-closing slash", () => {
-  const out = render('<a href="https://example.com" onclick="alert(1)">x</a>');
+  const out = render('<a href=__STR_59__ onclick=__STR_60__>x</a>');
   assert.doesNotMatch(out, /onclick/);
   assert.doesNotMatch(out, /<a[^>]*\/>/);
 });

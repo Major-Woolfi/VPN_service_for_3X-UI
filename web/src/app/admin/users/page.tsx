@@ -45,8 +45,9 @@ export default function AdminUsersPage() {
       router.replace("/profile");
       return;
     }
+
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadUsers();
+    void loadUsers();
   }, [authLoading, router, loadUsers, authUser]);
 
   const filteredUsers = searchTerm

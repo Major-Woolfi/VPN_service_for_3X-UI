@@ -5,40 +5,40 @@
   },
   "buttons": {
     "back": "Wstecz",
-    "back_to_top": "Do góry",
+    "back_to_top": "Na górę",
     "buy": "Kup subskrypcję",
     "cancel": "Anuluj",
     "change_password": "Zmień hasło",
     "cleanup": "Wyczyść",
-    "clear_abuse": "Wyczyść nadużycia",
+    "clear_abuse": "Zdjąć ABUSE",
     "client": "Klient",
     "confirm": "Potwierdź",
     "contact_support": "Wsparcie",
     "continue": "Kontynuuj",
     "copied": "Skopiowano",
     "copy": "Kopiuj",
-    "dark_theme": "Motyw ciemny",
+    "dark_theme": "Ciemny motyw",
     "download_app": "Pobierz INCY",
     "dry_run": "Dry Run (sprawdzenie)",
     "forward": "Dalej",
-    "light_theme": "Motyw jasny",
-    "link_telegram": "Połącz Telegram",
-    "load_abuse_users": "Wczytaj użytkowników nadużywających",
+    "light_theme": "Jasny motyw",
+    "link_telegram": "Powiąż Telegram",
+    "load_abuse_users": "Załaduj użytkowników z ABUSE",
     "login": "Zaloguj się",
     "logout": "Wyloguj się",
     "main": "Menu główne",
-    "offer": "Oferta",
+    "offer": "Oferta publiczna",
     "open_bot": "Otwórz bota",
     "partner": "Dla partnerów",
-    "password_login": "Przez login",
-    "privacy": "Prywatność",
-    "qa": "Pytania",
-    "referral": "Program poleceń",
-    "referral_copy": "Kopiuj link",
-    "register": "Zarejestruj się",
+    "password_login": "Po loginie",
+    "privacy": "Polityka prywatności",
+    "qa": "Q&A",
+    "referral": "Polecenia",
+    "referral_copy": "Skopiuj link",
+    "register": "Rejestracja",
     "renew_partner": "Przedłuż partnerstwo",
     "renew_subscription": "Przedłuż subskrypcję",
-    "retry": "Ponów",
+    "retry": "Powtórz",
     "search": "Szukaj",
     "settings": "Ustawienia",
     "share_telegram": "Udostępnij",
@@ -46,77 +46,76 @@
     "telegram_chat": "Czat Telegram",
     "telegram_login": "Przez Telegram",
     "tiktok": "TikTok",
-    "tos": "Regulamin",
+    "tos": "ToS",
     "withdraw": "Wypłać",
     "youtube": "YouTube"
   },
   "texts": {
     "3x_ui": "3X-UI",
     "about": "O {vpnName}",
-    "about_text": "{vpnName} to usługa VPN oparta na jądrze XRay 26.10.17+ z transportem XHTTP i wtyczką REALITY. Protokoły VLESS i Shadowsocks, szyfrowanie post‑kwantowe ML‑KEM‑768, zaciemnianie xPadding, multipleksowanie xmux. Prędkość do 1 Gbit/s. Logi nie są prowadzone.",
-    "about_text_2": "Projekt założony przez dwóch entuzjastów. Jesteśmy otwarci na opinie i stale ulepszamy usługę.",
-    "abuse": "Nadużycie",
-    "abuse_users": "Użytkownicy nadużywający",
+    "about_text": "{vpnName} to usługa VPN oparta na rdzeniu XRay 26.30.31+ z transportem XHTTP i wtyczką REALITY. Protokoły VLESS i Shadowsocks, postkwantowe szyfrowanie ML-KEM-768, obfuskacja xPadding, multipleksowanie xmux. Prędkość do 1 Gb/s. Logi nie są prowadzone. Serwer centralny w Szwajcarii, nody wyjściowe w Szwajcarii, Holandii i Włoszech.",
+    "about_text_2": "Projekt został założony i jest utrzymywany przez jednego entuzjastę. Jesteśmy otwarci na opinie i stale ulepszamy usługę.",
+    "abuse": "ABUSE",
+    "abuse_users": "Użytkownicy z ABUSE",
     "account": "Konto",
-    "account_banned": "Twoje konto zostało zablokowane. Skontaktuj się z pomocą.",
-    "account_banned_message": "Twoje konto zostało zablokowane. Skontaktuj się z pomocą techniczną.",
+    "account_banned": "Twoje konto zostało zablokowane.",
+    "account_banned_message": "Twoje konto zostało zablokowane.",
     "account_banned_title": "Konto zablokowane",
-    "actions": "Akcje",
-    "active_partner_subscription_guard": "Masz już aktywną subskrypcję partnerską. Nowe zamówienie niemożliwe.",
+    "actions": "Działania",
+    "active_partner_subscription_guard": "Masz już subskrypcję partnerską. Nowy zakup nie jest możliwy.",
     "active_subs": "Aktywnych subskrypcji",
-    "admin_panel": "Panel administracyjny",
+    "admin_panel": "Panel administratora",
     "admin_plan": "Admin",
     "admin_section": "Administracyjne",
-    "admin_test_mode_hint": "Administrator otrzymuje taryf natychmiast jako subskrypcję testową, bez płatności.",
+    "admin_test_mode_hint": "Dla administratorów - testowe zamówienie bez płatności.",
     "admin_user_trust": "Zaufanie",
     "admin_user_username": "Login",
-    "admin_user_vpn_url": "URL VPN",
-    "all_users": "Wszyscy użytkownicy",
+    "admin_user_vpn_url": "VPN URL",
+    "all_users": "Wszystkich użytkowników",
     "alt_client": "v2RayTun (przestarzały)",
-    "alt_client_text": "Przestarzały klient z potencjalnymi problemami. Pobierz, przywróć ustawienia z backupu, skonfiguruj routing, wklej link do subskrypcji.",
+    "alt_client_text": "Przestarzały klient z możliwymi problemami. Pobierz, przywróć ustawienia z kopii zapasowej, skonfiguruj routing, wklej subskrypcję.",
     "amount": "Kwota",
     "amount_must_be_positive": "Kwota musi być większa od zera",
-    "api_offline": "API niedostępne",
+    "api_offline": "API offline",
     "api_online": "API online",
     "api_timeout": "Serwer zbyt długo nie odpowiada. Spróbuj ponownie.",
-    "api_unavailable": "Usługa jest chwilowo niedostępna. Spróbuj za chwilę.",
+    "api_unavailable": "Usługa jest tymczasowo niedostępna. Spróbuj za kilka sekund.",
     "auth_error": "Błąd autoryzacji",
     "authenticating": "Autoryzacja...",
     "authorized_section": "Autoryzowani",
-    "balance": "Saldo",
     "bank_required": "Podaj nazwę banku",
     "banned": "Zablokowane",
     "become_partner": "Zostań partnerem",
     "bonus_days": "Dni bonusowych",
     "calculate_price": "Oblicz cenę",
-    "checkout_error": "Błąd realizacji",
+    "checkout_error": "Błąd zamówienia",
     "cleanup_subs": "Czyszczenie subskrypcji",
-    "cleanup_text": "Usuwa subskrypcje użytkowników z wygasłym terminem, wyczerpanym ruchem lub nieobecnych na panelu.",
+    "cleanup_text": "Usuwa subskrypcje użytkowników z wygasłym terminem, wyczerpanym ruchem lub nieobecnych w panelu.",
     "client_setup": "Konfiguracja klienta",
-    "client_setup_text": "Instrukcje konfiguracji połączenia",
+    "client_setup_text": "Wykonuj kroki dokładnie według instrukcji dla swojego klienta",
     "confirm_new_password": "Potwierdź nowe hasło",
     "confirm_password": "Powtórz hasło",
     "contact_section": "Kontakty",
     "conversion_rate": "Konwersja",
     "currency_rub": "₽",
-    "custom_tariff": "Taryfa niestandardowa",
-    "custom_tariff_collect": "Złóż taryfę niestandardową",
-    "custom_tariff_description": "Dostosuj swój plan: {min_gb}-{max_gb} GB ruchu, {min_ip}-{max_ip} urządzeń, {min_days}-{max_days} dni. Cena obliczana automatycznie.",
+    "custom_tariff": "Niestandardowy plan",
+    "custom_tariff_collect": "Zbuduj niestandardowy plan",
+    "custom_tariff_description": "Skonfiguruj swój plan: {min_gb}–{max_gb} GB ruchu, {min_ip}–{max_ip} urządzeń, {min_days}–{max_days} dni. Cena obliczana jest automatycznie.",
     "custom_tariff_error": "Błąd obliczania ceny",
     "custom_tariff_formula": "Wzór: <strong>total = base + GB × gb_coef + IP × D × ip_day_coef + ΣLOC × D</strong>",
     "custom_tariff_formula_params": "Parametry wzoru:",
     "custom_tariff_location_price_line": "• {label}: +{price} ₽/dzień",
     "custom_tariff_no_locations": "Nie wybrano żadnej lokalizacji.",
-    "custom_tariff_param_days": "• <strong>D</strong> - okres subskrypcji w dniach (1-365)",
-    "custom_tariff_param_gb": "• <strong>GB</strong> - ilość ruchu (1-1000)",
-    "custom_tariff_param_ip": "• <strong>IP</strong> - limit urządzeń (1-15)",
+    "custom_tariff_param_days": "• <strong>D</strong> - okres subskrypcji w dniach (1–365)",
+    "custom_tariff_param_gb": "• <strong>GB</strong> - objętość ruchu (1–36500)",
+    "custom_tariff_param_ip": "• <strong>IP</strong> - limit urządzeń (1–30)",
     "custom_tariff_param_locations": "• <strong>LOC</strong> - wybrane lokalizacje:",
     "daily_traffic_gb": "Dzienny ruch (GB)",
     "days": "Dni",
     "debug": "Debug",
-    "debug_search": "Szukaj użytkowników",
-    "debug_search_description": "Szukaj użytkowników po UID, loginie lub TID",
-    "debug_search_placeholder": "Wpisz zapytanie...",
+    "debug_search": "Wyszukiwanie użytkowników",
+    "debug_search_description": "Wyszukiwanie użytkowników po UID, loginie lub TID",
+    "debug_search_placeholder": "Wprowadź zapytanie...",
     "debug_subtitle": "Narzędzia techniczne",
     "discount": "Rabat",
     "duration_days": "{days} dni",
@@ -124,417 +123,323 @@
     "error": "Błąd",
     "expires": "Wygasa",
     "failed_to_load_features": "Nie udało się załadować funkcji",
-    "failed_to_load_user": "Nie udało się załadować użytkownika",
-    "feature_1": "Prędkość do 1 Gbit/s",
-    "feature_3": "Pomoc w konfiguracji klienta",
-    "feature_4": "Do 15 urządzeń na subskrypcję",
-    "feature_5": "Protokoły: VLESS, Shadowsocks + transport XHTTP",
-    "feature_6": "Technologie: REALITY, ML‑KEM‑768, xPadding, xmux, BBR, MPTCP",
-    "feature_7": "Regularne aktualizacje jądra XRay",
     "features": "Co {vpnName} może Ci zaoferować?",
     "fio_required": "Podaj imię i nazwisko odbiorcy",
-    "guide_available": "Wszystkie pliki konfiguracji znajdują się w naszym kanale Telegram:",
-    "guide_incy": "INCY (zalecane)",
-    "guide_incy_step_1": "Pobierz plik INCY dla swojego systemu operacyjnego.",
-    "guide_incy_step_2": "Otwórz INCY.",
-    "guide_incy_step_3": "Wklej subskrypcję z naszego bota.",
-    "guide_incy_step_4": "Opcjonalnie: «Ustawienia» → «Kopia zapasowa» → «Wybierz plik», wybierz wcześniej pobraną konfigurację z posta z konfiguracjami.",
-    "guide_incy_step_5": "Opcjonalnie: wybierz «Zamień» i naciśnij «Zastosuj».",
-    "guide_incy_step_6": "Opcjonalnie: «Ustawienia» → «Proxy dla aplikacji» i wybierz wszystkie prorosyjskie aplikacje, które nie działają z VPN.",
-    "guide_intro": "Szybki start: po prostu wklej subskrypcję z naszego bota do swojego klienta i VPN zadziała. Szczegółowe poradniki poniżej są potrzebne tylko, jeśli chcesz skonfigurować routing i proxy dla aplikacji.",
+    "guide_available": "Wszystkie pliki konfiguracyjne znajdują się na naszym kanale Telegram:",
+    "guide_happ": "Happ",
+    "guide_incy": "INCY (zalecany)",
+    "guide_intro": "Krótka droga: po prostu wklej subskrypcję z naszego bota do swojego klienta i VPN zadziała. Szczegółowe przewodniki poniżej są potrzebne tylko wtedy, gdy chcesz skonfigurować dodatkowy routing i proxy aplikacji.",
     "guide_link": "Otwórz post z konfiguracjami",
-    "guide_support_hint": "Aby uzyskać pomoc z innym klientem lub dodatkową pomoc z INCY, Happ i v2RayTun, skontaktuj się ze wsparciem.",
-    "guide_v2raytun": "v2RayTun (przestarzałe jądro, możliwe problemy)",
-    "guide_v2raytun_step_1": "Pobierz plik v2RayTun.",
-    "guide_v2raytun_step_2": "Otwórz v2RayTun.",
-    "guide_v2raytun_step_3": "Wklej subskrypcję z naszego bota.",
-    "guide_v2raytun_step_4": "Opcjonalnie: «Ustawienia» → «Ustawienia aplikacji» → «Przywracanie ustawień», wybierz wcześniej pobraną konfigurację z posta z konfiguracjami.",
-    "guide_v2raytun_step_5": "Opcjonalnie: «Ustawienia» → «Routing» i wybierz wszystkie prorosyjskie aplikacje, które nie działają z VPN.",
+    "guide_support_hint": "Aby uzyskać pomoc z innym klientem lub dodatkową pomoc dotyczącą INCY, Happ i v2RayTun, skontaktuj się ze wsparciem.",
+    "guide_v2raytun": "v2RayTun (przestarzały rdzeń, możliwe problemy)",
     "have_account": "Masz już konto?",
     "how_it_works": "Jak to działa",
-    "how_it_works_text": "Zaproś znajomych przez swój link polecający i otrzymaj +{days} dni subskrypcji za każdego opłaconego zaproszonego.",
+    "how_it_works_text": "Zaproś znajomych za pomocą swojego linku polecającego i otrzymaj +{days} dni do subskrypcji za każde opłacone zaproszenie.",
     "important": "Ważne",
-    "important_text": "Używamy XRay 26.10.17+ z transportem XHTTP i pluginem REALITY. INCY: pobierz z https://github.com/INCY-DEV/incy-platforms",
+    "important_text": "Używamy XRay 26.30.31+ (3X-UI 3.11.0) z transportem XHTTP i wtyczką REALITY. Serwer centralny w Szwajcarii, nody wyjściowe w Holandii i Włoszech. Klienci INCY, Happ lub v2RayTun: pobierz z https://github.com/INCY-DEV/incy-platforms",
     "insufficient_balance": "Niewystarczające środki",
     "ip_label": "IP",
     "ips": "Adresy IP",
     "language": "Język interfejsu",
-    "language_changed": "Zmieniono język na {name}",
+    "language_changed": "Język zmieniony na {name}",
     "language_error": "Błąd zmiany języka",
     "loading": "Ładowanie...",
-    "loading_nodes": "Ładowanie węzłów...",
+    "loading_nodes": "Ładowanie nodów...",
     "locations": "Lokalizacje",
     "login_error": "Błąd logowania",
     "login_required_partner": "Zaloguj się lub zarejestruj, aby złożyć wniosek o partnerstwo",
-    "login_subtitle": "Zaloguj się przez Telegram lub login",
-    "login_timeout": "Przekroczono czas logowania. Spróbuj ponownie.",
+    "login_subtitle": "Zaloguj się przez Telegram lub po loginie",
+    "login_timeout": "Limit czasu logowania. Spróbuj ponownie.",
     "login_title": "Logowanie do konta",
     "main_client": "INCY",
-    "main_client_text": "Rekomendowany klient dla wszystkich urządzeń. Pobierz, wklej subskrypcję z naszego bota - gotowe. Opcjonalnie zaimportuj config z posta i skonfiguruj proxy per-app.",
-    "main_server": "Główny serwer",
+    "main_client_text": "Zalecany klient dla wszystkich urządzeń. Pobierz, wklej subskrypcję z naszego bota - gotowe. Opcjonalnie zaimportuj konfigurację z posta i skonfiguruj proxy aplikacji.",
+    "main_server": "Serwer główny",
     "menu_login_label": "Zaloguj się lub otwórz menu",
     "menu_profile_label": "Profil {username}",
     "nav_close_menu": "Zamknij menu",
     "nav_main_navigation": "Nawigacja główna",
     "nav_open_menu": "Otwórz menu",
     "need_help": "Potrzebujesz pomocy?",
-    "need_help_text": "Wsparcie dla INCY, Happ, v2RayTun i innych klientów - skontaktuj się z pomocą techniczną.",
+    "need_help_text": "Aby uzyskać pomoc z INCY, Happ, v2RayTun lub innym klientem, skontaktuj się ze wsparciem.",
     "new_password": "Nowe hasło",
     "no": "Nie",
     "no_account": "Nie masz konta?",
     "no_data": "Brak danych",
     "no_payment_methods": "Obecnie brak dostępnych metod płatności. Skontaktuj się z administratorem.",
     "no_subscription": "Nie masz aktywnej subskrypcji",
-    "no_subscription_text": "Aby uzyskać subskrypcję, otwórz bota Telegram i wybierz taryfę.",
-    "no_tariffs_available": "Taryfy są obecnie niedostępne.",
-    "node_fallback": "Węzeł",
-    "node_status_failed": "Nie udało się załadować statusu węzła",
-    "nodes": "Węzły",
-    "nodes_empty": "Brak dostępnych węzłów",
-    "not_found": "Nie znaleziono strony",
+    "no_subscription_text": "Aby otrzymać subskrypcję, otwórz bota Telegram i wybierz plan.",
+    "no_tariffs_available": "Plany nie są jeszcze dostępne.",
+    "node_fallback": "Nod",
+    "node_status_failed": "Nie udało się załadować statusu noda",
+    "nodes": "Nody",
+    "nodes_empty": "Brak dostępnych nodów",
+    "not_found": "Strona nie znaleziona",
     "not_found_text": "Żądana strona nie istnieje lub została przeniesiona.",
     "not_specified": "Nie podano",
     "offer_section_2": "2. Procedura płatności",
     "offer_text_1": "Niniejsza oferta jest oficjalną propozycją {vpnName} zawarcia umowy o świadczenie usług.",
-    "offer_text_2": "Płatność dokonywana jest jedną z dostępnych metod wskazanych w sekcji płatności.",
-    "offer_text_3": "Zwrot środków możliwy jest w ciągu 24 godzin od płatności, jeśli usługa nie została wykorzystana.",
+    "offer_text_2": "Płatność realizowana jest jedną z dostępnych metod wymienionych w sekcji płatności.",
+    "offer_text_3": "Zwrot środków realizowany jest decyzją administratora, jeśli usługa nie została świadczona lub nie była używana.",
     "old_password": "Stare hasło",
     "p2p": "Przelew na kartę (P2P)",
-    "p2p_text": "Przelew na kartę bankową. Potwierdzenie ręczne - zwykle kilka minut.",
+    "p2p_text": "Przelew na kartę bankową. Ręczne potwierdzenie - zazwyczaj kilka minut.",
     "page_of": "Strona {page} z {total}",
-    "paid_refs": "Opłacili",
-    "partner_admin_not_allowed": "Nie masz uprawnień do dostępu do panelu administracyjnego jako partner.",
-    "partner_application_pending_block": "Masz już złożony wniosek o partnerstwo.\n\nPoczekaj na rozpatrzenie przez administratora.",
+    "paid_refs": "Zapłacili",
+    "partner_admin_not_allowed": "Nie masz praw dostępu do panelu administratora jako partner.",
+    "partner_application_pending_block": "Masz już wniosek o partnerstwo.\n\nPoczekaj na rozpatrzenie przez administratora.",
     "partner_apply_error": "Błąd wysyłania wniosku",
     "partner_apply_socials_placeholder": "Telegram, YouTube, TikTok",
     "partner_apply_submit": "Wyślij wniosek",
-    "partner_apply_success": "Wniosek wysłany! Czekaj na rozpatrzenie.",
+    "partner_apply_success": "Wniosek wysłany! Poczekaj na rozpatrzenie.",
     "partner_apply_text": "Wypełnij poniższy formularz, a my rozpatrzymy Twój wniosek.",
     "partner_bonus_days": "Dni bonusowe: od {min} do {max} za każdego pozyskanego użytkownika",
-    "partner_commission": "Prowizja: {commission_percent}% kwoty płatności każdego pozyskanego użytkownika. Prowizja naliczana jest natychmiast po potwierdzeniu płatności i wypłacana na żądanie.",
+    "partner_commission": "Prowizja: {commission_percent}% od kwoty płatności każdego pozyskanego użytkownika. Prowizja naliczana jest natychmiast po potwierdzeniu płatności i wypłacana na życzenie.",
     "partner_conditions": "Warunki współpracy",
-    "partner_conditions_detailed": "Program partnerski {vpnName} pozwala zarabiać na pozyskiwaniu płacących użytkowników.",
-    "partner_dashboard": "Twój pulpit",
+    "partner_dashboard": "Twój dashboard",
     "partner_dashboard_subtitle": "Panel partnerski",
     "partner_followers": "Obserwujący",
-    "partner_nickname": "Pseudonim",
+    "partner_nickname": "Nickname",
     "partner_ops": "Operacje partnerskie",
-    "partner_payment_terms": "Wypłaty na żądanie przez SBP (na numer telefonu). W przypadku innych metod skontaktuj się z pomocą techniczną.",
+    "partner_payment_terms": "Wypłaty na życzenie przez SBP (na numer telefonu). W przypadku innych metod skontaktuj się ze wsparciem.",
     "partner_period": "Okres partnerstwa: od {min} do {max} miesięcy",
-    "partner_period_label": "Okres ({min}-{max} mies.)",
+    "partner_period_label": "Okres ({min}–{max} mies.)",
     "partner_program": "Program partnerski",
     "partner_program_text": "Zarabiaj z {vpnName}",
-    "partner_renew_error": "Nie udało się utworzyć prośby o przedłużenie partnerstwa",
-    "partner_renew_free_info": "Przedłużenie partnerstwa jest bezpłatne. Administrator przedłuży partnerstwo i subskrypcję VPN po rozpatrzeniu prośby.",
-    "partner_renew_success": "Utworzono prośbę o przedłużenie partnerstwa na {months} mies. Zostanie zastosowana po potwierdzeniu przez administratora.",
+    "partner_renew_error": "Nie udało się utworzyć wniosku o przedłużenie partnerstwa",
+    "partner_renew_free_info": "Przedłużenie partnerstwa jest bezpłatne. Administrator przedłuży partnerstwo i subskrypcję VPN po rozpatrzeniu wniosku.",
+    "partner_renew_success": "Utworzono wniosek o przedłużenie partnerstwa na {months} mies. Zostanie zastosowany po potwierdzeniu przez administratora.",
     "partner_requirements": "Wymagania dla partnerów",
-    "partner_requirements_detailed": "<b>Wymagania dla partnera:</b>\n\n• Co najmniej {min_followers} obserwujących w mediach społecznościowych\n• Średni zasięg co najmniej {min_avg_reach} wyświetleń\n• Posiadanie kont: {required_socials}\n• Zgoda na <a href=\"{terms_url}\">warunki partnerstwa</a>",
-    "partner_requires_telegram": "Do udziału w programie partnerskim wymagane jest logowanie przez Telegram",
+    "partner_requires_telegram": "Aby wziąć udział w programie partnerskim, wymagane jest zalogowanie przez Telegram",
     "partner_subscription": "Subskrypcja partnerska",
-    "partner_trust_placeholder": "Wartość ({min}-{max})",
+    "partner_trust_placeholder": "Wartość ({min}–{max})",
     "partner_trust_points": "Punkty zaufania: od {min} do {max}. Rabat obliczany jest automatycznie na podstawie Twoich punktów zaufania.",
-    "partner_withdrawal_info": "Wypłaty dokonywane są na żądanie przez SBP (przelew na numer telefonu). Jeśli nie możesz skorzystać z SBP, skontaktuj się z pomocą techniczną w celu uzgodnienia alternatywnej metody.",
+    "partner_withdrawal_info": "Wypłaty realizowane są na życzenie przez SBP (przelew na numer telefonu). Jeśli nie możesz korzystać z SBP, skontaktuj się ze wsparciem, aby uzgodnić alternatywną metodę.",
     "partners": "Partnerów",
     "password": "Hasło",
     "password_change_error": "Nie udało się zmienić hasła",
-    "password_changed_success": "Hasło zostało zmienione pomyślnie",
-    "password_too_short": "Hasło musi mieć co najmniej 10 znaków",
+    "password_changed_success": "Hasło zostało pomyślnie zmienione",
+    "password_too_short": "Hasło musi zawierać co najmniej 10 znaków",
     "passwords_mismatch": "Hasła nie są zgodne",
     "pay_now": "Zapłać przez YooMoney",
     "payment_id_label": "ID płatności",
-    "payment_instructions": "Kliknij przycisk powyżej, aby zapłacić. Po dokonaniu płatności kliknij „Potwierdź”.\n\nWażne: płatności są weryfikowane ręcznie. Jeśli subskrypcja nie aktywuje się od razu, poczekaj 5-10 minut i napisz do wsparcia z dowodem wpłaty - to przyspieszy potwierdzenie. W przyszłości planowana jest automatyzacja za pośrednictwem RollyPay.",
     "payment_methods": "Metody płatności",
-    "payment_order": "Kolejność płatności",
-    "payment_request_already_exists": "Masz już aktywny wniosek. Poczekaj na weryfikację przez administratora.",
-    "payment_request_received": "Wniosek o płatność utworzony. Po weryfikacji przez administratora otrzymasz subskrypcję.",
-    "payment_subtitle": "Dostępne metody płatności subskrypcji",
+    "payment_order": "Procedura płatności",
+    "payment_request_received": "Utworzono żądanie płatności. Po sprawdzeniu przez administratora otrzymasz subskrypcję.",
+    "payment_subtitle": "Dostępne metody płatności za subskrypcję",
     "payment_title": "Płatność",
     "payments": "Płatności",
     "pending": "Oczekujące",
-    "per_day_short": "/d",
+    "per_day_short": "/dzień",
     "phone_required": "Podaj numer telefonu do wypłaty",
-    "plan": "Taryfa",
-    "platform_android": "INCY, Happ lub v2RayTun",
+    "plan": "Plan",
+    "platform_android": "INCY lub Happ lub v2RayTun",
     "platform_android_tv": "INCY lub v2RayTun",
-    "platform_ios": "INCY lub Happ",
+    "platform_ios": "INCY",
     "platform_linux": "INCY lub Happ",
-    "platform_macos": "INCY lub Happ",
-    "platform_router": "teoretycznie możliwe, skontaktuj się z pomocą",
+    "platform_macos": "INCY",
+    "platform_router": "teoretycznie możliwe, skontaktuj się ze wsparciem",
     "platform_router_name": "Router",
     "platform_windows": "INCY lub Happ",
     "platforms": "Platformy",
     "processing": "Przetwarzanie",
     "public_offer": "Oferta publiczna",
     "public_section": "Publiczne",
-    "purchase_blocked_wait_admin": "Już zakupiłeś subskrypcję. Poczekaj na potwierdzenie przez administratora - ponowny zakup jest obecnie niedostępny.",
-    "qa": "FAQ",
-    "qa_answer_1": "Używamy rdzenia XRay 26.10.17+ z transportem XHTTP i wtyczką REALITY. Protokoły to VLESS i Shadowsocks. Dodatkowo stosujemy szyfrowanie postkwantowe ML-KEM-768, zaciemnianie xPadding oraz multipleksowanie xmux. To jeden z najnowocześniejszych i najszybszych stosów dostępnych dziś, a nie przestarzały WireGuard czy OpenVPN.",
-    "qa_answer_10": "Nie przechowujemy logów, więc nie ma po prostu żadnych twoich danych, które można by zabrać lub sprzedać. W każdej chwili możesz skontaktować się z nami przez Telegram. Mała skala oznacza większą uwagę dla każdego użytkownika: wsparcie odpowiada szybko, a problemy rozwiązywane są ręcznie.",
-    "qa_answer_11": "Jesteśmy wśród najlepszych w branży pod względem całości, nie pojedynczego aspektu. Po pierwsze, szwajcarska jurysdykcja i rygorystyczne no-logs. Po drugie, nowoczesny stos XRay i REALITY z szyfrowaniem postkwantowym ML-KEM-768, do którego większość konkurencji jeszcze nie doszła. Po trzecie, własna infrastruktura w Szwajcarii i pełna kontrola nad serwerami. I po czwarte, już pracujemy nad własnym klientem VPN, którego konkurencja nie ma, a w swojej niszy jesteśmy naprawdę najlepsi pod względem jakości, ceny i wsparcia.",
-    "qa_answer_12": "Pracujemy nad własnym klientem VPN: jeden przejrzysty interfejs, automatyczny wybór najlepszego serwera, szybkie przełączanie konfiguracji, wbudowana kontrola połączenia i bez zbędnych ustawień. Równolegle rozszerzamy sieć, aktualizujemy rdzeń XRay i dodajemy nowe lokalizacje oraz pakiety. Regularnie ulepszamy usługę i nie porzucamy jej po sprzedaży.",
-    "qa_answer_13": "Niska cena oznacza brak wydatków na marketing, brak kosztów biura, brak pośredników i budżetów reklamowych. Wszystko, co płacisz, idzie na serwery i jakość połączenia, a nie na pozyskiwanie klientów. Nie prowadzimy agresywnego modelu reklamowego i nie odsprzedajemy twoich danych.",
-    "qa_answer_14": "Pakiet obejmuje dostęp do serwerów VPN, linki VPN, wsparcie i statystyki transferu. Cena zależy od objętości transferu, liczby urządzeń, okresu subskrypcji i wybranych lokalizacji. Odnawianie aktywnej subskrypcji daje specjalne warunki, a punkty zaufania automatycznie obniżają cenę końcową.",
-    "qa_answer_15": "Tak, transfer jest limitowany w ramach pakietu. Zużycie widać w profilu, na stronie i w bocie, a normalizator codziennie je uzgadnia. Po wyczerpaniu limitu prędkość jest ograniczana do następnego pakietu lub odnowienia. Limity pozwalają racjonalnie wykorzystywać zasoby i wystarczają zdecydowanej większości użytkowników.",
-    "qa_answer_16": "Pakiet niestandardowy budujesz sam: sam ustawiasz objętość transferu, liczbę urządzeń, okres i potrzebne lokalizacje, a cena liczy się automatycznie. Jest wygodny, gdy gotowe pakiety nie pasują do twojego scenariusza.",
-    "qa_answer_17": "Zwykle 50-100 Mbit/s na jednym urządzeniu, w godzinach szczytu i na szybkich łączach więcej. Dokładna prędkość zależy od operatora, bo niektórzy ograniczają ruch VPN. Nowoczesne protokoły, transport XHTTP i BBR congestion control minimalizują ten efekt.",
-    "qa_answer_18": "Wpływają na to: twój plan u operatora, praktyka ograniczania ruchu VPN, ustawienia klienta, obciążenie łącza i odległość do serwera. Szwajcarskie serwery leżą blisko kluczowych tras europejskich, więc droga jest krótka, a obciążenie rozłożone na kilka punktów.",
-    "qa_answer_19": "Dzięki zwartej geografii i kilku punktom wejścia ping z większości europejskich miast wynosi zwykle 15-45 ms. Dokładna wartość zależy od trasy operatora i regionu. W koncie widać status serwerów, więc od razu wybierzesz najbliższy dostępny punkt.",
-    "qa_answer_2": "Tak, polityka no-logs jest ściśle przestrzegana. Serwery nie zapisują historii odwiedzin, treści ruchu sieciowego, adresów IP użytkowników ani znaczników aktywności. Przechowujemy jedynie minimalne dane techniczne o subskrypcji: pakiet, okres i pozostały transfer, potrzebne do działania usługi i niewykazujące niczego o tym, co robisz w sieci.",
-    "qa_answer_20": "Tak. Protokoły i transport są przystosowane do przesyłania dużych ilości danych bez strat, więc działają streamowanie w wysokiej jakości, gry i pobieranie dużych plików. Multipleksowanie xmux efektywnie wykorzystuje połączenie przy kilku sesjach naraz, a stabilność zapewnia przełączanie awaryjne między punktami.",
-    "qa_answer_21": "Obsługiwane są wszystkie aktualne klienty: V2RayNG i Hiddify na Androida, Streisand i V2Box na iOS, V2RayN na Windowsa, V2RayU na macOS, Nekoray i Hiddify na Linuksa oraz klienci na Android TV i routery. Zadziała każdy klient obsługujący VLESS i Shadowsocks.",
-    "qa_answer_22": "Subskrypcja daje gotowe linki VPN w sekcji Moja subskrypcja w bocie oraz w koncie na stronie. To zwykłe linki vless:// i ss://, które importujesz do dowolnego obsługiwanego klienta jednym kliknięciem, bez ręcznej konfiguracji plików.",
-    "qa_answer_23": "Liczbę jednocześnie podłączonych urządzeń ustala pakiet. W pakiecie niestandardowym wybierasz tę liczbę sam podczas wyliczania ceny.",
-    "qa_answer_24": "Tak. Link możesz dodać do klienta na routerze i udostępnić Wi-Fi całemu domowi, a na Android TV, aby oglądać wideo na telewizorze. Osobna konfiguracja routera nie jest potrzebna: importujesz link do jego klienta VPN tak samo jak na telefonie.",
-    "qa_answer_25": "Kolejność jest taka: wybierz link w sekcji Moja subskrypcja, zainstaluj właściwego klienta dla swojej platformy, otwórz link z bota lub skopiuj go z konta i zaimportuj do klienta, a następnie połącz się. Sekcja instrukcji zawiera szczegółowy poradnik i gotowe konfiguracje dla każdego urządzenia.",
-    "qa_answer_26": "Nasz własny klient jest już w trakcie tworzenia i będzie dostępny dla subskrybentów. Sam wybiera najlepszy serwer, szybko przełącza konfiguracje, pokazuje stan połączenia i nie wymaga ręcznej konfiguracji parametrów. Śledź aktualizacje w bocie, wydanie zostanie ogłoszone oficjalnie.",
-    "qa_answer_27": "Punkty zaufania to program lojalnościowy. Za każdą opłatę subskrypcji lub pakietu otrzymujesz 5% kwoty, maksymalnie 100 punktów za jedno zakup. Punkty naliczają się automatycznie, a ich dokładna liczba i wysokość rabatu są widoczne w profilu na stronie i w bocie. Im wyższe zaufanie, tym większa zniżka.",
-    "qa_answer_28": "Rabat naliczany jest automatycznie: im wyżej twoje punkty zaufania, tym większy procent rabatu, obowiązujący na wszystkie pakiety, zarówno gotowe, jak i niestandardowe. Nic nie trzeba aktywować, a aktualna zniżka jest widoczna przed płatnością i w profilu.",
-    "qa_answer_29": "Każdy użytkownik ma własny link poleceń. Zaproszony przez niego od razu otrzymuje bonus powitalny: punkty zaufania naliczane są natychmiast, a dni bonusowe do subskrypcji dopiero po pierwszej opłacie za pakiet. Za opłaconego zaproszonego ty dostajesz dni bonusowe, a partnerzy dodatkowo prowizję od każdej płatności przez swój link.",
-    "qa_answer_3": "Szyfrowanie wielowarstwowe: TLS 1.3, XTLS Vision i technologia REALITY, a także szyfrowanie postkwantowe ML-KEM-768 jako dodatkowa ochrona przed przyszłym złamaniem algorytmów matematycznych.",
-    "qa_answer_30": "Dostępne są dwie metody: szybka płatność przez YuMoney oraz przelew na kartę bankową (P2P). Po przelewie wyślij paragon do wsparcia, co przyspiesza obsługę. Płatności potwierdzamy ręcznie, a po potwierdzeniu subskrypcja aktywuje się automatycznie i otrzymujesz gotowe linki VPN.",
-    "qa_answer_31": "Przez bota Telegram albo formularz kontaktowy w koncie na stronie. Wsparcie odpowiada bezpośrednio, bez systemu zgłoszeń i botów, zwykle w ciągu godziny, a przy pytaniach o płatność jeszcze szybciej, jeśli dołączysz paragon.",
-    "qa_answer_32": "Sprawdź w koncie lub bocie status subskrypcji i termin ważności, potem spróbuj innego punktu połączenia i upewnij się, że w kliencie wybrana jest aktualna konfiguracja. Jeśli nic nie pomaga, napisz do wsparcia z UID i opisem problemu, zajmiemy się tym ręcznie i wydamy działający link.",
-    "qa_answer_33": "Bot to główna konsola subskrypcji. W menu głównym kupujesz lub odnawiasz subskrypcję, sprawdzasz status i linki VPN w sekcji Moja subskrypcja, konfigurujesz aplikacje, korzystasz z poleceń i składasz wniosek o partnerstwo. Dostępne są pakiety stałe i niestandardowe z automatycznym wyliczeniem oraz kilka języków interfejsu.",
-    "qa_answer_34": "Strona to interfejs web subskrypcji i konto osobiste. Na stronie głównej widać statystyki usługi i status serwerów. W sekcji Subskrypcja wybierasz pakiet, także niestandardowy z dynamicznym wyliczeniem ceny, i go opłacasz. Konto udostępnia status subskrypcji, transfer z paskiem postępu, punkty zaufania, linki VPN oraz konfigurację klientów na wszystkie platformy. W ustawieniach zmienisz język, motyw, hasło i powiązanie z Telegramem.",
-    "qa_answer_35": "Subskrypcję można anulować w dowolnym momencie, ale działa do końca opłaconego okresu, a niewykorzystany okres nie jest zwracany, o czym mówi oferta. Zwrot rozpatrujemy indywidualnie, gdy usługa nie została świadczona z naszej winy: po prostu napisz do wsparcia, rozwiążemy to po ludzku.",
-    "qa_answer_4": "Nie. REALITY sprawia, że ruch VPN jest nieodróżnialny od zwykłego przeglądania stron: dla systemów analizy pakietów wygląda jak połączenie z prawdziwą stroną i wykorzystuje jej certyfikat. To nie jest ukryty ruch z rozpoznawalnym wzorcem, jak w większości VPN.",
-    "qa_answer_5": "Cały ruch jest szyfrowany nowoczesnymi protokołami, a połączenie z naszym serwerem centralnym w Szwajcarii jest dodatkowo chronione. Przechwycenie lub odczytanie twoich danych przez osoby trzecie jest technicznie niemożliwe: nawet przy przechwyceniu jest to zaszyfrowany strumień z kontrolą integralności.",
-    "qa_answer_6": "Ponieważ usługa nie przechowuje logów i nie zbiera danych o ruchu, technicznie nie ma czego udostępnić. Nasz serwer centralny znajduje się w Szwajcarii, jurysdykcji o jednych z najsilniejszych na świecie systemów ochrony prywatności, gdzie prawo nie zmusza operatorów do ujawniania danych obcym państwom bez orzeczenia szwajcarskiego sądu.",
-    "qa_answer_7": "Serwer centralny i cała infrastruktura zarządzania znajdują się w Szwajcarii. To celowe: szwajcarskie prawo znane jest z jednych z najsurowszych norm ochrony prywatności i tajemnicy bankowej na świecie. Kraj nie należy do sojuszy wymieniających dane wywiadowcze, więc prywatność jest rzeczywista, a nie deklaratywna, i nie można jej cofnąć jednym wnioskiem z innej jurysdykcji.",
-    "qa_answer_8": "Projekt założyli dwaj pasjonaci. Administrator techniczny ma duże doświadczenie w infrastrukturze sieciowej. Nie jesteśmy korporacją i nie monetyzujemy twoich danych: budujemy VPN, którego sami używamy, i utrzymujemy ceny poniżej rynku.",
-    "qa_answer_9": "To projekt długoterminowy. Zależy nam na stabilnej pracy i ciągłym ulepszaniu: rozszerzamy sieć serwerów, aktualizujemy rdzeń i budujemy własnego klienta. Zamierzamy rozwijać usługę latami, a nie zamykać ją po sezonie.",
-    "qa_category_1": "Pytania ogólne",
-    "qa_category_10": "Punkty zaufania i polecenia",
-    "qa_category_11": "Płatność",
-    "qa_category_12": "Bot Telegram",
-    "qa_category_13": "Strona i konto",
-    "qa_category_14": "Wsparcie",
-    "qa_category_15": "Subskrypcja i zwroty",
-    "qa_category_2": "O projekcie",
-    "qa_category_3": "Cennik i pakiety",
-    "qa_category_4": "Prędkość i stabilność",
-    "qa_category_5": "Technologia i stack",
-    "qa_category_6": "Klienty i konfiguracje",
-    "qa_category_7": "Prywatność i logi",
-    "qa_category_8": "Szyfrowanie",
-    "qa_category_9": "Ochrona przed blokadami",
-    "qa_faq_title": "Często zadawane pytania",
-    "qa_no_results": "Nie znaleziono wyników dla Twojego zapytania. Spróbuj innego wyszukiwania lub skontaktuj się z pomocą.",
-    "qa_question_1": "Czego używacie jako stosu VPN?",
-    "qa_question_10": "Czy małemu projektowi VPN można ufać?",
-    "qa_question_11": "Dlaczego jesteście najlepsi w branży?",
-    "qa_question_12": "Co nowego opracowujecie?",
-    "qa_question_13": "Dlaczego wasze ceny są niższe niż u konkurencji?",
-    "qa_question_14": "Co zawiera pakiet i od czego zależy cena?",
-    "qa_question_15": "Czy są limity transferu danych?",
-    "qa_question_16": "Czym jest pakiet niestandardowy?",
-    "qa_question_17": "Jaka jest realna prędkość?",
-    "qa_question_18": "Dlaczego prędkość różni się między użytkownikami?",
-    "qa_question_19": "Jaki jest ping i opóźnienie do serwerów?",
-    "qa_question_2": "Naprawdę nie przechowujecie logów?",
-    "qa_question_20": "Czy obsługiwane jest streamowanie, gry i duże pobrania?",
-    "qa_question_21": "Którzy klienci są obsługiwani?",
-    "qa_question_22": "Jak otrzymać konfigurację i czym ona jest?",
-    "qa_question_23": "Ile urządzeń można podłączyć jednocześnie?",
-    "qa_question_24": "Czy VPN działa na routerach i telewizorach Smart TV?",
-    "qa_question_25": "Jak zainstalować i skonfigurować klienta?",
-    "qa_question_26": "Gdzie wziąć własnego klienta VPN od twórców usługi?",
-    "qa_question_27": "Jak działa system punktów zaufania?",
-    "qa_question_28": "Jak uzyskać rabat?",
-    "qa_question_29": "Jak działa program poleceń?",
-    "qa_question_3": "Jakiego szyfrowania używacie?",
-    "qa_question_30": "Jakie są metody płatności i jak przebiega płatność?",
-    "qa_question_31": "Jak skontaktować się ze wsparciem?",
-    "qa_question_32": "Co zrobić, gdy VPN przestanie działać?",
-    "qa_question_33": "Jak działa bot i co można w nim zrobić?",
-    "qa_question_34": "Jak działa strona i co można na niej zrobić?",
-    "qa_question_35": "Czy można anulować subskrypcję i dostać zwrot?",
-    "qa_question_4": "Czy mój operator lub administrator sieci zobaczy, że korzystam z VPN?",
-    "qa_question_5": "Czy osoby trzecie mogą mieć dostęp do mojego ruchu sieciowego?",
-    "qa_question_6": "Co się stanie, jeśli zażądacie danych użytkowników?",
-    "qa_question_7": "Gdzie znajdują się wasze serwery i dlaczego Szwajcaria?",
-    "qa_question_8": "Kto stoi za projektem? Firma czy osoby prywatne?",
-    "qa_question_9": "To projekt tymczasowy, czy planujecie go rozwijać?",
-    "qa_search_placeholder": "Szukaj pytań...",
-    "qa_show_count": "Wyświetlono: {count} z {total}",
-    "qa_subtitle": "Odpowiedzi na często zadawane pytania",
-    "quote": "Im bliżej upadku imperium, tym bardziej szalone są jego prawa.",
+    "purchase_blocked_wait_admin": "Już zakupiłeś subskrypcję. Poczekaj na potwierdzenie administratora - ponowny zakup nie jest jeszcze dostępny.",
+    "qa": "Pytania i odpowiedzi",
+    "qa_faq_title": "Najczęściej zadawane pytania",
+    "qa_no_results": "Nie znaleziono nic dla Twojego zapytania. Spróbuj innego zapytania lub skontaktuj się ze wsparciem.",
+    "qa_search_placeholder": "Szukaj w pytaniach...",
+    "qa_show_count": "Pokazano: {count} z {total}",
+    "qa_subtitle": "Odpowiedzi na najczęściej zadawane pytania",
+    "quote": "Im bliżej imperium do upadku, tym szaleńsze są jego prawa.",
     "rate_limited": "Przekroczono limit zapytań. Poczekaj chwilę.",
     "recommended_apps": "Zalecane aplikacje",
     "redirecting_to_profile": "Przekierowanie do profilu...",
     "referral_link": "Link polecający",
     "referral_link_unavailable": "Link polecający niedostępny",
     "referral_program": "Program poleceń",
-    "referral_program_text": "Zapraszaj znajomych i otrzymuj bonusowe dni",
-    "referral_share_hint": "Wyślij link znajomym - bonus zostanie naliczony automatycznie, gdy zaproszony opłaci plan.",
+    "referral_program_text": "Zapraszaj znajomych i otrzymuj dni bonusowe",
+    "referral_share_hint": "Wyślij link znajomym - bonus zostanie naliczony automatycznie, gdy zaproszony zapłaci za plan.",
     "refund": "Zwrot środków",
-    "refund_text": "Zwrot środków następuje według uznania administratora, jeśli usługa nie została świadczona lub nie była używana.",
+    "refund_text": "Zwrot środków realizowany jest decyzją administratora w przypadku, gdy usługa nie została świadczona lub Usługa nie była używana.",
     "register_error": "Błąd rejestracji",
     "register_subtitle": "Utwórz konto, aby uzyskać dostęp do usługi",
     "register_title": "Rejestracja",
     "renew_check_status": "Sprawdź status",
-    "renew_request_error": "Nie udało się utworzyć prośby o przedłużenie",
-    "renew_request_sent": "Utworzono prośbę o przedłużenie.",
+    "renew_request_error": "Nie udało się utworzyć wniosku o przedłużenie",
+    "renew_request_sent": "Wniosek o przedłużenie utworzony.",
     "renew_wait_admin": "Subskrypcja zostanie przedłużona po potwierdzeniu płatności przez administratora. Punkty zaufania naliczane są dopiero po potwierdzeniu.",
     "result": "Wynik",
-    "search_no_results": "Nie znaleziono wyników",
+    "search_no_results": "Nic nie znaleziono",
     "search_placeholder": "Szukaj po UID, loginie lub TID",
     "search_results_count": "Znaleziono {count} wyników",
     "select_custom_tariff": "Wybierz",
-    "session_expired": "Twoja sesja wygasła. Zaloguj się ponownie.",
-    "settings_subtitle": "Język, motyw, połączenie Telegram",
+    "session_expired": "Sesja wygasła. Zaloguj się ponownie.",
+    "settings_subtitle": "Język, motyw, powiązanie Telegram",
     "settings_title": "Ustawienia",
     "setup_client": "Skonfiguruj klienta",
-    "siteDescription": "Szybki i niezawodny serwis VPN oparty na XRay z szyfrowaniem ML-KEM-768. VLESS, Shadowsocks, REALITY, transport XHTTP. Brak logów.",
-    "siteTitle": "Usługa VPN - Zaawansowana prywatność i bezpieczeństwo",
     "stats": "Statystyki",
     "status": "Status",
     "status_active": "Aktywna",
     "step_1": "Pobierz INCY z GitHub: https://github.com/INCY-DEV/incy-platforms",
     "step_2": "Zaimportuj konfigurację z tej wiadomości",
-    "step_3": "Kliknij Zastosuj aby aktywować",
-    "step_4": "Skonfiguruj proxy per-app (opcjonalnie)",
+    "step_3": "Kliknij „Zastosuj”, aby aktywować",
+    "step_4": "Skonfiguruj proxy aplikacji (opcjonalnie)",
     "steps": "Instrukcja konfiguracji",
-    "subscription_link": "Link do subskrypcji",
-    "subscription_link_error": "Nie udało się wczytać linku subskrypcji. Odśwież stronę lub spróbuj ponownie później.",
-    "subscription_requires_telegram": "Połącz Telegram w ustawieniach, aby kupić subskrypcję lub zostać partnerem.",
+    "subscription_link": "Link subskrypcji",
+    "subscription_link_error": "Nie udało się załadować linku subskrypcji. Odśwież stronę lub spróbuj później.",
+    "subscription_requires_telegram": "Powiąż Telegram w ustawieniach, aby kupić subskrypcję lub zostać partnerem.",
     "subscription_status": "Status subskrypcji",
-    "support_not_configured": "Pomoc nie skonfigurowana",
-    "support_unavailable": "Link do pomocy nie jest skonfigurowany",
+    "support_not_configured": "Wsparcie nie jest skonfigurowane",
+    "support_unavailable": "Link do wsparcia nie jest skonfigurowany",
     "system_health": "Stan systemu i statystyki",
-    "tariffs": "Taryfy",
+    "tariffs": "Plany",
     "tech_mode": "Tryb techniczny",
     "tech_work": "PRACE TECHNICZNE",
     "telegram_id_label": "TID",
-    "telegram_link_failed": "Nie udało się połączyć Telegram. Spróbuj ponownie później.",
-    "telegram_link_hint": "Otwórz bota Telegram i potwierdź połączenie konta. Po potwierdzeniu odśwież stronę.",
-    "telegram_linked_note": "Telegram jest połączony z Twoim kontem.",
-    "telegram_linked_permanent": "Telegram połączony (TID: {id})",
-    "telegram_linked_success": "Telegram połączony pomyślnie!",
+    "telegram_link_failed": "Nie udało się powiązać Telegram. Spróbuj później.",
+    "telegram_link_hint": "Otwórz bota Telegram i potwierdź powiązanie konta. Po potwierdzeniu odśwież stronę.",
+    "telegram_linked_note": "Telegram jest powiązany z Twoim kontem.",
+    "telegram_linked_permanent": "Telegram powiązany (TID: {id})",
+    "telegram_linked_success": "Telegram pomyślnie powiązany!",
     "telegram_login_hint": "Kliknij przycisk, otworzy się bot Telegram. Po zalogowaniu automatycznie zalogujesz się do konta.",
-    "telegram_unlinked": "Telegram niepołączony",
+    "telegram_unlinked": "Telegram niepowiązany",
     "telegram_username_label": "Nazwa użytkownika Telegram",
     "telegram_waiting": "Oczekiwanie na potwierdzenie z Telegram...",
     "test_subscription": "Subskrypcja testowa",
-    "test_subscription_awaiting_admin": "Subskrypcja zostanie wydana po potwierdzeniu administratora. Link pojawi się w sekcji „Konto”.",
+    "test_subscription_awaiting_admin": "Subskrypcja zostanie wydana po potwierdzeniu przez administratora. Link pojawi się w sekcji „Konto”.",
     "test_subscription_created_short": "Subskrypcja testowa „{plan_name}” utworzona.",
     "theme": "Motyw",
     "total_earned": "Łącznie zarobiono",
-    "total_refs": "Łącznie zaproszonych",
-    "total_traffic_gb": "Całkowity ruch (GB)",
+    "total_refs": "Łącznie zaproszono",
+    "total_traffic_gb": "Łączny ruch (GB)",
     "traffic": "Ruch",
     "traffic_gb": "{value} GB",
     "traffic_progress": "Postęp wykorzystania ruchu",
     "traffic_used": "Wykorzystano {percent}% z dostępnych {total} GB",
     "trial_activated": "Okres próbny aktywowany! Subskrypcja pojawi się w Twoim profilu.",
-    "trial_admin_only_bot": "Okres próbny dla administratora jest dostępny tylko przez bota.",
     "trial_available": "Bezpłatny okres próbny jest dostępny dla nowych użytkowników.",
     "trust_score": "Punkty zaufania",
-    "twitterDescription": "Szybki VPN z XRay, REALITY, ML-KEM-768. Bez logów. Protokoły VLESS i Shadowsocks. Wykup subskrypcję w minuty.",
     "unlimited": "Bez limitu",
-    "unpaid_refs": "Jeszcze nie opłacili",
-    "uptime": "Czas działania",
+    "unpaid_refs": "Jeszcze nie zapłacili",
+    "uptime": "Czas pracy",
     "uptime_hours": "{hours} godz.",
     "user_id": "UID",
     "username": "Login",
-    "username_too_short": "Nazwa użytkownika musi mieć co najmniej 3 znaki",
+    "username_too_short": "Nazwa użytkownika musi zawierać co najmniej 3 znaki",
     "users_count": "Lista wszystkich użytkowników",
     "users_list": "Użytkownicy",
     "vpn_service": "Usługa VPN",
-    "waiting": "Czas oczekiwania upłynął",
+    "waiting": "Czas oczekiwania minął",
     "withdrawal_amount": "Kwota wypłaty",
     "withdrawal_amount_placeholder": "Do {balance} ₽",
     "withdrawal_bank": "Nazwa banku",
-    "withdrawal_bank_placeholder": "Sberbank / Tinkoff / itp.",
+    "withdrawal_bank_placeholder": "Sberbank / Tinkoff / itd.",
     "withdrawal_failed": "Błąd wypłaty środków",
-    "withdrawal_fio": "Imię i nazwisko",
-    "withdrawal_fio_placeholder": "Ivanov Ivan Ivanovich",
-    "withdrawal_phone": "Numer telefonu dla SBP",
+    "withdrawal_fio": "Imię i nazwisko odbiorcy",
+    "withdrawal_fio_placeholder": "Iwan Iwanowicz Iwanow",
+    "withdrawal_phone": "Numer telefonu do SBP",
     "withdrawal_phone_placeholder": "+79001234567",
     "withdrawal_request": "Wniosek o wypłatę",
     "withdrawal_request_submitted": "Wniosek o wypłatę wysłany",
-    "withdrawal_sbps_info": "Wypłata odbywa się przez SBP (System Szybkich Płatności) na numer telefonu. Upewnij się, że podany numer telefonu jest powiązany z bankiem.",
+    "withdrawal_sbps_info": "Wypłata realizowana jest przez SBP (System Szybkich Płatności) na numer telefonu. Upewnij się, że podany numer telefonu jest powiązany z bankiem.",
     "working_normally": "Działa normalnie",
     "xray_label": "Wersja XRay",
     "yes": "Tak",
     "yoomoney": "YooMoney",
-    "yoomoney_text": "Bezpieczna płatność przez YooMoney. Natychmiastowe potwierdzenie.",
+    "yoomoney_text": "Bezpieczna płatność przez YooMoney. Ręczne potwierdzenie - zazwyczaj kilka minut.",
     "your_ref_link": "Twój link polecający",
-    "guide_happ": "Happ",
-    "guide_happ_step_1": "Pobierz Happ dla swojego systemu operacyjnego.",
-    "guide_happ_step_2": "Otwórz Happ.",
-    "guide_happ_step_3": "Wklej subskrypcję z naszego bota.",
-    "guide_happ_step_4": "Opcjonalnie skonfiguruj routing i proxy dla aplikacji w sekcji «Ustawienia»."
+    "partner_requirements_detailed": "📋 <b>Wymagania dla partnera:</b>\n\n• Minimum {min_followers} obserwujących w sieciach społecznościowych\n• Średni zasięg co najmniej {min_avg_reach} wyświetleń\n• Obecność kont: {required_socials}\n• Zgoda z <a href=\"{terms_url}\">warunkami partnerstwa</a>",
+    "partner_conditions_detailed": "🤝 <b>Warunki partnerstwa:</b>\n\n• Prowizja: {commission_percent}% od każdej zapłaty przyciągniętego użytkownika\n• Wypłaty na żądanie przez SBP\n• Nieograniczona subskrypcja partnerska na czas współpracy",
+    "feature_1": "Wysoka prędkość do 1 Gbit/s",
+    "feature_3": "Protokoły VLESS i Shadowsocks",
+    "feature_4": "Transport XHTTP z wtyczką REALITY",
+    "feature_5": "Szyfrowanie postkwantowe ML-KEM-768",
+    "feature_6": "Obfuskacja xPadding",
+    "feature_7": "Multiplexowanie xmux",
+    "feature_8": "Polityka No-Logs - nie prowadzimy logów",
+    "feature_9": "Główny serwer w Szwajcarii",
+    "feature_10": "Węzły wyjściowe w Szwajcarii, Holandii i Włoszech",
+    "feature_11": "Obejście na poziomie aplikacji (Antifraud 2.0)",
+    "feature_12": "Obsługa klientów INCY, Happ, v2RayTun",
+    "feature_13": "Program partnerski z dniami bonusowymi",
+    "feature_14": "System punktów zaufania z rabatami",
+    "feature_15": "Okres próbny dla nowych użytkowników",
+    "feature_16": "Niestandardowe taryfy z elastycznymi parametrami",
+    "feature_17": "Płatności P2P i YooMoney",
+    "feature_18": "Wsparcie przez Telegram",
+    "feature_19": "Otwarty kod źródłowy (licencja MIT)",
+    "feature_20": "Wsparcie 24/7 przez Telegram"
   },
   "legal": {
     "offer": {
-      "effectiveDate": "22.09.2026",
+      "effectiveDate": "02.11.2026",
       "sections": [
         {
-          "content": "Niniejsza oferta publiczna określa warunki świadczenia usług VPN przez {vpnName}. Korzystając z usługi, zgadzasz się z warunkami korzystania i przyjmujesz niniejszą ofertę.",
-          "title": "Oferta publiczna świadczenia usług VPN"
+          "content": "Niniejsza oferta publiczna określa warunki świadczenia usług VPN przez {vpnName}. Korzystając z usługi, zgadzasz się z warunkami korzystania i akceptujesz niniejszą ofertę.",
+          "title": "Oferta publiczna na świadczenie usług VPN"
         },
         {
-          "content": "1.1. Świadczeniodawca ({vpnName}) zapewnia dostęp do sieci VPN zgodnie z wybraną taryfą.\n1.2. Użytkownik płaci za usługę i przestrzega zasad serwisu.\n1.3. Usługa obejmuje:\n- Udostępnienie adresu URL subskrypcji do pobierania plików konfiguracyjnych\n- Dostęp do wybranych lokalizacji\n- Wsparcie techniczne\n- Aktualizacje konfiguracji w razie potrzeby",
+          "content": "1.1. Świadczący ({vpnName}) zapewnia dostęp do sieci VPN zgodnie z wybranym planem.\n1.2. Użytkownik płaci za usługę i przestrzega zasad usługi.\n1.3. Usługa obejmuje:\n- Udostępnienie URL subskrypcji do pobrania plików konfiguracyjnych do połączenia\n- Dostęp do wybranych lokalizacji\n- Wsparcie techniczne\n- Aktualizację konfiguracji w razie potrzeby",
           "title": "1. Przedmiot oferty"
         },
         {
-          "content": "2.1. Umowa zawierana jest poprzez akceptację oferty:\n- Wybór taryfy w bocie Telegram lub na stronie internetowej\n- Opłacenie usługi\n- Potwierdzenie płatności\n\n2.2. Akceptacją oferty jest dokonanie przez użytkownika płatności za usługę.\n2.3. Umowę uważa się za zawartą z chwilą potwierdzenia płatności.",
-          "title": "2. Tryb zawarcia umowy"
+          "content": "2.1. Umowa zostaje zawarta poprzez akceptację oferty:\n- Wybór planu w bocie Telegram lub na stronie internetowej\n- Zapłatę za usługę\n- Potwierdzenie płatności\n\n2.2. Za akceptację oferty uważa się dokonanie przez użytkownika czynności związanych z zapłatą za usługę.\n2.3. Umowę uważa się za zawartą z momentem potwierdzenia płatności.",
+          "title": "2. Procedura zawarcia umowy"
         },
         {
-          "content": "3.1. Koszt i okres usługi podawane są w bocie Telegram oraz na stronie internetowej przy wyborze taryfy.\n3.2. Płatność dokonywana jest dostępnymi metodami:\n- YooMoney (szybka płatność)\n- Przelew P2P na kartę\n- Inne metody wskazane w bocie lub na stronie\n\n3.3. Obecnie płatności są obsługiwane ręcznie.\n3.4. Po przelewie w celu przyspieszenia obsługi zaleca się kontakt z pomocą w ciągu 5–10 minut z załączonym dowodem wpłaty.",
+          "content": "3.1. Koszt i okres usługi są wskazane w bocie Telegram i na stronie internetowej przy wyborze planu.\n3.2. Płatność realizowana jest dostępnymi metodami:\n- YooMoney (Szybka płatność)\n- Przelew P2P na kartę\n- Inne metody wskazane w bocie lub na stronie internetowej\n\n3.3. Obecnie płatności przetwarzane są ręcznie.\n3.4. Po przelewie, aby przyspieszyć przetwarzanie, zaleca się napisanie do wsparcia w ciągu 5–10 minut z załączonym potwierdzeniem.",
           "title": "3. Koszt i płatność"
         },
         {
-          "content": "4.1. Umowa obowiązuje do końca opłaconego okresu.\n4.2. Użytkownik może przedłużyć umowę, zamawiając nową taryfę lub przedłużając starą.\n4.3. Umowa może zostać rozwiązana:\n- Z inicjatywy użytkownika\n- Z inicjatywy świadczeniodawcy w przypadku naruszenia warunków (bez zwrotu środków)\n- Za porozumieniem stron",
+          "content": "4.1. Umowa obowiązuje do końca opłaconego okresu.\n4.2. Użytkownik może przedłużyć umowę, zamawiając nowy plan lub przedłużając stary.\n4.3. Umowa może zostać rozwiązana:\n- Z inicjatywy użytkownika\n- Z inicjatywy świadczącego w przypadku naruszenia warunków (bez zwrotu środków)\n- Za porozumieniem stron",
           "title": "4. Okres obowiązywania umowy"
         },
         {
-          "content": "5.1. Świadczeniodawca ma prawo:\n- Zawiesić dostęp w przypadku naruszenia warunków\n- Zmieniać parametry techniczne usługi\n- Przeprowadzać prace techniczne\n- Odmówić świadczenia usług w przypadku nadużyć\n\n5.2. Świadczeniodawca zobowiązuje się:\n- Zapewniać dostępność usługi\n- Udzielać wsparcia technicznego\n- Przestrzegać poufności danych\n- Reagować na zgłoszenia w odpowiednim czasie",
-          "title": "5. Prawa i obowiązki świadczeniodawcy"
+          "content": "5.1. Świadczący ma prawo:\n- Zawiesić dostęp w przypadku naruszenia warunków\n- Zmieniać parametry techniczne usługi\n- Przeprowadzać prace techniczne\n- Odmówić obsługi w przypadku nadużyć\n\n5.2. Świadczący zobowiązuje się:\n- Zapewniać dostępność usługi\n- Świadczyć wsparcie techniczne\n- Zachowywać poufność danych\n- Terminowo reagować na zgłoszenia",
+          "title": "5. Prawa i obowiązki świadczącego"
         },
         {
-          "content": "6.1. Użytkownik ma prawo:\n- Korzystać z usługi zgodnie z taryfą\n- Otrzymywać wsparcie techniczne\n- Przedłużać subskrypcję\n- Żądać informacji o swoich danych\n\n6.2. Użytkownik zobowiązuje się:\n- Nie udostępniać dostępu osobom trzecim\n- Nie naruszać warunków korzystania\n- Terminowo opłacać usługę",
+          "content": "6.1. Użytkownik ma prawo:\n- Korzystać z usługi zgodnie z planem\n- Otrzymywać wsparcie techniczne\n- Przedłużać subskrypcję\n- Żądać informacji o swoich danych\n\n6.2. Użytkownik zobowiązuje się:\n- Nie przekazywać dostępu osobom trzecim\n- Nie naruszać warunków korzystania\n- Terminowo płacić za usługę",
           "title": "6. Prawa i obowiązki użytkownika"
         },
         {
-          "content": "7.1. Świadczeniodawca nie ponosi odpowiedzialności za:\n- Tymczasową niedostępność usługi z przyczyn technicznych\n- Działania osób trzecich (dostawców, regulatorów)\n- Straty pośrednie użytkowników\n\n7.2. Świadczeniodawca może zawiesić dostęp w przypadku:\n- Naruszenia warunków korzystania\n- Nadużywania taryfy\n- Próby nieautoryzowanego dostępu\n- Naruszenia sekcji dotyczącej ochrony zespołu projektu",
+          "content": "7.1. Świadczący nie ponosi odpowiedzialności za:\n- Tymczasową niedostępność usługi z przyczyn technicznych\n- Działania osób trzecich (dostawców, regulatorów)\n- Pośrednie straty użytkowników\n\n7.2. Świadczący ma prawo zawiesić dostęp w przypadku:\n- Naruszenia warunków korzystania\n- Nadużycia planu\n- Próby nieautoryzowanego dostępu\n- Naruszenia sekcji o ochronie zespołu projektu",
           "title": "7. Ograniczenia i odpowiedzialność"
         },
         {
-          "content": "8.1. Zwrot środków następuje w wyjątkowych przypadkach decyzją administracji lub wsparcia.\n8.2. Zwrot nie jest dokonywany w przypadku:\n- Naruszenia przez użytkownika warunków usługi\n- Wygaśnięcia subskrypcji\n- Dobrowolnej rezygnacji z usługi\n\n8.3. Pytania dotyczące zwrotów należy kierować do wsparcia Telegram.\n8.4. Decyzja podejmowana jest z uwzględnieniem faktycznego świadczenia usługi.",
+          "content": "8.1. Zwrot środków realizowany jest w wyjątkowych przypadkach decyzją administracji lub wsparcia.\n8.2. Zwrot nie jest realizowany w przypadku:\n- Naruszenia przez użytkownika warunków usługi\n- Wygaśnięcia subskrypcji\n- Dobrowolnej rezygnacji z usługi\n\n8.3. Sprawy zwrotów kierowane są do wsparcia Telegram.\n8.4. Decyzja podejmowana jest z uwzględnieniem faktycznego świadczenia usługi.",
           "title": "8. Zwrot środków"
         },
         {
-          "content": "9.1. Strony są zwolnione z odpowiedzialności w przypadku wystąpienia siły wyższej:\n- Klęsk żywiołowych\n- Działań wojennych\n- Decyzji organów państwowych\n- Zakrojonych na szeroką skalę awarii technicznych\n- Działań osób trzecich (ataki, blokady)\n\n9.2. Termin wykonania zobowiązań ulega przedłużeniu na okres działania siły wyższej.",
+          "content": "9.1. Strony są zwolnione z odpowiedzialności w przypadku zaistnienia okoliczności siły wyższej:\n- Klęsk żywiołowych\n- Działań wojennych\n- Decyzji organów państwowych\n- Zakrojonych na szeroką skalę awarii technicznych\n- Działań osób trzecich (ataki, blokady)\n\n9.2. Termin wykonania zobowiązań wydłuża się o okres działania siły wyższej.",
           "title": "9. Siła wyższa"
         },
         {
-          "content": "10.1. {vpnName} zastrzega sobie prawo do jednostronnej zmiany niniejszej oferty.\n10.2. Nowa wersja wchodzi w życie z chwilą opublikowania na stronie internetowej lub w bocie Telegram.\n10.3. Dalsze korzystanie z usługi po zmianach oznacza zgodę na nową wersję.",
+          "content": "10.1. {vpnName} zastrzega sobie prawo do jednostronnej zmiany niniejszej oferty.\n10.2. Nowa wersja wchodzi w życie z momentem publikacji na stronie internetowej lub w bocie Telegram.\n10.3. Dalsze korzystanie z usługi po zmianach oznacza zgodę na nową wersję.",
           "title": "10. Zmiana oferty"
         },
         {
-          "content": "11.1. Wszelkie spory i nieporozumienia są rozstrzygane w drodze negocjacji za pośrednictwem wsparcia Telegram.\n11.2. W przypadku braku porozumienia spór przekazywany jest do administracji.\n11.3. Użytkownik wyraża zgodę na polubowne rozstrzyganie sporów.",
-          "title": "11. Rozstrzyganie sporów"
+          "content": "11.1. Wszystkie spory i nieporozumienia rozwiązywane są w drodze negocjacji przez wsparcie Telegram.\n11.2. W przypadku braku porozumienia spór przekazywany jest do rozpatrzenia przez administrację.\n11.3. Użytkownik zgadza się na pozasądowe rozwiązywanie sporów.",
+          "title": "11. Rozwiązywanie sporów"
         },
         {
-          "content": "12.1. Jeśli którekolwiek postanowienie oferty zostanie uznane za nieważne, nie wpływa to na ważność pozostałych postanowień.\n12.2. {vpnName} nie ponosi odpowiedzialności za niedostępność usługi w niektórych regionach.\n12.3. Tytuły rozdziałów mają charakter wyłącznie informacyjny i nie wpływają na interpretację oferty.",
+          "content": "12.1. Jeżeli którekolwiek postanowienie oferty zostanie uznane za nieważne, nie wpływa to na ważność pozostałych postanowień.\n12.2. {vpnName} nie ponosi odpowiedzialności za niedostępność usługi w niektórych regionach.\n12.3. Nagłówki sekcji podane są dla wygody i nie wpływają na interpretację oferty.",
           "title": "12. Postanowienia końcowe"
         },
         {
-          "content": "13.1. We wszystkich sprawach prosimy o kontakt ze wsparciem Telegram za pośrednictwem bota.\n13.2. Czas odpowiedzi: zazwyczaj w ciągu 2 godzin.\n13.3. Zespół projektu jest zawsze gotowy do pomocy w sprawach technicznych i organizacyjnych.",
+          "content": "13.1. We wszystkich sprawach kontaktuj się ze wsparciem Telegram przez bota.\n13.2. Czas odpowiedzi: zazwyczaj w ciągu 2 godzin.\n13.3. Zespół projektu zawsze chętnie pomoże w kwestiach technicznych i organizacyjnych.",
           "title": "13. Dane i kontakty"
         }
       ],
-      "subtitle": "{vpnName} – warunki świadczenia usług",
+      "subtitle": "{vpnName} - warunki świadczenia usług",
       "title": "Oferta publiczna"
     },
     "privacy": {
-      "effectiveDate": "22.09.2026",
+      "effectiveDate": "02.11.2026",
       "sections": [
         {
-          "content": "Niniejsza polityka opisuje, jakie dane techniczne przetwarza {vpnName} podczas działania strony internetowej, bota i usługi VPN. Korzystając z usługi, zgadzasz się na niniejszą politykę.",
+          "content": "Niniejsza polityka opisuje, jakie dane techniczne przetwarza {vpnName} podczas działania strony internetowej, bota i usługi VPN. Korzystając z usługi, zgadzasz się z niniejszą polityką.",
           "title": "Polityka prywatności usługi VPN {vpnName}"
         },
         {
@@ -542,123 +447,359 @@
           "title": "1. Postanowienia ogólne"
         },
         {
-          "content": "2.1. W celu działania usługi mogą być przetwarzane:\n- ID Telegram i nazwa użytkownika\n- Informacje o wybranej taryfie i statusie technicznym subskrypcji\n- Dane płatnicze (tylko do potwierdzenia płatności, nieprzechowywane)\n- Techniczne informacje o połączeniu\n\n2.2. NIE zbieramy:\n- Danych paszportowych\n- Numerów telefonów (z wyjątkiem przypadków określonych w sekcji programu partnerskiego)\n- Adresów e-mail (z wyjątkiem przypadków określonych w sekcji płatności)\n- Innych informacji niewymienionych w punkcie 2.1",
+          "content": "2.1. Do działania usługi mogą być przetwarzane:\n- Telegram ID i nazwa użytkownika\n- Informacje o wybranym planie i technicznym statusie subskrypcji\n- Dane płatnościowe (tylko do potwierdzenia płatności, nie są przechowywane)\n- Informacje techniczne o połączeniu\n\n2.2. NIE zbieramy:\n- Danych paszportowych\n- Numerów telefonów (z wyjątkiem przypadków wskazanych w sekcji programu partnerskiego)\n- Adresów e-mail (z wyjątkiem przypadków wskazanych w sekcji dotyczącej płatności)\n- Innych informacji niewymienionych w punkcie 2.1",
           "title": "2. Jakie dane są przetwarzane"
         },
         {
-          "content": "3.1. {vpnName} przestrzega ścisłej polityki No‑Logs:\n- Nie jest prowadzona historia odwiedzonych witryn\n- Nie jest analizowana zawartość ruchu internetowego\n- Nie są przechowywane logi połączeń\n- Nie jest śledzona aktywność użytkowników w sieci\n\n3.2. Dla działania subskrypcji mogą być przetwarzane wyłącznie zagregowane wskaźniki:\n- Całkowity wykorzystany ruch\n- Okres ważności subskrypcji\n- Status połączenia (aktywne/nieaktywne)",
-          "title": "3. Polityka No‑Logs"
+          "content": "3.1. {vpnName} przestrzega ścisłej polityki No-Logs:\n- Nie prowadzi się historii odwiedzonych stron\n- Nie analizuje się treści ruchu internetowego\n- Nie przechowuje się logów połączeń\n- Nie śledzi się aktywności użytkowników w sieci\n\n3.2. Do działania subskrypcji mogą być przetwarzane wyłącznie zagregowane wskaźniki:\n- Całkowity wolumen wykorzystanego ruchu\n- Okres subskrypcji\n- Status połączenia (aktywne/nieaktywne)",
+          "title": "3. Polityka No-Logs"
         },
         {
-          "content": "4.1. Zebrane dane są wykorzystywane wyłącznie w celu:\n- Rejestracji i autoryzacji użytkowników\n- Wydawania i zarządzania subskrypcjami VPN\n- Wsparcia technicznego użytkowników\n- Zapobiegania nadużyciom i oszustwom\n- Realizacji transakcji płatniczych\n- Powiadamiania o pracach technicznych i zmianach w usłudze",
+          "content": "4.1. Zebrane dane wykorzystywane są wyłącznie do:\n- Rejestracji i autoryzacji użytkowników\n- Wydawania i zarządzania subskrypcjami VPN\n- Wsparcia technicznego użytkowników\n- Zapobiegania nadużyciom i oszustwom\n- Realizacji operacji płatniczych\n- Powiadamiania o pracach technicznych i zmianach usługi",
           "title": "4. Cele przetwarzania danych"
         },
         {
-          "content": "5.1. Dane przechowywane są przez ograniczony czas niezbędny do działania usługi:\n- Aktywne subskrypcje: przez cały okres ważności\n- Nieaktywne subskrypcje: do 3 dni po wygaśnięciu\n- Dane płatnicze: nieprzechowywane, używane tylko do potwierdzenia\n\n5.2. Po upływie okresu przechowywania dane są automatycznie usuwane.",
+          "content": "5.1. Dane przechowywane są przez ograniczony czas niezbędny do działania usługi:\n- Aktywne subskrypcje: przez cały okres\n- Nieaktywne subskrypcje: do 3 dni po wygaśnięciu\n- Dane płatnościowe: nie są przechowywane, używane wyłącznie do potwierdzenia\n\n5.2. Po upływie okresu przechowywania dane są automatycznie usuwane.",
           "title": "5. Przechowywanie danych"
         },
         {
-          "content": "6.1. {vpnName} stosuje techniczne i organizacyjne środki ochrony:\n- Szyfrowanie danych podczas przesyłania (TLS/SSL)\n- Bezpieczne przechowywanie w bazach danych\n- Ograniczony dostęp do danych\n- Regularne kopie zapasowe\n\n6.2. Dostęp do danych mają tylko upoważnieni członkowie zespołu projektu.",
+          "content": "6.1. {vpnName} stosuje techniczne i organizacyjne środki ochrony:\n- Szyfrowanie danych podczas transmisji (TLS/SSL)\n- Bezpieczne przechowywanie w bazach danych\n- Ograniczenie dostępu do danych\n- Regularne kopie zapasowe\n\n6.2. Dostęp do danych mają wyłącznie upoważnieni członkowie zespołu projektu.",
           "title": "6. Ochrona danych"
         },
         {
-          "content": "7.1. Nie przekazujemy danych osobowych stronom trzecim, z wyjątkiem:\n- Systemów płatniczych (tylko dane niezbędne do realizacji płatności)\n\n7.2. Nie sprzedajemy ani nie przekazujemy danych w celach marketingowych ani innych.",
-          "title": "7. Przekazywanie danych stronom trzecim"
+          "content": "7.1. Nie przekazujemy danych osobowych osobom trzecim, z wyjątkiem:\n- Systemów płatności (tylko dane niezbędne do przetworzenia płatności)\n\n7.2. Nie sprzedajemy ani nie przekazujemy danych w celach marketingowych i innych.",
+          "title": "7. Przekazywanie danych osobom trzecim"
         },
         {
-          "content": "8.1. Użytkownik ma prawo:\n- Uzyskać informację o przetwarzaniu swoich danych\n- Sprostować nieprawidłowe dane\n- Zażądać usunięcia swoich danych\n- Wycofać zgodę na przetwarzanie danych\n- Otrzymać kopię swoich danych w formacie nadającym się do odczytu maszynowego\n\n8.2. W celu realizacji praw skontaktuj się ze wsparciem Telegram.",
+          "content": "8.1. Użytkownik ma prawo:\n- Otrzymać informacje o przetwarzaniu swoich danych\n- Poprawić niedokładne dane\n- Zażądać usunięcia swoich danych\n- Wycofać zgodę na przetwarzanie danych\n- Otrzymać kopię swoich danych w formacie nadającym się do odczytu maszynowego\n\n8.2. Aby zrealizować prawa, skontaktuj się ze wsparciem Telegram.",
           "title": "8. Prawa użytkownika"
         },
         {
-          "content": "9.1. Interfejs internetowy może używać plików cookie w celu:\n- Uwierzytelniania użytkowników\n- Zapisywania ustawień motywu\n\n9.2. Użytkownik może wyłączyć pliki cookie w ustawieniach przeglądarki.",
+          "content": "9.1. Interfejs internetowy może używać plików cookie do:\n- Uwierzytelniania użytkowników\n- Zapisywania ustawień motywu\n\n9.2. Użytkownik może wyłączyć pliki cookie w ustawieniach przeglądarki.",
           "title": "9. Pliki cookie i podobne technologie"
         },
         {
-          "content": "10.1. {vpnName} zastrzega sobie prawo do zmiany polityki prywatności.\n10.2. Nowa wersja wchodzi w życie z chwilą opublikowania na stronie internetowej.\n10.3. W przypadku istotnych zmian użytkownicy mogą zostać powiadomieni indywidualnie.",
+          "content": "10.1. {vpnName} zastrzega sobie prawo do zmiany polityki prywatności.\n10.2. Nowa wersja wchodzi w życie z momentem publikacji na stronie internetowej.\n10.3. W przypadku istotnych zmian użytkownicy mogą zostać powiadomieni indywidualnie.",
           "title": "10. Zmiany polityki"
         },
         {
-          "content": "11.1. W sprawach dotyczących przetwarzania danych osobowych prosimy o kontakt ze wsparciem Telegram za pośrednictwem bota.\n11.2. Odpowiadamy na zapytania w ciągu 2 dni.",
+          "content": "11.1. W sprawach dotyczących przetwarzania danych osobowych kontaktuj się ze wsparciem Telegram przez bota.\n11.2. Odpowiadamy na zapytania w ciągu 2 dni.",
           "title": "11. Kontakty"
         }
       ],
-      "subtitle": "{vpnName} – przetwarzanie danych użytkowników",
+      "subtitle": "{vpnName} - przetwarzanie danych użytkowników",
       "title": "Polityka prywatności"
     },
     "tos": {
-      "effectiveDate": "22.09.2026",
+      "effectiveDate": "02.11.2026",
       "sections": [
         {
-          "content": "Niniejsze warunki regulują dostęp do usługi VPN {vpnName} i korzystanie z niej. Korzystając z usługi, akceptujesz niniejsze warunki i ofertę publiczną w całości.",
+          "content": "Niniejsze warunki regulują dostęp do usługi VPN {vpnName} i korzystanie z niej. Korzystając z usługi, akceptujesz niniejsze warunki i ofertę publiczną w pełnym zakresie.",
           "title": "Warunki korzystania z usługi VPN {vpnName}"
         },
         {
-          "content": "1.1. Usługa świadczona jest przez zespół projektu za pośrednictwem bota Telegram i interfejsu internetowego.\n1.2. Korzystanie z usługi oznacza pełną i bezwarunkową zgodę na aktualną wersję warunków.\n1.3. {vpnName} świadczy usługi dostępu do sieci VPN na podstawie subskrypcji.\n1.4. Usługa jest projektem open‑source, co nie uchyla niniejszych warunków.\n1.5. Usługa wykorzystuje najnowsze technologie: protokoły VLESS i Shadowsocks, transport XHTTP, wtyczkę REALITY, jądro XRay.",
+          "content": "1.1. Usługa świadczona jest przez zespół projektu za pośrednictwem bota Telegram i interfejsu internetowego.\n1.2. Korzystanie z usługi oznacza pełną i bezwarunkową zgodę z aktualną wersją warunków.\n1.3. {vpnName} świadczy usługi dostępu do sieci VPN w modelu subskrypcyjnym.\n1.4. Usługa jest projektem open-source, co nie znosi obowiązywania niniejszych warunków.\n1.5. Usługa wykorzystuje zaawansowane technologie: protokoły VLESS i Shadowsocks, transport XHTTP, wtyczkę REALITY, rdzeń XRay.",
           "title": "1. Postanowienia ogólne"
         },
         {
-          "content": "2.1. Korzystanie z usługi wymaga rejestracji przez Telegram.\n2.2. Użytkownik zobowiązuje się podawać prawdziwe informacje.\n2.3. Użytkownik ponosi odpowiedzialność za bezpieczeństwo dostępu do swojego konta.\n2.4. Zabroniona jest rejestracja wielu kont w celu obejścia ograniczeń lub uzyskania nieuzasadnionych korzyści.\n2.5. Administracja ma prawo zablokować konto w przypadku podejrzenia działań oszukańczych.",
+          "content": "2.1. Do korzystania z usługi wymagana jest rejestracja przez Telegram.\n2.2. Użytkownik zobowiązuje się podawać prawdziwe informacje.\n2.3. Użytkownik ponosi odpowiedzialność za bezpieczeństwo dostępu do swojego konta.\n2.4. Zabroniona jest rejestracja wielu kont w celu obejścia ograniczeń lub uzyskania nieuzasadnionych korzyści.\n2.5. Administracja ma prawo zablokować konto w przypadku podejrzenia działalności oszukańczej.",
           "title": "2. Rejestracja i konto"
         },
         {
-          "content": "3.1. Użytkownik zobowiązuje się:\n- Nie udostępniać plików konfiguracyjnych i dostępów osobom trzecim\n- Nie próbować włamywać się, modyfikować ani omijać zabezpieczeń usługi\n- Nie nadużywać zasobów usługi\n- Nie naruszać praw innych użytkowników\n- Przestrzegać warunków wybranego planu taryfowego\n- Nie używać usługi do zautomatyzowanego zbierania danych",
+          "content": "3.1. Użytkownik zobowiązuje się:\n- Nie przekazywać plików konfiguracyjnych i dostępów osobom trzecim\n- Nie próbować hakować, modyfikować ani obchodzić ochrony usługi\n- Nie nadużywać zasobów usługi\n- Nie naruszać praw innych użytkowników\n- Przestrzegać warunków wybranego planu\n- Nie używać usługi do zautomatyzowanego zbierania danych",
           "title": "3. Obowiązki użytkownika"
         },
         {
-          "content": "4.1. Kategorycznie zabrania się:\n- Rozpowszechniania płatnych konfiguracji za darmo lub w sposób omijający płatność\n- Prowadzenia inżynierii wstecznej, dekompilacji lub analizy kodu usługi\n- Używania botów, skryptów lub systemów zautomatyzowanych do interakcji z usługą\n- Próby uzyskania nieautoryzowanego dostępu do infrastruktury projektu\n- Przeprowadzania testów obciążeniowych bez pisemnej zgody administracji\n- Nadużywania systemu okresów próbnych i programu poleceń",
+          "content": "4.1. Kategorycznie zabronione jest:\n- Rozpowszechnianie płatnych konfiguracji bezpłatnie lub z pominięciem płatności\n- Przeprowadzanie inżynierii wstecznej, dekompilacji lub analizy kodu usługi\n- Używanie botów, skryptów lub systemów automatycznych do interakcji z usługą\n- Próby uzyskania nieautoryzowanego dostępu do infrastruktury projektu\n- Przeprowadzanie testów obciążeniowych bez pisemnej zgody administracji\n- Nadużywanie systemu okresów próbnych i programu poleceń",
           "title": "4. Działania zabronione"
         },
         {
-          "content": "5.1. Kategorycznie zabrania się:\n- Zbierania, wyszukiwania i rozpowszechniania jakichkolwiek danych osobowych członków zespołu projektu (prawdziwych imion, miejsc zamieszkania, kontaktów, profili w mediach społecznościowych, zdjęć)\n- Doxingu (ujawniania danych osobowych) uczestników projektu\n- Prób deanonimizacji zespołu projektu\n- Wywierania jakiejkolwiek presji psychicznej, fizycznej lub prawnej na członków zespołu\n- Grożenia, szantażowania lub zastraszania uczestników projektu\n- Publikowania wezwań do ataków na zespół projektu\n- Stalkingu członków zespołu w jakiejkolwiek formie\n\n5.2. Naruszenie niniejszego punktu skutkuje:\n- Natychmiastową i bezterminową blokadą konta bez zwrotu środków\n- Przekazaniem informacji organom ścigania\n- Prawem zespołu projektu do dochodzenia swoich praw na drodze sądowej\n\n5.3. Zespół projektu zastrzega sobie prawo do anonimowości i prywatności.",
+          "content": "5.1. Kategorycznie zabronione jest:\n- Zbieranie, wyszukiwanie, rozpowszechnianie jakichkolwiek informacji osobistych o członkach zespołu projektu (prawdziwe imiona, miejsca zamieszkania, kontakty, sieci społecznościowe, zdjęcia)\n- Przeprowadzanie doxingu (ujawnianie danych osobowych) uczestników projektu\n- Podejmowanie prób deanonymizacji zespołu projektu\n- Wywieranie jakiegokolwiek wpływu psychicznego, fizycznego lub prawnego na członków zespołu\n- Grożenie, szantażowanie lub zastraszanie uczestników projektu\n- Publikowanie wezwań do działań przeciwko zespołowi projektu\n- Prowadzenie stalkingu członków zespołu w jakiejkolwiek formie\n\n5.2. Naruszenie niniejszej sekcji skutkuje:\n- Natychmiastową i bezterminową blokadą konta bez zwrotu środków\n- Przekazaniem informacji organom ścigania\n- Prawem zespołu projektu do zwrócenia się do sądu w celu ochrony swoich praw\n\n5.3. Zespół projektu zastrzega sobie prawo do anonimowości i prywatności.",
           "title": "5. Ochrona informacji o zespole projektu"
         },
         {
-          "content": "6.1. Pomimo licencji open‑source MIT zabrania się:\n- Używania nazwy {vpnName}, logotypów i znaków towarowych bez pozwolenia\n- Tworzenia projektów pochodnych w celu bezpośredniej konkurencji\n- Wykorzystywania infrastruktury i dorobku projektu w celach komercyjnych bez zgody\n\n6.2. Wszystkie pliki konfiguracyjne generowane przez usługę są własnością intelektualną projektu i są udostępniane użytkownikom wyłącznie do użytku osobistego.",
+          "content": "6.1. Pomimo licencji open-source MIT zabronione jest:\n- Używanie nazwy {vpnName}, logo i znaków towarowych bez zgody\n- Tworzenie projektów pochodnych w celu bezpośredniej konkurencji\n- Wykorzystywanie infrastruktury i dorobku projektu w celach komercyjnych bez zgody\n\n6.2. Wszystkie pliki konfiguracyjne generowane przez usługę są własnością intelektualną projektu i udostępniane użytkownikom wyłącznie do użytku osobistego.",
           "title": "6. Własność intelektualna"
         },
         {
-          "content": "7.1. {vpnName} przestrzega polityki No‑Logs:\n- Brak historii odwiedzonych witryn\n- Brak analizy zawartości ruchu\n- Brak logów połączeń\n\n7.2. Do działania usługi przetwarzane są:\n- ID Telegram użytkownika\n- Dane o taryfie i okresie subskrypcji\n- Zagregowane wskaźniki ilości ruchu\n- Dane płatnicze (tylko do weryfikacji płatności)\n\n7.3. Szczegółowe informacje znajdują się w Polityce prywatności.",
+          "content": "7.1. {vpnName} przestrzega polityki No-Logs:\n- Nie prowadzi się historii odwiedzonych stron\n- Nie analizuje się treści ruchu internetowego\n- Nie przechowuje się logów połączeń\n\n7.2. Do działania usługi przetwarzane są:\n- Telegram ID użytkownika\n- Dane o planie i okresie subskrypcji\n- Zagregowane wskaźniki objętości ruchu\n- Dane płatnościowe (tylko do potwierdzenia płatności)\n\n7.3. Szczegółowe informacje w Polityce prywatności.",
           "title": "7. Poufność i przetwarzanie danych"
         },
         {
-          "content": "8.1. Usługa wykorzystuje:\n- Protokoły: VLESS i Shadowsocks\n- Transport: XHTTP\n- Wtyczkę szyfrowania: REALITY\n- Jądro: XRay (aktualna wersja)\n\n8.2. {vpnName} zastrzega sobie prawo do:\n- Modyfikowania używanych protokołów i technologii\n- Przechodzenia na rozwiązania alternatywne w razie potrzeby\n- Przeprowadzania prac technicznych z wyprzedzeniem powiadamiając na kanale Telegram i/lub w bocie",
+          "content": "8.1. Usługa wykorzystuje:\n- Protokoły: VLESS i Shadowsocks\n- Transport: XHTTP\n- Wtyczka szyfrowania: REALITY\n- Rdzeń: XRay (aktualna wersja)\n\n8.2. {vpnName} zastrzega sobie prawo do:\n- Modyfikacji używanych protokołów i technologii\n- Przejścia na rozwiązania alternatywne w razie potrzeby\n- Przeprowadzania prac technicznych z wcześniejszym powiadomieniem na kanale Telegram i/lub w bocie",
           "title": "8. Charakterystyka techniczna usługi"
         },
         {
-          "content": "9.1. Płatność dokonywana jest zgodnie z wybraną taryfą i metodą płatności.\n9.2. Obecnie płatności są obsługiwane ręcznie.\n9.3. Zwrot środków następuje w wyjątkowych przypadkach decyzją administracji lub wsparcia.\n9.4. W przypadku naruszenia przez użytkownika warunków usługi zwrot nie jest dokonywany.\n9.5. Pytania dotyczące zwrotów należy kierować do wsparcia Telegram.",
+          "content": "9.1. Płatność realizowana jest zgodnie z wybranym planem i metodą płatności.\n9.2. Obecnie płatności przetwarzane są ręcznie.\n9.3. Zwrot środków realizowany jest w wyjątkowych przypadkach decyzją administracji lub wsparcia.\n9.4. W przypadku naruszenia przez użytkownika warunków usługi zwrot nie jest realizowany.\n9.5. Sprawy zwrotów kierowane są do wsparcia Telegram.",
           "title": "9. Płatność i zwrot środków"
         },
         {
-          "content": "10.1. {vpnName} nie ponosi odpowiedzialności za:\n- Tymczasową niedostępność usługi z przyczyn technicznych\n- Działania osób trzecich (dostawców, regulatorów)\n- Straty pośrednie użytkowników\n- Wykorzystanie usługi do celów niezgodnych z prawem przez użytkownika\n\n10.2. Użytkownik ponosi pełną odpowiedzialność za:\n- Swoje działania podczas korzystania z usługi\n- Konsekwencje korzystania z połączenia VPN\n\n10.3. Usługa jest świadczona „w stanie w jakim jest” (as is) bez gwarancji dostępności powyżej 98%.",
+          "content": "10.1. {vpnName} nie ponosi odpowiedzialności za:\n- Tymczasową niedostępność usługi z przyczyn technicznych\n- Działania osób trzecich (dostawców, regulatorów)\n- Pośrednie straty użytkowników\n- Wykorzystanie usługi do celów niezgodnych z prawem przez użytkownika\n\n10.2. Użytkownik ponosi pełną odpowiedzialność za:\n- Swoje działania podczas korzystania z usługi\n- Konsekwencje korzystania z połączenia VPN\n\n10.3. Usługa świadczona jest „tak jak jest” (as is) bez gwarancji uptime powyżej 98%.",
           "title": "10. Odpowiedzialność stron"
         },
         {
-          "content": "11.1. Administracja ma prawo zawiesić lub zakończyć dostęp użytkownika do usługi bez uprzedniego powiadomienia w przypadku:\n- Naruszenia niniejszych warunków\n- Podejrzenia działań oszukańczych\n- Naruszenia sekcji 5 (Ochrona informacji o zespole)\n- Nadużywania zasobów usługi\n- Konieczności technicznej\n\n11.2. W przypadku blokady z powodu naruszenia warunków środki nie są zwracane.\n11.3. Użytkownik ma prawo odwołać się od blokady za pośrednictwem wsparcia.",
+          "content": "11.1. Administracja ma prawo zawiesić lub zakończyć dostęp użytkownika do usługi bez wcześniejszego powiadomienia w przypadkach:\n- Naruszenia niniejszych warunków\n- Podejrzenia działalności oszukańczej\n- Naruszenia sekcji 5 (Ochrona informacji o zespole)\n- Nadużycia zasobów usługi\n- Konieczności technicznej\n\n11.2. W przypadku blokady za naruszenie warunków środki nie są zwracane.\n11.3. Użytkownik ma prawo odwołać się od blokady przez wsparcie.",
           "title": "11. Zawieszenie i zakończenie dostępu"
         },
         {
-          "content": "12.1. {vpnName} zastrzega sobie prawo do jednostronnej zmiany niniejszych warunków.\n12.2. Nowa wersja wchodzi w życie z chwilą opublikowania na stronie internetowej.\n12.3. Dalsze korzystanie z usługi po zmianach oznacza zgodę na nową wersję.\n12.4. W przypadku istotnych zmian użytkownicy mogą zostać powiadomieni indywidualnie.",
+          "content": "12.1. {vpnName} zastrzega sobie prawo do jednostronnej zmiany niniejszych warunków.\n12.2. Nowa wersja wchodzi w życie z momentem publikacji na stronie internetowej.\n12.3. Dalsze korzystanie z usługi po zmianach oznacza zgodę na nową wersję.\n12.4. W przypadku istotnych zmian użytkownicy mogą zostać powiadomieni indywidualnie.",
           "title": "12. Zmiana warunków"
         },
         {
-          "content": "13.1. Strony są zwolnione z odpowiedzialności w przypadku wystąpienia siły wyższej:\n- Klęsk żywiołowych\n- Działań wojennych\n- Decyzji organów państwowych\n- Zakrojonych na szeroką skalę awarii technicznych\n- Działań osób trzecich (ataki, blokady)\n\n13.2. Termin wykonania zobowiązań ulega przedłużeniu na okres działania siły wyższej.",
+          "content": "13.1. Strony są zwolnione z odpowiedzialności w przypadku zaistnienia okoliczności siły wyższej:\n- Klęsk żywiołowych\n- Działań wojennych\n- Decyzji organów państwowych\n- Zakrojonych na szeroką skalę awarii technicznych\n- Działań osób trzecich (ataki, blokady)\n\n13.2. Termin wykonania zobowiązań wydłuża się o okres działania siły wyższej.",
           "title": "13. Siła wyższa"
         },
         {
-          "content": "14.1. Wszelkie spory i nieporozumienia są rozstrzygane w drodze negocjacji za pośrednictwem wsparcia Telegram.\n14.2. W przypadku braku porozumienia spór przekazywany jest do administracji.\n14.3. Użytkownik wyraża zgodę na polubowne rozstrzyganie sporów.",
-          "title": "14. Rozstrzyganie sporów"
+          "content": "14.1. Wszystkie spory i nieporozumienia rozwiązywane są w drodze negocjacji przez wsparcie Telegram.\n14.2. W przypadku braku porozumienia spór przekazywany jest do rozpatrzenia przez administrację.\n14.3. Użytkownik zgadza się na pozasądowe rozwiązywanie sporów.",
+          "title": "14. Rozwiązywanie sporów"
         },
         {
-          "content": "15.1. Jeśli którekolwiek postanowienie warunków zostanie uznane za nieważne, nie wpływa to na ważność pozostałych postanowień.\n15.2. {vpnName} nie ponosi odpowiedzialności za niedostępność usługi w niektórych regionach.\n15.3. Użytkownik nie może przenosić swoich praw i obowiązków wynikających z warunków na osoby trzecie.\n15.4. Tytuły rozdziałów mają charakter wyłącznie informacyjny i nie wpływają na interpretację warunków.",
+          "content": "15.1. Jeżeli którekolwiek postanowienie warunków zostanie uznane za nieważne, nie wpływa to na ważność pozostałych postanowień.\n15.2. {vpnName} nie ponosi odpowiedzialności za niedostępność usługi w niektórych regionach.\n15.3. Użytkownik nie ma prawa przekazywać swoich praw i obowiązków wynikających z warunków osobom trzecim.\n15.4. Nagłówki sekcji podane są dla wygody i nie wpływają na interpretację warunków.",
           "title": "15. Postanowienia końcowe"
         },
         {
-          "content": "16.1. We wszystkich sprawach prosimy o kontakt ze wsparciem Telegram za pośrednictwem bota lub strony internetowej.\n16.2. Czas odpowiedzi: zazwyczaj w ciągu 1 godziny.\n16.3. Aby przyspieszyć obsługę płatności, zaleca się kontakt z pomocą w ciągu 5–10 minut po dokonaniu płatności z załączonym dowodem (nieobowiązkowym).\n16.4. Zespół projektu jest zawsze gotowy do pomocy w sprawach technicznych i indywidualnych.",
+          "content": "16.1. We wszystkich sprawach kontaktuj się ze wsparciem Telegram przez bota lub stronę internetową.\n16.2. Czas odpowiedzi: zazwyczaj w ciągu 1 godziny.\n16.3. Aby przyspieszyć przetwarzanie płatności, zaleca się napisanie do wsparcia w ciągu 5–10 minut po płatności z załączonym potwierdzeniem (opcjonalnie).\n16.4. Zespół projektu zawsze chętnie pomoże w kwestiach technicznych i indywidualnych.",
           "title": "16. Kontakty"
         }
       ],
-      "subtitle": "{vpnName} – zasady korzystania z usługi",
+      "subtitle": "{vpnName} - zasady korzystania z usługi",
       "title": "Warunki korzystania"
+    }
+  },
+  "qa": {
+    "category": {
+      "getting_started": {
+        "title": "Pierwsze kroki",
+        "content": {
+          "1": {
+            "question": "Co zrobić, jeśli zapłaciłem, ale subskrypcja się nie pojawiła?",
+            "answer": "Poczekaj na potwierdzenie płatności. Obecnie płatności przetwarzane są ręcznie, więc może to zająć trochę czasu."
+          },
+          "2": {
+            "question": "Jak zrozumieć, który plan pasuje do mnie pod względem ruchu i liczby jednoczesnych połączeń?",
+            "answer": "Wybierz plan w zależności od swoich potrzeb. Jeśli planujesz korzystać z VPN na kilku urządzeniach jednocześnie, zwróć uwagę na limit jednoczesnych połączeń (IP). Do aktywnego korzystania z dużym wolumenem ruchu zaleca się wybór planu z nieograniczonym ruchem."
+          }
+        }
+      },
+      "subscription_and_configs": {
+        "title": "Subskrypcje i konfiguracje",
+        "content": {
+          "3": {
+            "question": "Dlaczego klient nie pobrał nowych nodów, portów, kluczy lub SNI?",
+            "answer": "Spróbuj zaktualizować subskrypcję za pomocą odpowiedniego przycisku w kliencie. Jeśli problem nadal występuje, upewnij się, że używasz aktualnego linku subskrypcji i masz połączenie z internetem. Jeśli problem nie zostanie rozwiązany, skontaktuj się ze wsparciem, opisując problem."
+          },
+          "4": {
+            "question": "Czy można używać jednego linku subskrypcji na kilku urządzeniach?",
+            "answer": "Tak, możesz używać jednego linku subskrypcji na kilku urządzeniach, ale zwróć uwagę na limit jednoczesnych połączeń (IP) wskazany w Twoim planie. Jeśli przekroczysz ten limit, nowe połączenia zaczną wypierać stare (serwer zresetuje ruch starego połączenia)."
+          },
+          "5": {
+            "question": "Co zrobić, jeśli link subskrypcji wyciekł?",
+            "answer": "Jeśli link subskrypcji został skompromitowany, zaleca się natychmiastowy kontakt ze wsparciem w celu uzyskania nowego linku. Możemy odwołać stary link i wydać nowy, aby zapewnić bezpieczeństwo Twojego połączenia."
+          },
+          "6": {
+            "question": "Czy można odwołać starą subskrypcję i wydać nową?",
+            "answer": "Tak, możesz odwołać starą subskrypcję i wydać nową. Skontaktuj się ze wsparciem, aby uzyskać pomoc w tej sprawie."
+          }
+        }
+      },
+      "clients_and_devices": {
+        "title": "Klienci i urządzenia",
+        "content": {
+          "7": {
+            "question": "Którzy klienci są oficjalnie zalecani i dlaczego?",
+            "answer": "Oficjalnie zalecani są klienci INCY oraz, jako rezerwa, Happ. INCY jest lekki, wygodny w użyciu i obsługuje wszystkie niezbędne funkcje do pracy z naszą usługą. Happ może być używany jako klient rezerwowy, jeśli z jakiegoś powodu INCY nie jest odpowiedni lub nie działa (tymczasowe problemy lub błędy w aktualizacji klienta), ale nie jest zalecany jako główny ze względu na rzadkie aktualizacje i „okrojony” rdzeń XRay."
+          },
+          "8": {
+            "question": "Czym INCY różni się od v2rayN, NekoBox, Shadowrocket, Clash i sing-box?",
+            "answer": "Przede wszystkim chcę nakreślić granicę: sing-box i clash to osobne rdzenie. Choć technicznie mają kompatybilność wsteczną z XRay, nie obsługują wszystkich funkcji i wtyczek, których używamy. v2rayN i Shadowrocket to klienci korzystający z rdzenia XRay, ale nie są zalecani, ponieważ nie zapewniają takiego samego poziomu funkcjonalności i wygody użytkowania jak INCY. INCY w pełni obsługuje wszystkie nasze technologie i zapewnia najlepsze doświadczenie korzystania z usługi."
+          },
+          "9": {
+            "question": "Jak skonfigurować proxy aplikacji, aby banki, usługi państwowe i lokalne usługi działały poprawnie?",
+            "answer": "Nasza usługa, w przeciwieństwie do innych, już dawno wdrożyła obejście aplikacji wewnątrz samej subskrypcji (174 aplikacje podlegające „Antifraud 2.0” są omijane). Dodatkowa konfiguracja nie jest wymagana (z wyjątkiem obejścia gier, jeśli bez VPN masz niższy ping). Jeśli masz problemy z dostępem do niektórych aplikacji, skontaktuj się ze wsparciem, opisując sytuację."
+          },
+          "10": {
+            "question": "Dlaczego po włączeniu VPN nie otwierają się rosyjskie strony lub odwrotnie, nie otwierają się zagraniczne?",
+            "answer": "Może to być związane z ustawieniami DNS lub routingiem ruchu. Upewnij się, że używasz prawidłowych serwerów DNS i że klient jest skonfigurowany na pełny tunel lub split-tunnel w zależności od potrzeb (nie tryb „Proxy”). Jeśli problem nadal występuje, skontaktuj się ze wsparciem, opisując problem."
+          },
+          "11": {
+            "question": "Jak włączyć kill switch i sprawdzić, czy naprawdę blokuje wycieki?",
+            "answer": "Kill switch można włączyć w ustawieniach klienta. Aby sprawdzić, czy naprawdę blokuje wycieki, możesz wyłączyć VPN i spróbować korzystać z zasobów bez niego. Jeśli dostęp nie jest zapewniany, oznacza to, że kill switch działa poprawnie."
+          },
+          "12": {
+            "question": "Czy można mieć kilka profili: praca, streaming, torrenty, gry?",
+            "answer": "Oczywiście! Nasze konfiguracje są uniwersalne. Nie próbujemy ograniczać użytkowników ani przedstawiać swojej niekompetencji jako „funkcjonalności”. Nie mamy konfiguracji dla poszczególnych scenariuszy, ponieważ nie ma to sensu. Możesz używać tej samej konfiguracji do dowolnych celów, czy to pracy, streamingu, torrentów, czy gier."
+          },
+          "13": {
+            "question": "Jak ustalić, czy problem leży w kliencie, systemie operacyjnym, dostawcy czy serwerze?",
+            "answer": "Dla początkującego lub zwykłego użytkownika może to być trudne. Zaleca się kontakt ze wsparciem z opisem problemu, wskazaniem używanego klienta, systemu operacyjnego, sieci, dostawcy i regionu. Pomożemy ustalić źródło problemu i zaproponujemy rozwiązanie. Jeśli z jakiegoś powodu nie chcesz podawać danych diagnostycznych, napisz o tym do wsparcia – postaramy się pomóc bez nich, ale zajmie to dłużej."
+          }
+        }
+      },
+      "protocols_and_dpi": {
+        "title": "Protokoły i obejście DPI",
+        "content": {
+          "14": {
+            "question": "Czego używacie jako stosu VPN?",
+            "answer": "Używany jest panel 3X-UI, rdzeń XRay, protokoły VLESS (szyfrowanie ML-KEM-768 (random)) i Shadowsocks (szyfrowanie chacha20-ietf-poly1305), transport XHTTP i wtyczka szyfrowania REALITY. Ale jak być może wiesz, XRay to elastyczna rzecz. Skonfigurowaliśmy MUX, Sockopt, Sniffing i wiele innych, aby zapewnić maksymalnie efektywne działanie i najprzyjemniejszy UX."
+          },
+          "15": {
+            "question": "Jakiego szyfrowania używacie?",
+            "answer": "Zależy, co przez to rozumieć. Ogólnie używamy szyfrowania ML-KEM-768 (random) dla VLESS i chacha20-ietf-poly1305 dla Shadowsocks. Dodatkowo dla standardowych konfiguracji używana jest wtyczka maskująca REALITY, która zapewnia dodatkowy poziom ochrony i pomaga omijać DPI, a do obejścia białych list – odpowiednio skonfigurowany TLS."
+          },
+          "16": {
+            "question": "Jak Reality pomaga przeciw DPI i obejściu białych list?",
+            "answer": "Wtyczka Reality używa certyfikatów zasobu strony trzeciej (wskazanego w SNI) do maskowania połączenia tak, jakbyś łączył się ze zwykłą stroną HTTPS wskazaną w Target Host. Ma również wbudowane proxy, które odrzuci nieautoryzowane połączenie do Target Host, co znacznie utrudnia zarówno aktywne sondowanie, jak i pasywne DPI. Ogólnie Reality pozwala ukryć fakt korzystania z VPN i sprawia, że jego ruch wygląda jak zwykły ruch HTTPS."
+          },
+          "17": {
+            "question": "Czym jest XHTTP i po co jest potrzebny w transporcie?",
+            "answer": "Transport XHTTP pakuje ruch VPN w zwykły HTTP/HTTPS (enkapsulacja), co pozwala mu przechodzić przez CDN. Dzieli również upload i download na niezależne kanały i protokoły, co łamie heurystyki analizy symetrycznych wzorców TLS-in-TLS."
+          },
+          "18": {
+            "question": "Czy dostawca może ustalić, że używam VPN?",
+            "answer": "Cóż, teoretycznie tak, ale ich mózgi jeszcze do tego nie doszły. A technicznie będą musieli znacznie ulepszyć sprzętową część TSPU przed wdrożeniem takiej aktualizacji (bo jak pamiętamy, padali nawet przy blokowaniu Telegrama)."
+          }
+        }
+      },
+      "privacy_logs_infrastructure": {
+        "title": "Prywatność, logi i infrastruktura",
+        "content": {
+          "19": {
+            "question": "Naprawdę nie przechowujecie logów?",
+            "answer": "Tak. Polityka No-Logs jest ściśle przestrzegana. Oznacza to, że nie prowadzimy żadnych logów połączeń, nie analizujemy ruchu, nie przechowujemy historii podłączonych IP itd. Logi na serwerze są całkowicie wyłączone."
+          },
+          "20": {
+            "question": "Jakie dane są przechowywane w 3X-UI, bocie, na stronie i na serwerach?",
+            "answer": "W 3X-UI przechowywane są wyłącznie zagregowane dane o subskrypcjach i ruchu niezbędne do działania usługi. W bocie i na stronie przechowywane są dane o użytkownikach, ich subskrypcjach i płatnościach (tylko do potwierdzenia płatności). Na serwerach nie przechowuje się logów połączeń ani historii odwiedzonych stron."
+          },
+          "21": {
+            "question": "Czy logowane są IP, czas połączenia, DNS, odwiedzone strony i objętość według domen?",
+            "answer": "Nie, nie prowadzimy logów połączeń, nie przechowujemy historii odwiedzonych stron i nie śledzimy aktywności użytkowników w sieci. Zbieramy wyłącznie zagregowane wskaźniki objętości ruchu i status subskrypcji dla poprawnego działania usługi."
+          },
+          "22": {
+            "question": "Jak liczony jest ruch bez przechowywania szczegółowych logów?",
+            "answer": "Ruch liczony jest na podstawie zagregowanych danych o transmisji danych między klientem a serwerem. Nie przechowujemy szczegółowych logów, dlatego dokładne rozliczanie ruchu odbywa się przez metryki, które nie zawierają informacji osobowych."
+          },
+          "23": {
+            "question": "Czy administrator panelu lub operator serwera może zobaczyć mój prawdziwy IP i treść ruchu?",
+            "answer": "Nie, administrator panelu i operatorzy serwerów nie mogą zobaczyć Twojego prawdziwego adresu IP ani treści ruchu. Wszystkie dane są szyfrowane i przetwarzane zgodnie z polityką prywatności."
+          },
+          "24": {
+            "question": "Gdzie znajdują się panel, baza danych, serwery i nody wyjściowe?",
+            "answer": "Główny (main) panel, bazy danych, strona i bot znajdują się na głównym serwerze w Szwajcarii. Nody i ich panele znajdują się w różnych krajach (dokładne kraje sprawdź w planach). Main-panel pełni również funkcję noda."
+          },
+          "25": {
+            "question": "Co się stanie, jeśli od usługi zażądają danych użytkownika?",
+            "answer": "Nic. Nie przechowujemy logów połączeń, historii odwiedzonych stron i innych danych osobowych, więc nie mamy nic do przedstawienia. Wynika to bezpośrednio z naszej polityki No-Logs."
+          },
+          "26": {
+            "question": "Jak usunąć konto?",
+            "answer": "W tym celu skontaktuj się ze wsparciem na Telegramie z prośbą o usunięcie konta. Uzgodnimy usunięcie konta i usuniemy wszystkie związane z Tobą dane."
+          }
+        }
+      },
+      "tariffs_and_payment": {
+        "title": "Plany i płatność",
+        "content": {
+          "27": {
+            "question": "Dlaczego limit dotyczy połączeń IP, a nie HWID (jak zwykle)?",
+            "answer": "Aby ograniczyć według HWID, trzeba przechowywać unikalne identyfikatory urządzeń użytkowników, które kiedykolwiek były podłączone do subskrypcji, co jest sprzeczne z zasadami prywatności i polityką No-Logs. Limit połączeń IP to limit i sprawdzenie tu i teraz, bez przechowywania identyfikatorów i ich analizy. Poprawia to również doświadczenie użytkownika, ponieważ nie musisz odłączać urządzeń od subskrypcji, a limit jest ogólnie uczciwszy."
+          },
+          "28": {
+            "question": "Co oznacza „nowe połączenia wypierają stare” przy przekroczeniu limitu?",
+            "answer": "Oznacza to, że po osiągnięciu limitu maksymalnej liczby jednoczesnych połączeń nowe połączenia zastąpią stare, aby zwolnić miejsce dla nowych. Na przykład, jeśli masz limit 3 połączeń i łączysz się z czwartego urządzenia, najstarsze połączenie zostanie zerwane, aby umożliwić nawiązanie nowego."
+          },
+          "29": {
+            "question": "Co się dzieje po wyczerpaniu ruchu: blokada, zawieszenie czy ograniczenie prędkości?",
+            "answer": "Po wyczerpaniu ruchu Twoja subskrypcja zostanie usunięta, część punktów zaufania zostanie odjęta i będziesz musiał ponownie kupić subskrypcję. Jesteśmy również gotowi indywidualnie wyjść naprzeciw i w drodze wyjątku dodać Ci ruch do końca subskrypcji, ale tylko jeśli skontaktujesz się wcześniej. Pamiętaj jednak, że wsparcie nie ma wobec Ciebie żadnych zobowiązań i warto uwzględniać takie sytuacje z góry, aby nie znaleźć się w nieprzyjemnej sytuacji."
+          },
+          "30": {
+            "question": "Czy rabaty, kody promocyjne i punkty zaufania są stosowane automatycznie?",
+            "answer": "Tak. Punkty zaufania są automatycznie przeliczane na rabat przy zamawianiu subskrypcji – nic dodatkowo nie trzeba wpisywać."
+          },
+          "31": {
+            "question": "Jak działa system punktów zaufania?",
+            "answer": "System punktów zaufania działa na zasadzie kumulacyjnego rabatu dla stałych klientów. Bardziej szczegółowe informacje można uzyskać od wsparcia."
+          },
+          "32": {
+            "question": "Jakie metody płatności są dostępne, dlaczego wszystkie płatności są sprawdzane ręcznie i jak przyspieszyć proces?",
+            "answer": "Obecnie w usłudze dostępna jest płatność P2P (z karty na kartę po numerze karty) i YooMoney (przez usługę YooMoney z wprowadzeniem danych karty). Wszystkie płatności są sprawdzane ręcznie z powodu braku integracji z serwisem płatniczym (nie możemy spełnić wszystkich ich wymagań, więc musieliśmy z nich zrezygnować). Aby przyspieszyć proces płatności, zaleca się napisanie do wsparcia 5–10 minut po płatności jako przypomnienie, ponieważ nie zawsze może do nas dotrzeć powiadomienie z banku."
+          },
+          "33": {
+            "question": "Czy można anulować subskrypcję i otrzymać zwrot pieniędzy?",
+            "answer": "Tak. Zwroty środków realizowane są indywidualnie decyzją administracji lub wsparcia zgodnie z zasadami usługi i ofertą. W przypadku naruszenia warunków usługi zwrot środków nie jest realizowany. Aby poprosić o zwrot, skontaktuj się ze wsparciem, opisując przyczynę."
+          }
+        }
+      },
+      "speed_and_use_cases": {
+        "title": "Prędkość i scenariusze użycia",
+        "content": {
+          "38": {
+            "question": "Czy istnieje sztuczne ograniczenie prędkości lub fair use?",
+            "answer": "Nie, takimi bzdurami się nie zajmujemy. Zapewniamy nieograniczony ruch i nie ograniczamy sztucznie prędkości połączenia."
+          },
+          "39": {
+            "question": "Czy usługa nadaje się do Netflix, YouTube, Twitch i 4K?",
+            "answer": "Tak, usługa nadaje się do korzystania z tymi platformami. Zapewniamy stabilne połączenie i minimalne opóźnienia. Właściciel projektu również stale ogląda YouTube i Twitch."
+          },
+          "40": {
+            "question": "Czy torrenty są dozwolone?",
+            "answer": "Tak, torrenty są dozwolone. Właściciel również z nich korzysta."
+          },
+          "41": {
+            "question": "Czy można grać online bez krytycznych lagów i czy VPN wpłynie na antycheaty?",
+            "answer": "Grać oczywiście można, ale wszystko zależy od położenia geograficznego serwera. Niektóre systemy anty-cheat i anty-bot mogą źle reagować na zmianę IP, zmianę kraju IP, a nawet sprawdzać ASN. Takie ryzyka istnieją we wszystkich usługach, w tym w grach. Zaleca się sprawdzanie usług i gier pod kątem zgodności z określonymi serwerami i VPN. Takie problemy występują nie tylko u nas, ale także u innych VPN, tylko inni kłamią, mówiąc, że są idealni do gier, a my mówimy zgodnie z faktami."
+          },
+          "42": {
+            "question": "Czy korzystanie z VPN do banków, giełd kryptowalut i 2FA jest bezpieczne?",
+            "answer": "Tak. Nasz VPN jest do tego więcej niż odpowiedni. Ale z bankami bądź ostrożniejszy – wszystkie rosyjskie banki i inne aplikacje rządowe w ramach programu „Antifraud 2.0” mogą blokować VPN, dlatego zaleca się korzystanie z obejścia aplikacji, które jest już wbudowane w subskrypcję, i nie zmienianie jego konfiguracji."
+          },
+          "43": {
+            "question": "Czy blokujecie dostęp do jakichś stron?",
+            "answer": "Nie. Takimi bzdurami się nie zajmujemy. Zapewniamy dostęp do wszystkich stron i usług bez ograniczeń. Na tym polega nasza filozofia – wolność internetu. Nie zajmujemy się cenzurą i nie ograniczamy dostępu do żadnych zasobów."
+          }
+        }
+      },
+      "bot_site_support_trust": {
+        "title": "Bot, strona, wsparcie i zaufanie",
+        "content": {
+          "44": {
+            "question": "Czy przychodzą powiadomienia o incydentach i co będzie po ich usunięciu?",
+            "answer": "Tak, staramy się terminowo powiadamiać użytkowników o wszelkich incydentach przez bota Telegram i kanał. Po usunięciu incydentu informujemy również użytkowników o przywróceniu działania usługi i podajemy szczegóły dotyczące przyczyn i podjętych przez nas działań. Przyznajemy również wszystkim aktywnym użytkownikom rekompensatę w postaci dni subskrypcji za czas przestoju."
+          },
+          "45": {
+            "question": "Jakie logi lub diagnostykę można wysłać do wsparcia bez ryzyka dla prywatności?",
+            "answer": "Właściwie – nic. Wszystko, czego potrzebujemy, mamy; wszystko, czego możemy potrzebować od Ciebie – możemy poprosić. W praktyce możesz dzielić się czymkolwiek. Nie wycieknie to poza wsparcie, a samo wsparcie nie użyje tego przeciwko Tobie."
+          },
+          "46": {
+            "question": "Jak szybko odpowiada wsparcie i czy istnieje eskalacja do inżyniera?",
+            "answer": "Wsparcie zazwyczaj odpowiada niemal natychmiast (w ciągu 5 minut), czasami może odpowiadać dłużej, ale ogólnie staramy się odpowiadać jak najszybciej. Eskalacja nie jest wymagana, ponieważ wsparcie, deweloper, właściciel projektu i administracja to jedna i ta sama osoba."
+          },
+          "47": {
+            "question": "Czy istnieje strona statusu, kanał o incydentach lub publiczny changelog?",
+            "answer": "Stroną statusu wewnętrznej infrastruktury jest strona główna serwisu. Wszystkie nowości (w tym zmiany i informacje o incydentach) publikowane są na kanale Telegram."
+          },
+          "48": {
+            "question": "Kto stoi za projektem? Czy to firma, czy osoby prywatne?",
+            "answer": "To jedna osoba, osoba fizyczna, zwykły entuzjasta, który chce sobie i innym ludziom zrobić wygodną, szybką, prywatną i ogólnie najlepszą pod każdym względem usługę VPN. Projekt jest open-source, a wszystkie źródła są na licencji MIT, więc każdy chętny może sprawdzić kod, konfiguracje i skrypty, jeśli poprosi wsparcie o przesłanie tego wszystkiego."
+          },
+          "49": {
+            "question": "Dlaczego warto ufać usłudze prowadzonej przez jedną osobę, a nie dużej firmie?",
+            "answer": "Duże firmy, jak i wszelkie inne usługi, w 99,99% przypadków starają się zarobić na użytkowniku maksymalnie. My robimy usługę dla ludzi, a nie dla pieniędzy. Nie liczy się dla nas zysk, a jakość, dlatego właściciel jest gotów inwestować w usługę, choć jest ona deficytowa."
+          },
+          "50": {
+            "question": "Dlaczego jesteście najlepsi w branży?",
+            "answer": "Trzeba by kurczę bardzo dużo rozpisywać. W tej sprawie lepiej skontaktuj się ze wsparciem, tam wszystko szczegółowo Ci opowiedzą."
+          },
+          "51": {
+            "question": "Czy źródła, konfiguracje lub skrypty są otwarte i czy można je sprawdzić?",
+            "answer": "Tak. Aby otrzymać źródła, konfiguracje, skrypty i wszystko inne – skontaktuj się ze wsparciem."
+          },
+          "52": {
+            "question": "Gdzie pisać, jeśli podejrzewam kompromitację konta, wyciek subskrypcji lub oszustwo?",
+            "answer": "Do wsparcia, rzecz jasna. Opisz szczegółowo sytuację, a my Ci pomożemy."
+          }
+        }
+      }
     }
   }
 }

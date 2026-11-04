@@ -32,9 +32,6 @@ export function readSessionToken(request: NextRequest): string | null {
   return value && value.trim() ? value : null;
 }
 
-// ВАЖНО: ResponseCookies.set в этой версии Next принимает атрибуты только
-// в форме set(name, value, options) - объектная форма молча теряет
-// HttpOnly/SameSite/Max-Age.
 export function setSessionCookie(
   response: NextResponse,
   token: string,
@@ -159,8 +156,6 @@ export async function proxyBotRequest(
   const { data, isJson } = await readUpstreamBody(upstream);
   const upstreamSession = extractUpstreamSession(upstream);
 
-  // 401 от бота при наличии cookie = сессия истекла или отозвана.
-  // Публичные эндпоинты без cookie такого сигнала не дают.
   const sessionLost = upstream.status === 401 && Boolean(token);
 
   const payload =

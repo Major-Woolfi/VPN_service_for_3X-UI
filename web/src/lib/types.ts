@@ -1,6 +1,3 @@
-// Типы для API бота
-
-// === Auth ===
 export interface WebRegisterRequest {
   username: string;
   password: string;
@@ -34,7 +31,6 @@ export interface UserSession {
   token: string;
 }
 
-// === User / Profile ===
 export interface SanitizedUser {
   user_id: number;
   telegram_id: number;
@@ -125,7 +121,6 @@ export interface PartnerData {
   mate_expiry: string;
 }
 
-// === Subscription ===
 export interface CreateSubscriptionRequest {
   user_id?: number;
   plan_id: string;
@@ -152,8 +147,6 @@ export interface SubscriptionLinkResponse {
   plan_servers: string[];
 }
 
-// Создание и продление подписки не активируют её сразу:
-// бот создаёт pending-платёж и ждёт подтверждения администратором.
 export interface SubscriptionPaymentRequest {
   message: string;
   payment_id: string;
@@ -165,7 +158,6 @@ export interface SubscriptionPaymentRequest {
   wait_admin: true;
 }
 
-// === Tariff ===
 export interface Tariff {
   id: string;
   name: string;
@@ -183,7 +175,6 @@ export interface TariffsResponse {
   tariffs: Tariff[];
 }
 
-// === Referral Stats ===
 export interface ReferralStatsResponse {
   ref_code: string;
   ref_link: string;
@@ -194,7 +185,6 @@ export interface ReferralStatsResponse {
   bonus_days_per_paid: number;
 }
 
-// === Partner Stats ===
 export interface PartnerStatsResponse {
   total_refs: number;
   paid_refs: number;
@@ -244,7 +234,6 @@ export interface PartnerRenewResponse {
   amount: number;
 }
 
-// === Custom Tariff ===
 export interface CustomTariffParams {
   base_price: number;
   gb_coef: number;
@@ -291,7 +280,6 @@ export interface CustomTariffGenerateResponse {
   price_rub: number;
 }
 
-// === Locations ===
 export interface Location {
   code: string;
   name: string;
@@ -304,7 +292,6 @@ export interface LocationsResponse {
   locations: Location[];
 }
 
-// === Admin ===
 export interface AdminHealthResponse {
   status: string;
   users: {
@@ -357,7 +344,6 @@ export interface DebugSearchResponse {
   users: SanitizedUser[];
 }
 
-// === Payments ===
 export type PaymentMethod = "card" | "yoomoney" | "manual";
 
 export interface CreateCheckoutRequest {
@@ -377,7 +363,6 @@ export interface CheckoutPaymentDetails {
   card_number?: string;
 }
 
-// Тестовая подписка администратора: оформляется сразу, без оплаты.
 export interface TestSubscriptionResponse {
   message: string;
   plan_name: string;
@@ -412,13 +397,11 @@ export interface PaymentsHistoryResponse {
   limit: number;
 }
 
-// === Broadcast ===
 export interface BroadcastRequest {
   type: string;
   message: string;
 }
 
-// === Panel Clients ===
 export interface PanelClient {
   sub_id: string;
   email: string;
@@ -430,7 +413,6 @@ export interface PanelClient {
   [key: string]: unknown;
 }
 
-// === User List ===
 export interface UserListItem {
   user_id: number;
   telegram_id: number;
@@ -451,14 +433,12 @@ export interface UserListResponse {
   limit: number;
 }
 
-// === Stats Overview ===
 export interface StatsOverviewResponse {
   total_users: number;
   active_subscriptions: number;
   banned_users: number;
 }
 
-// === Panel Status ===
 export interface PanelStatusResponse {
   panel: {
     panel_version: string;
@@ -469,7 +449,6 @@ export interface PanelStatusResponse {
   nodes: Record<string, unknown>[];
 }
 
-// === Partner Public Info ===
 export interface PartnerPublicInfoResponse {
   commission_percent: number;
   min_followers: number;
@@ -484,7 +463,6 @@ export interface PartnerPublicInfoResponse {
   trust_points_max: number;
 }
 
-// === Features / Config ===
 export interface FeaturesResponse {
   payment_methods: PaymentMethod[];
   panel_types: {
@@ -504,7 +482,6 @@ export interface FeaturesResponse {
   public_links: Record<string, string>;
 }
 
-// === Traffic Abuse ===
 export interface AbuseUser {
   user_id: number;
   telegram_id: number;

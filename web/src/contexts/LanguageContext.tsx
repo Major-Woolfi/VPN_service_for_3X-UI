@@ -12,14 +12,16 @@ import {
   getCurrentLang,
   t as translate,
   tHtml as translateHtml,
+  tObject as translateObject,
   setCurrentLang as setCurrentLangGlobal,
 } from "@/lib/i18n";
 
 interface LanguageContextType {
   lang: string;
   setLang: (lang: string) => void;
-  t: (key: string, params?: Record<string, string | number>) => string;
-  tHtml: (key: string, params?: Record<string, string | number>) => string;
+  t: (key: string, params?: Record<string, string | number>, langOverride?: string) => string;
+  tHtml: (key: string, params?: Record<string, string | number>, langOverride?: string) => string;
+  tObject: (key: string, langOverride?: string) => unknown;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(
@@ -33,8 +35,7 @@ export function LanguageProvider({
   children: ReactNode;
   initialLang?: string;
 }) {
-  // Seed from the server-resolved language so SSR markup and the first
-  // client render match; otherwise hydration would flash the fallback.
+
   const [lang, setLang] = useState(() => initialLang || getCurrentLang());
 
   useEffect(() => {
@@ -55,22 +56,29 @@ export function LanguageProvider({
   }, []);
 
   const t = useCallback(
-    (key: string, params?: Record<string, string | number>) => {
-      return translate(key, params, lang);
+    (key: string, params?: Record<string, string | number>, langOverride?: string) => {
+      return translate(key, params, langOverride || lang);
     },
     [lang],
   );
 
   const tHtml = useCallback(
-    (key: string, params?: Record<string, string | number>) => {
-      return translateHtml(key, params, lang);
+    (key: string, params?: Record<string, string | number>, langOverride?: string) => {
+      return translateHtml(key, params, langOverride || lang);
+    },
+    [lang],
+  );
+
+  const tObject = useCallback(
+    (key: string, langOverride?: string) => {
+      return translateObject(key, langOverride || lang);
     },
     [lang],
   );
 
   return (
     <LanguageContext.Provider
-      value={{ lang, setLang: setLangWrapper, t, tHtml }}
+      value={{ lang, setLang: setLangWrapper, t, tHtml, tObject }}
     >
       {children}
     </LanguageContext.Provider>

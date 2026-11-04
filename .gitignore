@@ -12,3 +12,4 @@ web/node_modules/
 web/next-env.d.ts
 web/*.tsbuildinfo
 web/.env
+web/src/lib/i18n-generated.ts

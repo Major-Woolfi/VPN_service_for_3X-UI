@@ -8,11 +8,6 @@ interface CopyableUrlProps {
   copied: boolean;
 }
 
-/**
- * Блок со ссылкой на подписку и кнопкой копирования.
- * Ссылка длинная, поэтому переносится по словам вместо горизонтальной
- * прокрутки на мобильных экранах.
- */
 export function CopyableUrl({ url, onCopy, copied }: CopyableUrlProps) {
   const { t } = useLanguage();
 

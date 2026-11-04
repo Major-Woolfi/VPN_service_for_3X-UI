@@ -116,7 +116,7 @@ export default function SettingsPage() {
           const res = await pollTelegramAuth(state);
           if (res.status === "completed") {
             stopLinkPolling();
-            // Серверный layout должен увидеть новый telegram_id.
+
             router.refresh();
             await refreshUser();
             setMessage(t("texts.telegram_linked_success"));
@@ -124,7 +124,7 @@ export default function SettingsPage() {
             setTimeout(() => setMessage(""), 3000);
           }
         } catch {
-          // игнорируем отдельные сбои опроса
+
         }
         elapsed += LINK_POLL_INTERVAL;
         if (elapsed >= LINK_POLL_TIMEOUT) {
@@ -173,8 +173,9 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (authLoading || !authUser || authUser.telegram_id > 0) return;
+
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchTgLinkUrl();
+    void fetchTgLinkUrl();
   }, [authLoading, authUser, fetchTgLinkUrl]);
 
   const handleLanguageChange = async (lang: string) => {

@@ -86,7 +86,7 @@ if not logger.handlers:
     file_handler: logging.FileHandler | None = None
     try:
         LOGS_DIR.mkdir(parents=True, exist_ok=True)
-        os.chmod(LOGS_DIR, 0o755)  # noqa: S103
+        os.chmod(LOGS_DIR, 0o755)
         file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8", mode="a")
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(formatter)
@@ -283,7 +283,7 @@ def truncate(text: str, limit: int = 4096) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
-async def safe_send_message(  # noqa: PLR0911
+async def safe_send_message(
     bot: Bot,
     user_id: int,
     text: str,
@@ -343,7 +343,6 @@ async def smart_answer(
                 await event.answer()
         return True
     except TelegramBadRequest:
-        # truncate может перерезать HTML-тег - повторяем plain-текстом.
         try:
             plain = truncate(strip_html(text))
             if isinstance(event, Message):
@@ -509,7 +508,7 @@ class Config:
     ADMIN_SUB_EMAIL: str = os.getenv("ADMIN_SUB_EMAIL", "").strip()
     ADMIN_SUB_ID: str = os.getenv("ADMIN_SUB_ID", "Admin").strip()
 
-    FASTAPI_HOST: str = os.getenv("FASTAPI_HOST", "0.0.0.0").strip()  # noqa: S104
+    FASTAPI_HOST: str = os.getenv("FASTAPI_HOST", "0.0.0.0").strip()
     FASTAPI_PORT: int = env_int("FASTAPI_PORT", 2005)
     FASTAPI_DOCS: bool = str_to_bool(os.getenv("FASTAPI_DOCS", "false"))
     FASTAPI_CORS_ENABLED: bool = str_to_bool(os.getenv("FASTAPI_CORS_ENABLED", "false"))
@@ -634,7 +633,7 @@ class Config:
         return [s.strip().lower() for s in cls.PARTNER_REQUIRED_SOCIALS.split(",") if s.strip()]
 
     @classmethod
-    def validate(cls) -> None:  # noqa: PLR0912, PLR0915
+    def validate(cls) -> None:
         errors: list[str] = []
 
         if not cls.BOT_TOKEN:
@@ -675,7 +674,7 @@ class Config:
 
         if (
             len(cls.SESSION_SECRET) < MIN_SECRET_LENGTH
-            or cls.SESSION_SECRET == "change-this-to-a-random-secret-string"  # noqa: S105
+            or cls.SESSION_SECRET == "change-this-to-a-random-secret-string"
         ):
             errors.append("SESSION_SECRET должен быть уникальной строкой не короче 32 символов")
 
@@ -889,8 +888,6 @@ def hash_session_token(token: str) -> str:
 
 
 # --- Password hashing ---
-# passlib несовместим с bcrypt>=4.1 (падает на detect_wrap_bug), поэтому
-# используем bcrypt напрямую. Хеши passlib ($2a$/$2b$) читаются без изменений.
 _BCRYPT_MAX_PASSWORD_BYTES = 72
 
 
@@ -983,8 +980,6 @@ def _cleanup_registrations_per_ip() -> None:
 
 @asynccontextmanager
 async def get_subscription_lock(user_id: int):
-    # Лок берётся строго по внутреннему UID: TID и UID одного пользователя
-    # должны делить один лок, иначе гонка create/renew остаётся.
     internal_uid = await db.resolve_internal_uid(user_id)
     key = internal_uid if internal_uid > 0 else user_id
     if key not in _subscription_creation_locks:
@@ -1507,9 +1502,6 @@ def flag_to_country_code(value: Any) -> str:
 
 
 def normalize_server_code(value: Any) -> str:
-    # Мусорные значения вида '["CH"' или '"NL_WL"]' из старых записей БД
-    # приводим к коду: иначе inbound'ы не находятся и подписка вечно
-    # числится ненормализованной.
     text = str(value or "").strip().strip("\"'[]{} \t").strip()
     if not text:
         return ""
@@ -1602,10 +1594,6 @@ def sanitize_mate_nickname_or_uid(nickname: Any, fallback: Any) -> str:
 
 def get_user_panel_email(user_id: int, user: dict[str, Any]) -> str:
     if user.get("is_mate"):
-        # Партнёрский клиент создаётся с TID в адресе
-        # (_create_partner_vpn_client вызывается с TID из операции), поэтому
-        # и поиск должен идти по TID: по внутреннему UID клиент не находится,
-        # подписка числится ненормализованной и не чистится при очистке.
         mate_uid = to_int(user.get("telegram_id"), 0) or to_int(user_id, 0)
         sanitized = sanitize_mate_nickname_or_uid(user.get("mate_nickname", ""), mate_uid)
         return f"mate_{mate_uid}_{sanitized}@{Config.VPN_NAME.lower()}.com"
@@ -1622,7 +1610,7 @@ def normalize_sub_id(raw: Any) -> str:
     value = value.split("?", 1)[0].split("#", 1)[0].rstrip("/")
     if "/" in value:
         value = value.rsplit("/", 1)[-1]
-    if len(value) < 3:  # noqa: PLR2004
+    if len(value) < 3:
         logger.warning(f"Подозрительный sub_id: {value[:20]}...")
         return ""
     return value.strip()
@@ -1635,9 +1623,6 @@ def build_subscription_url(sub_id: Any, json_format: bool = False) -> str:
         return ""
     base = str(Config.JSON_SUB_PANEL_BASE if json_format else Config.SUB_PANEL_BASE).strip()
     if not base:
-        # Без basepath ссылки на подписку не существует. Раньше здесь
-        # возвращался голый sub_id, и веб показывал блок, в котором был
-        # только sub_id без ссылки. Пустая строка скрывает блок.
         logger.warning("build_subscription_url: базовый URL не настроен")
         return ""
     base = base.rstrip("/")
@@ -1691,17 +1676,12 @@ async def is_admin_user(user_id: int) -> bool:
 
 def parse_stored_servers(value: Any) -> list[str]:
     if isinstance(value, list):
-        # Встречается и список с одной вложенной JSON-строкой: коды остались
-        # одной «кавычкой» и не находили ни одного inbound'а.
         if len(value) == 1 and isinstance(value[0], str) and "[" in value[0]:
             return parse_stored_servers(value[0])
         return normalize_servers(value)
     text = str(value or "").strip()
     if not text:
         return []
-    # plan_servers в БД встречается и дважды закодированным ("[\"CH\", \"FI\"]"):
-    # json.loads отдаёт строку, а не список. Без второго разбора коды остаются
-    # в кавычках, не находят ни одного inbound'а и пишутся обратно в БД.
     for _ in range(5):
         try:
             parsed = json.loads(text)
@@ -1719,9 +1699,6 @@ def parse_stored_servers(value: Any) -> list[str]:
 
 
 def expiry_needs_sync(stored_iso: str, target_iso: str, tolerance_seconds: int = 60) -> bool:
-    # Панель отдаёт время с точностью до миллисекунд, а .env-запись админа
-    # пишется с микросекундами. Без допуска любая синхронизация выглядит как
-    # изменение и нормализация не сходится никогда.
     if not stored_iso:
         return True
     try:
@@ -1911,7 +1888,7 @@ class TariffCatalog:
             return False
         return plan.get("id") == "trial" or plan.get("price_rub", 0) == 0
 
-    def load(self) -> None:  # noqa: PLR0912, PLR0915
+    def load(self) -> None:
         if not os.path.exists(self.path):
             logger.error(f"Файл тарифов не найден: {self.path}")
             raise FileNotFoundError(f"Файл тарифов не найден: {self.path}")
@@ -2038,9 +2015,6 @@ PARTNER_PLAN_ID = "partner"
 
 
 def get_admin_plan() -> dict[str, Any]:
-    # Канонический Admin-тариф из .env: все локации, без лимитов. Нужен,
-    # чтобы нормализация не уходила в ветку «план не найден» и не держала
-    # значения из БД вместо .env.
     return {
         "id": Config.ADMIN_SUB_ID or "Admin",
         "name": Config.ADMIN_SUB_ID or "Admin",
@@ -2053,9 +2027,6 @@ def get_admin_plan() -> dict[str, Any]:
 
 
 def get_partner_plan() -> dict[str, Any]:
-    # Партнёрская выдача не тариф из tarifs.json: все локации, без лимитов.
-    # Синтетический план нужен, чтобы нормализатор видел те же параметры,
-    # что и при выдаче, и не уходил в ветку «план не найден».
     return {
         "id": PARTNER_PLAN_ID,
         "name": PARTNER_PLAN_ID,
@@ -2068,9 +2039,6 @@ def get_partner_plan() -> dict[str, Any]:
 
 
 def is_partner_grant(user: dict[str, Any]) -> bool:
-    # Признак партнёрской выдачи: в subscription_id лежит sub_id панели
-    # (ник партнёра), а не ID тарифа. Раньше именно так и записывалось, из-за
-    # чего get_by_id() не находил план и нормализация молча расходилась.
     if not user.get("is_mate") or not user.get("has_subscription"):
         return False
     subscription_id = str(user.get("subscription_id") or "").strip()
@@ -2088,8 +2056,6 @@ def resolve_user_plan(user: dict[str, Any]) -> dict[str, Any] | None:
         subscription_id == admin_sub_id
         or normalize_sub_id(user.get("vpn_url") or "") == admin_sub_id
     ):
-        # Админ всегда живёт по канону из .env, даже если в БД ещё лежит
-        # его личный тариф: после restore отсюда и берутся лимиты.
         return get_admin_plan()
     plan = get_by_id(subscription_id) if subscription_id else None
     if plan:
@@ -2293,13 +2259,6 @@ def build_custom_plan_from_payment(
 
 
 def build_plan_from_payment(payment: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
-    """Восстанавливает план из заявки на оплату.
-
-    Кастомный тариф и тестовая подписка админа не лежат в каталоге: у них
-    plan_id либо равен "custom", либо plan_type равен "test". Поэтому план
-    строится из custom_plan внутри заявки во всех трёх случаях, иначе
-    get_purchasable_catalog_plan вернёт "plan not found".
-    """
     plan_type = str(payment.get("plan_type", "catalog"))
     if plan_type in ("custom", "test") or str(payment.get("plan_id", "")) == "custom":
         return build_custom_plan_from_payment(payment)
@@ -2332,7 +2291,7 @@ def apply_trust_discount(price: float, trust_score: int) -> tuple[float, int]:
     return price - (price * disc / 100.0), disc
 
 
-async def apply_trust_score_delta(user_id: int, delta: int) -> tuple[bool, int, int, int]:  # noqa: PLR0911
+async def apply_trust_score_delta(user_id: int, delta: int) -> tuple[bool, int, int, int]:
     if not TRUST_SCORE_ENABLED:
         return False, 0, 0, 0
     user = await db.get_user_by_any_id(user_id)
@@ -2380,45 +2339,47 @@ def build_trust_change_line(delta: int, before: int, after: int) -> str:
 # --- База данных SQLite ---
 class Database:
     USER_COLUMN_DEFS: ClassVar[dict[str, str]] = {
-        "join_date": "TIMESTAMP",
-        "banned": "BOOLEAN",
-        "ban_reason": "TEXT",
-        "ref_code": "TEXT",
-        "ref_by": "INTEGER",
-        "ref_rewarded": "INTEGER",
-        "ref_bonus_given": "INTEGER",
-        "bonus_days_pending": "INTEGER",
-        "trial_used": "INTEGER",
-        "has_subscription": "INTEGER",
-        "plan_text": "TEXT",
-        "plan_servers": "TEXT",
-        "subscription_id": "TEXT",
-        "ip_limit": "INTEGER",
-        "traffic_gb": "INTEGER",
-        "vpn_url": "TEXT",
-        "trust_score": "INTEGER",
-        "language": "TEXT",
-        "expiry_alert_sent": "INTEGER",
-        "cleanup_notification_sent": "INTEGER",
-        "expiry_sub_datatime": "TEXT",
-        "extra_sub_gb": "INTEGER",
-        "is_mate": "INTEGER",
-        "mate_nickname": "TEXT",
-        "mate_social_links": "TEXT",
-        "mate_followers": "INTEGER",
-        "mate_avg_reach": "INTEGER",
-        "mate_period_months": "INTEGER",
-        "mate_bonus_type": "TEXT",
-        "mate_bonus_value": "INTEGER",
-        "mate_ref_link_code": "TEXT",
-        "mate_subscription_id": "TEXT",
-        "mate_expiry": "TEXT",
-        "mate_balance": "REAL",
-        "mate_commission_total": "REAL",
-        "mate_withdrawal_requests": "TEXT",
-        "mate_status": "TEXT",
         "telegram_id": "INTEGER DEFAULT 0",
         "web_id": "INTEGER DEFAULT 0",
+        "join_date": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        "username": "TEXT DEFAULT ''",
+        "language": "TEXT DEFAULT ''",
+        "trust_score": "INTEGER DEFAULT 0",
+        "banned": "BOOLEAN DEFAULT FALSE",
+        "ban_reason": "TEXT DEFAULT ''",
+        "has_subscription": "INTEGER DEFAULT 0",
+        "trial_used": "INTEGER DEFAULT 0",
+        "subscription_id": "TEXT DEFAULT ''",
+        "vpn_url": "TEXT DEFAULT ''",
+        "plan_text": "TEXT DEFAULT ''",
+        "plan_servers": "TEXT DEFAULT ''",
+        "ip_limit": "INTEGER DEFAULT 0",
+        "traffic_gb": "INTEGER DEFAULT 0",
+        "extra_sub_gb": "INTEGER DEFAULT 0",
+        "expiry_sub_datatime": "TEXT DEFAULT ''",
+        "expiry_alert_sent": "INTEGER DEFAULT 0",
+        "cleanup_notification_sent": "INTEGER DEFAULT 0",
+        "ref_code": "TEXT",
+        "ref_by": "INTEGER",
+        "ref_rewarded": "INTEGER DEFAULT 0",
+        "ref_bonus_given": "INTEGER DEFAULT 0",
+        "bonus_days_pending": "INTEGER DEFAULT 0",
+        "is_mate": "INTEGER DEFAULT 0",
+        "mate_nickname": "TEXT DEFAULT ''",
+        "mate_social_links": "TEXT DEFAULT ''",
+        "mate_followers": "INTEGER DEFAULT 0",
+        "mate_avg_reach": "INTEGER DEFAULT 0",
+        "mate_period_months": "INTEGER DEFAULT 0",
+        "mate_bonus_type": "TEXT DEFAULT ''",
+        "mate_bonus_value": "INTEGER DEFAULT 0",
+        "mate_ref_link_code": "TEXT DEFAULT ''",
+        "mate_subscription_id": "TEXT DEFAULT ''",
+        "mate_expiry": "TEXT DEFAULT ''",
+        "mate_balance": "REAL DEFAULT 0.0",
+        "mate_commission_total": "REAL DEFAULT 0.0",
+        "mate_withdrawal_requests": "TEXT DEFAULT '[]'",
+        "mate_status": "TEXT DEFAULT ''",
+        "web_login": "TEXT DEFAULT ''",
         "web_registered_at": "TEXT DEFAULT ''",
         "web_last_login": "TEXT DEFAULT ''",
         "web_auth_method": "TEXT DEFAULT ''",
@@ -2427,7 +2388,6 @@ class Database:
         "session_created_at": "TEXT DEFAULT ''",
         "session_version": "INTEGER DEFAULT 0",
         "password_hash": "TEXT DEFAULT ''",
-        "username": "TEXT DEFAULT ''",
         "discount_percent": "INTEGER DEFAULT 0",
         "abuse_status": "TEXT DEFAULT ''",
         "daily_traffic_date": "TEXT DEFAULT ''",
@@ -2456,7 +2416,7 @@ class Database:
             if parent:
                 os.makedirs(parent, exist_ok=True)
                 with suppress(PermissionError, OSError):
-                    os.chmod(parent, 0o755)  # noqa: S103
+                    os.chmod(parent, 0o755)
 
             async def _connect() -> aiosqlite.Connection:
                 conn = await asyncio.wait_for(
@@ -2477,7 +2437,7 @@ class Database:
                 logger.warning(
                     f"Не удалось открыть БД по пути {self.db_path}, пробуем временный каталог"
                 )
-                fallback_dir = os.path.join("/tmp", os.getenv("VPN_NAME", "vpn"))  # noqa: S108
+                fallback_dir = os.path.join("/tmp", os.getenv("VPN_NAME", "vpn"))
                 os.makedirs(fallback_dir, exist_ok=True)
                 fallback_path = os.path.join(fallback_dir, "users.db")
                 self.db_path = fallback_path
@@ -2528,30 +2488,30 @@ class Database:
                     CREATE TABLE IF NOT EXISTS users (
                         user_id INTEGER PRIMARY KEY AUTOINCREMENT,
                         telegram_id INTEGER DEFAULT 0,
+                        web_id INTEGER DEFAULT 0,
                         join_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        username TEXT DEFAULT '',
+                        language TEXT DEFAULT '',
+                        trust_score INTEGER DEFAULT 0,
                         banned BOOLEAN DEFAULT FALSE,
                         ban_reason TEXT DEFAULT '',
+                        has_subscription INTEGER DEFAULT 0,
+                        trial_used INTEGER DEFAULT 0,
+                        subscription_id TEXT DEFAULT '',
+                        vpn_url TEXT DEFAULT '',
+                        plan_text TEXT DEFAULT '',
+                        plan_servers TEXT DEFAULT '',
+                        ip_limit INTEGER DEFAULT 0,
+                        traffic_gb INTEGER DEFAULT 0,
+                        extra_sub_gb INTEGER DEFAULT 0,
+                        expiry_sub_datatime TEXT DEFAULT '',
+                        expiry_alert_sent INTEGER DEFAULT 0,
+                        cleanup_notification_sent INTEGER DEFAULT 0,
                         ref_code TEXT,
                         ref_by INTEGER,
                         ref_rewarded INTEGER DEFAULT 0,
                         ref_bonus_given INTEGER DEFAULT 0,
                         bonus_days_pending INTEGER DEFAULT 0,
-                        trial_used INTEGER DEFAULT 0,
-                        has_subscription INTEGER DEFAULT 0,
-                        plan_text TEXT DEFAULT '',
-                        plan_servers TEXT DEFAULT '',
-                        subscription_id TEXT DEFAULT '',
-                        ip_limit INTEGER DEFAULT 0,
-                        traffic_gb INTEGER DEFAULT 0,
-                        vpn_url TEXT DEFAULT '',
-                        trust_score INTEGER DEFAULT 0,
-                admin_test_sub_id TEXT DEFAULT '',
-                admin_test_expiry TEXT DEFAULT '',
-                        language TEXT DEFAULT '',
-                        expiry_alert_sent INTEGER DEFAULT 0,
-                        cleanup_notification_sent INTEGER DEFAULT 0,
-                        expiry_sub_datatime TEXT DEFAULT '',
-                        extra_sub_gb INTEGER DEFAULT 0,
                         is_mate INTEGER DEFAULT 0,
                         mate_nickname TEXT DEFAULT '',
                         mate_social_links TEXT DEFAULT '',
@@ -2567,7 +2527,7 @@ class Database:
                         mate_commission_total REAL DEFAULT 0.0,
                         mate_withdrawal_requests TEXT DEFAULT '[]',
                         mate_status TEXT DEFAULT '',
-                        web_id INTEGER DEFAULT 0,
+                        web_login TEXT DEFAULT '',
                         web_registered_at TEXT DEFAULT '',
                         web_last_login TEXT DEFAULT '',
                         web_auth_method TEXT DEFAULT '',
@@ -2576,12 +2536,13 @@ class Database:
                         session_created_at TEXT DEFAULT '',
                         session_version INTEGER DEFAULT 0,
                         password_hash TEXT DEFAULT '',
-                        username TEXT DEFAULT '',
                         discount_percent INTEGER DEFAULT 0,
                         abuse_status TEXT DEFAULT '',
                         daily_traffic_date TEXT DEFAULT '',
                         daily_traffic_gb REAL DEFAULT 0.0,
-                        total_traffic_gb REAL DEFAULT 0.0
+                        total_traffic_gb REAL DEFAULT 0.0,
+                        admin_test_sub_id TEXT DEFAULT '',
+                        admin_test_expiry TEXT DEFAULT ''
                     )
                 """)
                 logger.info("init_db: CREATE TABLE выполнен, запуск _migrate_users_table")
@@ -2657,6 +2618,15 @@ class Database:
             await self.conn.execute("UPDATE users SET telegram_id = user_id WHERE telegram_id = 0")
             await self.conn.commit()
             logger.info("telegram_id миграция завершена")
+
+        await self.conn.execute(
+            "UPDATE users SET web_login = username, username = '' "
+            "WHERE COALESCE(web_login, '') = '' "
+            "AND COALESCE(username, '') != '' "
+            "AND COALESCE(password_hash, '') != ''"
+        )
+        await self.conn.commit()
+        logger.info("Миграция логина: старый username перенесён в web_login")
 
         await self.conn.execute(
             "UPDATE users SET language = ? WHERE COALESCE(language, '') = ''",
@@ -2748,7 +2718,7 @@ class Database:
         logger.info("init_db._cleanup_duplicate_users: конец")
 
     @log_error
-    async def add_user(self, telegram_id: int, *, force: bool = False) -> bool:  # noqa: PLR0911
+    async def add_user(self, telegram_id: int, *, force: bool = False) -> bool:
         if not force and await is_admin_user(telegram_id):
             return False
         if not self.conn:
@@ -2758,9 +2728,6 @@ class Database:
             existing = await self.get_user_by_telegram_id(telegram_id)
             if existing:
                 return True
-            # telegram_id = user_id означает, что передали внутренний UID
-            # (например из _create_subscription_unlocked). Создавать такую
-            # строку нельзя - это фантомный пользователь без Telegram.
             if await self.get_user_by_id(telegram_id):
                 return True
             if telegram_id < 1:
@@ -2818,19 +2785,12 @@ class Database:
         return await self.get_user_by_telegram_id(raw_id)
 
     async def resolve_internal_uid(self, raw_id: Any) -> int:
-        """Принимает UID или TID и всегда возвращает внутренний user_id.
-
-        Единственная точка нормализации идентификатора. Не создаёт
-        пользователя, если его нет (в отличие от get_user_by_any_id).
-        """
         value = to_int(raw_id, 0)
         if value <= 0:
             return 0
         user = await self.find_user_by_any_id(value)
         if not user:
             return 0
-        # Без fallback на raw value: TID не является внутренним UID и
-        # может совпасть с user_id другого пользователя.
         return to_int(user.get("user_id"), 0)
 
     @log_error
@@ -2901,7 +2861,7 @@ class Database:
             placeholders = ",".join("?" for _ in user_ids)
             async with self.lock:
                 cur = await self.conn.execute(
-                    f"SELECT * FROM users WHERE user_id IN ({placeholders})",  # noqa: S608
+                    f"SELECT * FROM users WHERE user_id IN ({placeholders})",
                     user_ids,
                 )
                 return [dict(row) for row in await cur.fetchall()]
@@ -2917,7 +2877,7 @@ class Database:
             placeholders = ",".join("?" for _ in telegram_ids)
             async with self.lock:
                 cur = await self.conn.execute(
-                    f"SELECT * FROM users WHERE telegram_id IN ({placeholders})",  # noqa: S608
+                    f"SELECT * FROM users WHERE telegram_id IN ({placeholders})",
                     telegram_ids,
                 )
                 return [dict(row) for row in await cur.fetchall()]
@@ -2945,7 +2905,7 @@ class Database:
         try:
             placeholders = ",".join("?" for _ in user_ids)
             cur = await self.conn.execute(
-                f"SELECT ref_by, COUNT(*) FROM users WHERE ref_by IN ({placeholders}) GROUP BY ref_by",  # noqa: S608
+                f"SELECT ref_by, COUNT(*) FROM users WHERE ref_by IN ({placeholders}) GROUP BY ref_by",
                 user_ids,
             )
             return {row[0]: row[1] for row in await cur.fetchall()}
@@ -2960,7 +2920,7 @@ class Database:
         try:
             placeholders = ",".join("?" for _ in user_ids)
             cur = await self.conn.execute(
-                f"""SELECT ref_by, COUNT(*) FROM users WHERE ref_by IN ({placeholders}) AND ref_rewarded = 1 AND telegram_id != 0 GROUP BY ref_by""",  # noqa: S608
+                f"""SELECT ref_by, COUNT(*) FROM users WHERE ref_by IN ({placeholders}) AND ref_rewarded = 1 AND telegram_id != 0 GROUP BY ref_by""",
                 user_ids,
             )
             return {row[0]: row[1] for row in await cur.fetchall()}
@@ -2995,7 +2955,7 @@ class Database:
         try:
             async with self.lock:
                 await self.conn.execute(
-                    f"UPDATE users SET {set_clause} WHERE user_id = ?",  # noqa: S608
+                    f"UPDATE users SET {set_clause} WHERE user_id = ?",
                     values,
                 )
                 await self.conn.commit()
@@ -3031,7 +2991,7 @@ class Database:
         try:
             async with self.lock:
                 await self.conn.execute(
-                    f"UPDATE users SET {set_clause} WHERE telegram_id = ?",  # noqa: S608
+                    f"UPDATE users SET {set_clause} WHERE telegram_id = ?",
                     values,
                 )
                 await self.conn.commit()
@@ -3170,7 +3130,7 @@ class Database:
         return await self.update_user(internal_uid, banned=False, ban_reason="")
 
     @log_error
-    async def set_subscription(  # noqa: PLR0913, PLR0917
+    async def set_subscription(
         self,
         user_id: int,
         plan_text: str,
@@ -3209,8 +3169,6 @@ class Database:
     async def set_admin_test_subscription(
         self, user_id: int, sub_id: str, expiry_sub_datatime: str
     ) -> bool:
-        # Тестовая подписка админа живёт в отдельных колонках: основная
-        # подписка Admin не должна терять свой sub_id из .env.
         internal_uid = await self.resolve_internal_uid(user_id)
         if internal_uid <= 0:
             return False
@@ -3227,7 +3185,6 @@ class Database:
 
     @log_error
     async def remove_subscription(self, user_id: int) -> bool:
-        # Принимаем UID или TID: update_user работает только по user_id.
         internal_uid = await self.resolve_internal_uid(user_id)
         if internal_uid <= 0:
             return False
@@ -3315,13 +3272,13 @@ class Database:
         if user_id <= 0 or not new_username:
             return False
         try:
-            existing = await self.get_user_by_username(new_username)
+            existing = await self.get_user_by_web_login(new_username)
             if existing and to_int(existing.get("user_id"), 0) != user_id:
                 return False
             user = await self.get_user_by_id(user_id)
             if not user:
                 return False
-            return await self.update_user(user_id, force=True, username=new_username)
+            return await self.update_user(user_id, force=True, web_login=new_username)
         except Exception as e:  # noqa: BLE001
             logger.error(f"change_username error: {e}")
             return False
@@ -3340,7 +3297,7 @@ class Database:
             return False
 
     @log_error
-    async def set_ref_by(self, user_id: int, referrer_id: int) -> bool:  # noqa: PLR0911
+    async def set_ref_by(self, user_id: int, referrer_id: int) -> bool:
         if await is_admin_user(user_id) or await is_admin_user(referrer_id):
             return False
         if user_id <= 0 or referrer_id <= 0:
@@ -3372,7 +3329,6 @@ class Database:
 
     @log_error
     async def get_referral_user_ids(self, internal_uid: int) -> list[int]:
-        """UID всех пользователей, приглашённых через рефкод этого юзера."""
         if not self.conn:
             return []
         try:
@@ -3387,7 +3343,6 @@ class Database:
 
     @log_error
     async def clear_referrals_of(self, internal_uid: int) -> int:
-        """Отвязывает всех рефералов этого юзера и снимает отметку о награде."""
         if not self.conn:
             return 0
         try:
@@ -3404,7 +3359,6 @@ class Database:
 
     @log_error
     async def reset_referral(self, internal_uid: int) -> bool:
-        """Сброс собственной рефералки пользователя (кто его пригласил)."""
         if not self.conn:
             return False
         try:
@@ -3415,8 +3369,6 @@ class Database:
 
     @log_error
     async def shift_subscription_days(self, internal_uid: int, days: int) -> str:
-        """Сдвигает дату окончания подписки. days может быть отрицательным.
-        Возвращает новую дату в ISO или пустую строку при ошибке."""
         if not self.conn or days == 0:
             return ""
         user = await self.get_user_by_id(internal_uid)
@@ -3444,14 +3396,12 @@ class Database:
 
     @log_error
     async def reset_partner_link(self, internal_uid: int, new_code: str) -> bool:
-        """Перегенерирует партнёрскую ссылку. Партнёрство НЕ отзывается."""
         if not self.conn or not new_code:
             return False
         return await self.update_user(internal_uid, mate_ref_link_code=new_code, force=True)
 
     @log_error
     async def reset_partner_stats(self, internal_uid: int) -> bool:
-        """Обнуляет баланс/комиссии/заявки партнёра. is_mate не трогаем."""
         if not self.conn:
             return False
         return await self.update_user(
@@ -3495,7 +3445,6 @@ class Database:
 
     @log_error
     async def mark_ref_bonus_given(self, user_id: int) -> bool:
-        """Ставит флаг, что бонус пригласившего уже выдан приглашённому."""
         user = await self.get_user_by_any_id(user_id)
         if not user:
             return False
@@ -3603,8 +3552,6 @@ class Database:
 
     @log_error
     async def add_trust_score(self, user_id: int, points: int) -> bool:
-        """Принимает UID или TID. Не создаёт пользователя и не пишет в
-        запись, найденную по TID, если передан внутренний UID."""
         if not TRUST_SCORE_ENABLED:
             return False
         user = await self.find_user_by_any_id(user_id)
@@ -3741,7 +3688,6 @@ class Database:
 
     @log_error
     async def count_partner_referrals(self, user_id: int) -> int:
-        # Принимаем UID или TID: ref_by хранит внутренний user_id.
         return await self.count_referrals(await self.resolve_internal_uid(user_id))
 
     @log_error
@@ -3749,7 +3695,7 @@ class Database:
         return await self.count_referrals_paid(await self.resolve_internal_uid(user_id))
 
     @log_error
-    async def set_user_as_partner(  # noqa: PLR0913
+    async def set_user_as_partner(
         self,
         user_id: int,
         *,
@@ -3906,7 +3852,7 @@ class Database:
             return False
 
     @log_error
-    async def add_partner_application(  # noqa: PLR0913, PLR0917
+    async def add_partner_application(
         self,
         telegram_id: int,
         followers: int,
@@ -4001,7 +3947,6 @@ class Database:
             logger.error(f"add_partner_withdrawal_request {telegram_id}: {e}")
             return None
 
-    # === Web auth methods ---
     @log_error
     async def get_user_by_username(self, username: str) -> dict[str, Any] | None:
         if not self.conn:
@@ -4015,6 +3960,21 @@ class Database:
             return dict(row) if row else None
         except Exception as e:  # noqa: BLE001
             logger.error(f"get_user_by_username {username}: {e}")
+            return None
+
+    @log_error
+    async def get_user_by_web_login(self, web_login: str) -> dict[str, Any] | None:
+        if not self.conn:
+            return None
+        try:
+            cur = await self.conn.execute(
+                "SELECT * FROM users WHERE LOWER(web_login) = LOWER(?)",
+                (web_login.strip(),),
+            )
+            row = await cur.fetchone()
+            return dict(row) if row else None
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"get_user_by_web_login {web_login}: {e}")
             return None
 
     @log_error
@@ -4086,7 +4046,7 @@ class Database:
 
     @log_error
     async def create_web_account(
-        self, username: str, password_hash: str, telegram_id: int | None = None
+        self, web_login: str, password_hash: str, telegram_id: int | None = None
     ) -> dict[str, Any] | None:
         if not self.conn:
             return None
@@ -4095,10 +4055,10 @@ class Database:
             tg_id = telegram_id if telegram_id else 0
             async with self.lock:
                 cursor = await self.conn.execute(
-                    "INSERT INTO users (telegram_id, username, password_hash, web_registered_at, web_auth_method, session_token, session_expires_at, session_created_at, language) VALUES (?, ?, ?, ?, 'local', '', '', '', ?)",
+                    "INSERT INTO users (telegram_id, web_login, password_hash, web_registered_at, web_auth_method, session_token, session_expires_at, session_created_at, language) VALUES (?, ?, ?, ?, 'local', '', '', '', ?)",
                     (
                         tg_id,
-                        username.strip(),
+                        web_login.strip(),
                         password_hash,
                         now,
                         Config.DEFAULT_LANGUAGE,
@@ -4118,12 +4078,13 @@ class Database:
             return None
 
     @log_error
-    async def update_web_auth(  # noqa: PLR0913
+    async def update_web_auth(
         self,
         user_id: int,
         *,
         password_hash: str | None = None,
         telegram_id: int | None = None,
+        web_login: str | None = None,
         web_auth_method: str | None = None,
         session_token: str | None = None,
         session_expires_at: str | None = None,
@@ -4143,6 +4104,9 @@ class Database:
             if telegram_id is not None:
                 updates.append("telegram_id = ?")
                 values.append(telegram_id)
+            if web_login is not None:
+                updates.append("web_login = ?")
+                values.append(web_login)
             if web_auth_method is not None:
                 updates.append("web_auth_method = ?")
                 values.append(web_auth_method)
@@ -4169,7 +4133,7 @@ class Database:
             values.append(user_id)
             async with self.lock:
                 await self.conn.execute(
-                    f"UPDATE users SET {', '.join(updates)} WHERE user_id = ?",  # noqa: S608
+                    f"UPDATE users SET {', '.join(updates)} WHERE user_id = ?",
                     values,
                 )
                 await self.conn.commit()
@@ -4205,7 +4169,7 @@ class Database:
             return {}
 
     @log_error
-    async def _compare_subscriptions(self, user_a: dict[str, Any], user_b: dict[str, Any]) -> int:  # noqa: PLR0911
+    async def _compare_subscriptions(self, user_a: dict[str, Any], user_b: dict[str, Any]) -> int:
         try:
             a_sub = user_a.get("has_subscription", 0)
             b_sub = user_b.get("has_subscription", 0)
@@ -4248,7 +4212,7 @@ class Database:
             return 0
 
     @log_error
-    async def merge_accounts(self, user_a_id: int, user_b_id: int) -> bool:  # noqa: PLR0912
+    async def merge_accounts(self, user_a_id: int, user_b_id: int) -> bool:
         if not self.conn or user_a_id == user_b_id:
             return False
         try:
@@ -4316,7 +4280,7 @@ class Database:
                     set_clause = ", ".join(f"{k} = ?" for k in updates)
                     values = [*list(updates.values()), keep_id]
                     await self.conn.execute(
-                        f"UPDATE users SET {set_clause} WHERE user_id = ?",  # noqa: S608
+                        f"UPDATE users SET {set_clause} WHERE user_id = ?",
                         values,
                     )
 
@@ -4367,8 +4331,10 @@ class Database:
                 params.extend([query_int, query_int])
 
             like_pattern = f"%{q}%"
-            sql += " OR username LIKE ? OR ref_code LIKE ? OR vpn_url LIKE ? OR mate_nickname LIKE ? OR mate_ref_link_code LIKE ?"
-            params.extend([like_pattern, like_pattern, like_pattern, like_pattern, like_pattern])
+            sql += " OR username LIKE ? OR web_login LIKE ? OR ref_code LIKE ? OR vpn_url LIKE ? OR mate_nickname LIKE ? OR mate_ref_link_code LIKE ?"
+            params.extend(
+                [like_pattern, like_pattern, like_pattern, like_pattern, like_pattern, like_pattern]
+            )
             order_clause += " ELSE 3 END, user_id"
             sql += f" {order_clause} LIMIT 50"
 
@@ -4416,7 +4382,7 @@ class Database:
             return []
 
     @log_error
-    async def reconcile_telegram_account(self, telegram_id: int) -> int | None:  # noqa: PLR0912
+    async def reconcile_telegram_account(self, telegram_id: int) -> int | None:
         if not self.conn or not telegram_id:
             return None
         try:
@@ -4439,7 +4405,7 @@ class Database:
                 return only["user_id"]
 
             def has_web(u: dict[str, Any]) -> bool:
-                return bool(u.get("username")) or (u.get("web_id") not in (None, 0))
+                return bool(u.get("web_login")) or (u.get("web_id") not in (None, 0))
 
             web_rows = [u for u in rows if has_web(u)]
             if admin_rows:
@@ -4493,6 +4459,7 @@ class Database:
                         updates[field] = other[field]
                 for field in [
                     "web_id",
+                    "web_login",
                     "web_registered_at",
                     "web_auth_method",
                     "web_last_login",
@@ -4506,7 +4473,7 @@ class Database:
                 values = [*list(updates.values()), keeper["user_id"]]
                 async with self.lock:
                     await self.conn.execute(
-                        f"UPDATE users SET {set_clause} WHERE user_id = ?",  # noqa: S608
+                        f"UPDATE users SET {set_clause} WHERE user_id = ?",
                         values,
                     )
                     await self.conn.commit()
@@ -4519,7 +4486,7 @@ class Database:
             return None
 
     @log_error
-    async def delete_phantom_account(self, user_id: int) -> bool:  # noqa: PLR0911
+    async def delete_phantom_account(self, user_id: int) -> bool:
         if not self.conn:
             return False
         try:
@@ -4533,7 +4500,7 @@ class Database:
                     return False
                 if data.get("web_id"):
                     return False
-                if data.get("username") or data.get("password_hash"):
+                if data.get("web_login") or data.get("password_hash"):
                     return False
                 await self.conn.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
                 await self.conn.commit()
@@ -4545,9 +4512,6 @@ class Database:
 
     @log_error
     async def admin_delete_account(self, user_id: int) -> bool:
-        """Полное удаление аккаунта админом. В отличие от delete_phantom_account
-        не требует «пустого» пользователя: подписку, партнёрство и абьюз
-        должен снести вызывающий код до вызова."""
         if not self.conn:
             return False
         try:
@@ -4720,11 +4684,6 @@ class JSONStorage:
         return self._data
 
     async def _transaction(self, callback, *, save: bool = True):
-        # Единственная точка доступа к файлу платежей. Блокировки всегда
-        # берутся в одном порядке (сначала process-local, потом файловая),
-        # а чтение, изменение и запись происходят под одним захватом.
-        # Иначе конкурентная транзакция успевает перечитать файл и затереть
-        # только что добавленную запись.
         async with self._lock, self._file_lock:
             await self._load_data()
             result = await callback(self._data)
@@ -4892,8 +4851,6 @@ class JSONStorage:
 
         try:
             released = await self._transaction(_release)
-            # Файл перезаписан даже если ничего не изменилось - это дёшево
-            # и исключает рассинхрон in-memory копии с диском.
             return released
         except Exception as e:  # noqa: BLE001
             logger.error(f"Ошибка release_stale_processing_payments: {e}")
@@ -4975,7 +4932,6 @@ async def complete_bot_auth_state(state: str, auth_token: str) -> bool:
             if state in _bot_auth_states:
                 _bot_auth_states[state]["completed"] = True
                 _bot_auth_states[state]["auth_token"] = auth_token
-                # Schedule cleanup after 30 seconds to allow polling to complete
                 spawn_tracked_task(_delayed_auth_state_cleanup(state, 30))
                 return True
         return False
@@ -5079,17 +5035,11 @@ PARTNER_OP_ID_PREFIX = {
     "partner_renewal": "pr",
     "partner_withdrawal": "pw",
 }
-# Короткие префиксы: 64 байта - жёсткий лимит Telegram callback_data.
 PARTNER_OP_ACCEPT_CB = "p_acc"
 PARTNER_OP_REJECT_CB = "p_rej"
 
 
 def build_partner_operation_id(user_id: int, op_type: str) -> str:
-    """Короткий ID операции.
-
-    Полный op_type в ID не помещался вместе с префиксом callback_data
-    в лимит Telegram в 64 байта (BUTTON_DATA_INVALID).
-    """
     code = PARTNER_OP_ID_PREFIX.get(op_type, "po")
     return f"{code}_{user_id}_{int(time.time() * 1000)}"
 
@@ -5551,7 +5501,7 @@ class PanelAPI:
             logger.error(f"_add_clients_traffic_one_by_one: не удалось начислить {add_gb} ГБ")
         return updated_any
 
-    async def set_client_total_traffic(self, base_email: str, total_gb: int) -> bool:  # noqa: PLR0912
+    async def set_client_total_traffic(self, base_email: str, total_gb: int) -> bool:
         if total_gb <= 0:
             return False
         target_bytes = int(total_gb * BYTES_IN_GB)
@@ -5648,7 +5598,7 @@ class PanelAPI:
                     self.connector = None
 
     @log_error
-    async def create_client(  # noqa: PLR0913, PLR0917
+    async def create_client(
         self,
         email: str,
         limit_ip: int,
@@ -5710,7 +5660,7 @@ class PanelAPI:
             return None
 
     @log_error
-    async def create_client_in_inbound(  # noqa: PLR0913, PLR0917
+    async def create_client_in_inbound(
         self,
         inbound_id: int,
         email: str,
@@ -5951,9 +5901,6 @@ class PanelAPI:
         return extended_any
 
     async def shift_client_expiry(self, base_email: str, delta_days: int) -> bool:
-        """Сдвигает срок клиента на delta_days. Отрицательное значение
-        сокращает срок. extend_client_expiry такого не умеет - он режет
-        всё, что меньше нуля, поэтому сокращение делается точечно."""
         if delta_days == 0:
             return False
         emails = await self._collect_unique_client_emails(base_email)
@@ -6423,7 +6370,7 @@ async def is_cancel_fsm(
     return True
 
 
-async def resolve_admin_target(  # noqa: PLR0913
+async def resolve_admin_target(
     event: Message,
     state: FSMContext,
     val: str,
@@ -6520,8 +6467,6 @@ class ChangePasswordState(StatesGroup):
 
 
 class ManualIssueState(StatesGroup):
-    """Ручная выдача/продление/замена подписки админом."""
-
     waiting_for_user_id = State()
     waiting_for_mode = State()
     waiting_for_plan = State()
@@ -7104,7 +7049,6 @@ def build_pending_payment_keyboard(payment_id: str) -> InlineKeyboardMarkup:
 
 
 async def notify_admins_pending_payment(payment: dict[str, Any]) -> None:
-    """Рассылает админам заявку с кнопками подтверждения."""
     payment_id = str(payment.get("payment_id") or "")
     if not payment_id:
         return
@@ -7121,7 +7065,7 @@ async def notify_admins_pending_payment(payment: dict[str, Any]) -> None:
             logger.warning(f"notify_admins_pending_payment {admin_id}: {e}")
 
 
-async def store_api_subscription_payment(  # noqa: PLR0913
+async def store_api_subscription_payment(
     session_user: dict[str, Any],
     *,
     plan_id: str,
@@ -7374,7 +7318,7 @@ async def show_custom_summary(event: Message | CallbackQuery, state: FSMContext)
     await state.set_state(CustomTariffState.waiting_for_confirm)
 
     ip_part = "IP × D"
-    if abs(Config.CUSTOM_TARIFF_IP_DAY_COEF - 1.0) > 1e-9:  # noqa: PLR2004
+    if abs(Config.CUSTOM_TARIFF_IP_DAY_COEF - 1.0) > 1e-9:
         ip_part = f"IP × D × {format_number(Config.CUSTOM_TARIFF_IP_DAY_COEF)}"
     formula = f"total = {format_number(Config.CUSTOM_TARIFF_BASE_PRICE)} + GB × {format_number(Config.CUSTOM_TARIFF_GB_COEF)} + {ip_part} + LOC × D"
     if disc > 0:
@@ -7465,11 +7409,10 @@ async def show_offer_agreement(
     await smart_answer(event, text, reply_markup=kb(keyboard), delete_origin=True)
 
 
-async def get_subscription_state(user_id: int) -> dict[str, Any]:  # noqa: PLR0911
+async def get_subscription_state(user_id: int) -> dict[str, Any]:
     user = await db.get_user_by_any_id(user_id)
     if not user:
         return {"status": "no_user", "panel_available": True}
-    # Единая точка нормализации: дальше работаем только с internal_uid.
     internal_uid = await db.resolve_internal_uid(user_id)
     user_data_admin = user
     plan_text_admin_check = str(user_data_admin.get("plan_text", "") or "")
@@ -7549,7 +7492,7 @@ async def get_subscription_state(user_id: int) -> dict[str, Any]:  # noqa: PLR09
     }
 
 
-async def cleanup_subscription(  # noqa: PLR0912
+async def cleanup_subscription(
     user_id: int,
     reason: str,
     *,
@@ -7575,9 +7518,6 @@ async def cleanup_subscription(  # noqa: PLR0912
     tg_id = to_int(user_data.get("telegram_id"), user_id)
     internal_uid = user_data.get("user_id", user_id)
 
-    # Канонический Admin-клиент общий для всех админов и не принадлежит
-    # конкретному пользователю. Удалять его нельзя даже если админа сняли
-    # со списка: иначе один устаревший аккаунт снесёт доступ всем.
     configured_admin_sub_id = Config.ADMIN_SUB_ID or "Admin"
     if normalize_sub_id(user_data.get("vpn_url")) == configured_admin_sub_id:
         logger.warning(
@@ -7684,17 +7624,11 @@ async def cleanup_admin_test_subscriptions() -> dict[str, int]:
             if not user_data:
                 continue
 
-            # Тестовая подписка админа хранится в отдельных колонках,
-            # поэтому ориентируемся только на них, а не на plan_text.
             test_sub_id = normalize_sub_id(user_data.get("admin_test_sub_id"))
             if not test_sub_id:
                 continue
 
             internal_uid = to_int(user_data.get("user_id"), admin_id)
-            # Ищем клиент по subId, а не по адресу: адрес build_base_email
-            # общий с обычной подпиской админа, и create_subscription
-            # пересоздаёт клиента там с новым subId. Поиск по адресу удалял
-            # бы клиент, к тесту отношения не имеющий.
             found_ok, sub_clients = await panel.find_clients_by_sub_id_safe(test_sub_id)
 
             if not found_ok:
@@ -7751,7 +7685,7 @@ async def ensure_startup_admin_accounts() -> None:
     _admin_startup_completed = True
 
 
-async def _ensure_admin_subscription(admin_id: int) -> bool:  # noqa: PLR0911, PLR0912, PLR0915
+async def _ensure_admin_subscription(admin_id: int) -> bool:
     async with _admin_sub_lock:
         try:
             user_data = await db.get_user_by_any_id(admin_id)
@@ -7771,8 +7705,6 @@ async def _ensure_admin_subscription(admin_id: int) -> bool:  # noqa: PLR0911, P
                 )
                 return False
 
-            # Ищем уже существующего канонического Admin-клиента: сначала по subId
-            # (он единый для всех админов), затем по каноническому email.
             existing = None
             existing_email = admin_email
             ok, sub_clients = await panel.find_clients_by_sub_id_safe(admin_sub_id)
@@ -7786,8 +7718,6 @@ async def _ensure_admin_subscription(admin_id: int) -> bool:  # noqa: PLR0911, P
                     existing_email = admin_email
 
             if existing:
-                # Уже есть канонический клиент Admin - обновляем его
-                # (безлимит + привязка ко всем inbound'ам), не создавая дубля.
                 client = dict(existing)
                 client["email"] = existing_email
                 client["enable"] = True
@@ -7826,7 +7756,6 @@ async def _ensure_admin_subscription(admin_id: int) -> bool:  # noqa: PLR0911, P
                     sub_id=admin_sub_id,
                 )
                 if not client:
-                    # subId уже занят другим клиентом - обновляем существующий.
                     logger.warning(
                         f"_ensure_admin_subscription {admin_id}: subId '{admin_sub_id}' "
                         f"уже занят, обновляем существующего клиента"
@@ -7873,11 +7802,6 @@ async def _ensure_admin_subscription(admin_id: int) -> bool:  # noqa: PLR0911, P
                         f"Admin {telegram_id}: создан клиент '{admin_sub_id}' (все inbound'ы, безлимит)"
                     )
 
-            # Админ всегда приводится к канону из .env: есть у него своя
-            # подписка или нет - vpn_url/subscription_id/plan_text/ip/gb
-            # переписываются в ADMIN_SUB_ID. Раньше при наличии своей
-            # подписки запись пропускалась, и нормализация вечно писала
-            # «восстанавливаем», не меняя ничего.
             stored_sub_id = normalize_sub_id(user_data.get("vpn_url"))
             stored_subscription_id = str(user_data.get("subscription_id") or "").strip()
             needs_db_sync = (
@@ -7888,10 +7812,6 @@ async def _ensure_admin_subscription(admin_id: int) -> bool:  # noqa: PLR0911, P
                 or to_float(user_data.get("traffic_gb"), 0.0) != float(traffic_gb)
             )
 
-            # Удаляем устаревший клиент этого админа (мусор от старой логики):
-            # адрес считается от внутреннего user_id, как в create_subscription.
-            # Тестовая подписка живёт по тому же адресу, поэтому при
-            # заполненном admin_test_sub_id удаление пропускается.
             internal_uid = to_int(user_data.get("user_id"), admin_id)
             stale_email = build_base_email(internal_uid)
             stale_email_is_free = not normalize_sub_id(user_data.get("admin_test_sub_id"))
@@ -7944,8 +7864,6 @@ async def _notify_subscription_creation_failed(
 ) -> None:
     try:
         user = await db.get_user_by_any_id(user_id)
-        # user_id может быть UID: подставлять его как chat_id нельзя,
-        # уведомление уйдёт на несуществующий чат.
         tg_id = to_int(user.get("telegram_id"), 0) if user else 0
         if tg_id <= 0:
             logger.info(
@@ -7967,7 +7885,7 @@ async def _notify_subscription_creation_failed(
         logger.error(f"_notify_subscription_creation_failed {user_id}: {e}")
 
 
-async def create_subscription(  # noqa: PLR0913
+async def create_subscription(
     user_id: int,
     plan: dict[str, Any],
     *,
@@ -7991,7 +7909,7 @@ async def create_subscription(  # noqa: PLR0913
         )
 
 
-async def _create_subscription_unlocked(  # noqa: PLR0911, PLR0912, PLR0913, PLR0915
+async def _create_subscription_unlocked(
     user_id: int,
     plan: dict[str, Any],
     *,
@@ -8135,9 +8053,6 @@ async def _create_subscription_unlocked(  # noqa: PLR0911, PLR0912, PLR0913, PLR
     expiry_sub_datatime = expiry_dt.isoformat()
 
     if is_admin_test:
-        # Тестовая подписка админа не должна затирать каноническую
-        # Admin-подписку (sub_id из .env), поэтому пишем в отдельные
-        # колонки, а сразу после выдачи восстанавливаем Admin из .env.
         await db.set_admin_test_subscription(internal_user_id, sub_id, expiry_sub_datatime)
         await _ensure_admin_subscription(internal_user_id)
         logger.info(f"✅ Тестовая подписка создана для админа {user_id}, sub_id={sub_id}")
@@ -8202,7 +8117,7 @@ async def renew_subscription(
         )
 
 
-async def _renew_subscription_unlocked(  # noqa: PLR0912
+async def _renew_subscription_unlocked(
     user_id: int,
     plan: dict[str, Any],
     *,
@@ -8341,7 +8256,7 @@ async def is_active_subscription(user_id: int, *, notify_user_about_cleanup: boo
     )
 
 
-async def notify_expiring_subscription(  # noqa: PLR0911
+async def notify_expiring_subscription(
     user_id: int, state: dict[str, Any], days: int | None = None
 ) -> bool:
     if days is None:
@@ -8403,11 +8318,6 @@ async def notify_expiring_subscription(  # noqa: PLR0911
 
 
 def resolve_referral_bonus_spec(referrer: dict[str, Any] | None) -> tuple[str, int]:
-    """Тип и размер бонуса, который пригласивший даёт приглашённому.
-
-    Партнёр задаёт бонус сам (дни или очки доверия), обычный реферер
-    всегда даёт бонусные дни.
-    """
     if referrer and referrer.get("is_mate"):
         bonus_type = str(referrer.get("mate_bonus_type", "") or "days").strip().lower()
         bonus_value = to_int(referrer.get("mate_bonus_value"), 0)
@@ -8419,11 +8329,6 @@ def resolve_referral_bonus_spec(referrer: dict[str, Any] | None) -> tuple[str, i
 
 
 def resolve_referrer_display_name(referrer: dict[str, Any] | None) -> str:
-    """Как показать пригласившего в тексте бонуса.
-
-    У партнёра есть никнейм, у обычного пользователя - только username
-    или UID. Без этого в сообщении светится прочерк.
-    """
     if not referrer:
         return "-"
     nickname = str(referrer.get("mate_nickname", "") or "").strip()
@@ -8442,11 +8347,6 @@ async def notify_referee_bonus_ready(
     referrer_name: str = "",
     is_partner: bool = False,
 ) -> None:
-    """Уведомление приглашённому о том, какой бонус ему положен.
-
-    Тексты разделяются по статусу ПРИГЛАСИВШЕГО, а не приглашённого:
-    ссылка партнёра и обычная рефералка - разные программы.
-    """
     user = await db.get_user_by_any_id(uid)
     if not user:
         return
@@ -8481,10 +8381,6 @@ async def notify_referee_bonus_ready(
 
 
 async def grant_referee_bonus_on_registration(uid: int, referrer: dict[str, Any] | None) -> None:
-    """Бонус приглашённому сразу после регистрации.
-
-    Очки доверия начисляются сразу, бонусные дни ждут первой оплаты.
-    """
     if not referrer or uid <= 0:
         return
     if await db.get_user_by_any_id(uid) and to_int(
@@ -8494,8 +8390,6 @@ async def grant_referee_bonus_on_registration(uid: int, referrer: dict[str, Any]
     bonus_type, bonus_value = resolve_referral_bonus_spec(referrer)
     if bonus_value <= 0:
         return
-    # Статус пригласившего определяет набор текстов: партнёрская ссылка
-    # и обычная рефералка - это разные программы.
     is_partner = bool(referrer.get("is_mate"))
     referrer_name = resolve_referrer_display_name(referrer)
     if bonus_type == "trust":
@@ -8511,23 +8405,16 @@ async def grant_referee_bonus_on_registration(uid: int, referrer: dict[str, Any]
     )
 
 
-async def reward_referrer(  # noqa: PLR0911, PLR0912, PLR0915
+async def reward_referrer(
     referrer_id: int,
     bonus_days: int,
     is_partner: bool = False,
     is_referee: bool = False,
 ) -> bool:
-    """Выдать бонусные дни.
-
-    Функция обслуживает двух разных получателей: пригласившего (бонус за
-    оплатившего реферала) и самого приглашённого (обещанные дни после его
-    первой оплаты). Это разные события, поэтому у них разные тексты.
-    """
     user = await db.get_user_by_any_id(referrer_id)
     if not user:
         return False
     if is_referee:
-        # Приглашённый получает ранее обещанные дни.
         added_key = (
             "texts.ref_bonus_days_granted_partner" if is_partner else "texts.ref_bonus_days_granted"
         )
@@ -8537,8 +8424,6 @@ async def reward_referrer(  # noqa: PLR0911, PLR0912, PLR0915
             else "texts.ref_bonus_days_granted_subscription"
         )
     else:
-        # У партнёра и у обычного реферера разные тексты: это разные
-        # программы, и общий текст путает пользователя.
         added_key = (
             "texts.partner_ref_bonus_days_added"
             if is_partner
@@ -8552,8 +8437,6 @@ async def reward_referrer(  # noqa: PLR0911, PLR0912, PLR0915
     suffix_key = (
         "texts.partner_ref_bonus_plan_suffix" if is_partner else "texts.referral_bonus_plan_suffix"
     )
-    # Админские уведомления о сбое выдачи тоже раздельные: партнёрский
-    # бонус и реферальный - разные потоки с разными правилами.
     if is_partner:
         admin_extend_failed = "texts.partner_bonus_extend_failed_admin"
         admin_no_plan = "texts.partner_bonus_no_plan_admin"
@@ -8661,7 +8544,6 @@ async def reward_referrer(  # noqa: PLR0911, PLR0912, PLR0915
 
 
 async def grant_referee_days_bonus_after_payment(uid: int, ref_by: int) -> None:
-    """Бонусные дни приглашённому - только после первой оплаты."""
     referee = await db.get_user_by_any_id(uid)
     if not referee or to_int(referee.get("ref_bonus_given"), 0):
         return
@@ -8688,7 +8570,6 @@ async def grant_referral_bonus(
 ) -> None:
     if not ref_by:
         return
-    # Оплата состоялась - дни приглашённому можно выдавать.
     await grant_referee_days_bonus_after_payment(uid, ref_by)
     if not ref_rewarded:
         if not await db.mark_ref_rewarded(uid):
@@ -8731,7 +8612,6 @@ async def claim_pending_payment_or_alert(
 async def finalize_claimed_payment_or_alert(
     event: CallbackQuery | None, payment_id: str, action: str, final_status: str
 ) -> bool:
-    # event=None для API-эндпоинтов: там модератора нет, уведомлять некого.
     moderator_id = get_event_user_id(event) or 0 if event is not None else 0
     success = await json_db.finalize_claimed_payment(payment_id, moderator_id, action, final_status)
     if not success:
@@ -8908,9 +8788,6 @@ async def ban_middleware(handler: Callable, event: Any, data: dict[str, Any]) ->
     user_id = get_event_user_id(event) or 0
     try:
         lang = data.get("language", Config.DEFAULT_LANGUAGE)
-        # find_user_by_any_id не создаёт запись: раньше здесь вызывался
-        # get_user_by_any_id, который добавлял пользователя в БД при первом
-        # же касании и мог вернуть не-dict.
         user = await db.find_user_by_any_id(user_id)
         if not isinstance(user, dict):
             user = None
@@ -8938,10 +8815,6 @@ async def ban_middleware(handler: Callable, event: Any, data: dict[str, Any]) ->
                     logger.warning(f"Ошибка fallback-отправки в ban_middleware: {e}")
             return None
     except Exception:
-        # Ошибка самой проверки бана (БД, переводы) не должна глушить событие,
-        # но получает traceback для диагностики. Handler здесь НЕ вызывается
-        # повторно: он идёт ниже, вне except, чтобы исключения обработчика
-        # уходили в глобальный обработчик ошибок без двойных побочных эффектов.
         logger.exception(f"Ошибка проверки бана в ban_middleware для {user_id}")
     return await handler(event, data)
 
@@ -9125,7 +8998,7 @@ async def error_handler(event: ErrorEvent) -> bool:
 @router.message(Command("start"))
 @router.callback_query(F.data == "start")
 @log_error
-async def cmd_start(event: Message | CallbackQuery, state: FSMContext, **kwargs: Any) -> None:  # noqa: PLR0911, PLR0912, PLR0915
+async def cmd_start(event: Message | CallbackQuery, state: FSMContext, **kwargs: Any) -> None:
     await state.clear()
     user = getattr(event, "from_user", None)
     if not user:
@@ -9411,18 +9284,11 @@ async def cmd_start(event: Message | CallbackQuery, state: FSMContext, **kwargs:
                     if not ref_user:
                         ref_user = await db.get_user_by_mate_ref_code(ref_code)
                         is_mate_link = ref_user is not None
-                    # Самоприглашение сравниваем по TID: user_id в ref_user -
-                    # это внутренний UID, а user_id здесь - TID из апдейта.
                     ref_tid = to_int((ref_user or {}).get("telegram_id"), 0)
                     if ref_user and ref_tid and ref_tid != user_id:
                         linked = await db.set_ref_by(user_id, ref_user.get("user_id"))
                         ref_nickname = str(ref_user.get("mate_nickname", "") or "").strip()
                         if linked:
-                            # Приглашённому сразу сообщаем, кто его
-                            # пригласил и какой бонус ему положен.
-                            # Очки доверия начисляются сразу, дни - после
-                            # первой оплаты тарифа. У партнёра и у
-                            # обычного реферера разные тексты.
                             if is_mate_link:
                                 await event.answer(
                                     translate(
@@ -9464,6 +9330,11 @@ async def cmd_start(event: Message | CallbackQuery, state: FSMContext, **kwargs:
                 return
         else:
             lang = await db.get_user_language(user_id) or Config.DEFAULT_LANGUAGE
+
+        # Update username from Telegram @username on each visit
+        tg_username = (user.username or "").strip()
+        if tg_username:
+            await db.update_user(user_id, username=tg_username, force=True)
 
         total = await db.get_total_users()
         banned = await db.get_banned_users_count()
@@ -10009,7 +9880,7 @@ async def cmd_custom_show_offer(event: CallbackQuery, state: FSMContext, **kwarg
         return
     lang = await get_lang(event)
     parts = event.data.split(":")
-    if len(parts) < 3:  # noqa: PLR2004
+    if len(parts) < 3:
         await event.answer(
             translate(lang, "texts.request_processing_error"),
             show_alert=True,
@@ -10039,7 +9910,7 @@ async def cmd_custom_show_offer(event: CallbackQuery, state: FSMContext, **kwarg
 async def cmd_custom_choose_payment_method(event: CallbackQuery, state: FSMContext, **kwargs):
     lang = await get_lang(event)
     parts = event.data.split(":")
-    if len(parts) < 3:  # noqa: PLR2004
+    if len(parts) < 3:
         await event.answer(
             translate(lang, "texts.request_processing_error"),
             show_alert=True,
@@ -10127,7 +9998,7 @@ async def cmd_custom_choose_payment_method(event: CallbackQuery, state: FSMConte
     )
 
 
-async def _build_yoomoney_payment(  # noqa: PLR0913, PLR0917
+async def _build_yoomoney_payment(
     event: CallbackQuery,
     uid: int,
     amount: int,
@@ -10185,7 +10056,7 @@ async def cmd_custom_show_yoomoney(event: CallbackQuery, state: FSMContext, **kw
         return
     lang = await get_lang(event)
     parts = event.data.split(":")
-    if len(parts) < 3:  # noqa: PLR2004
+    if len(parts) < 3:
         await event.answer(
             translate(lang, "texts.request_processing_error"),
             show_alert=True,
@@ -10229,11 +10100,11 @@ async def cmd_custom_show_yoomoney(event: CallbackQuery, state: FSMContext, **kw
 
 
 @router.callback_query(F.data.startswith("custom:confirm_payment:test:"))
-async def cmd_custom_confirm_test(event: CallbackQuery, state: FSMContext, **kwargs):  # noqa: PLR0911
+async def cmd_custom_confirm_test(event: CallbackQuery, state: FSMContext, **kwargs):
     if not await ensure_custom_tariff_access(event, state):
         return
     parts = event.data.split(":")
-    if len(parts) < 4:  # noqa: PLR2004
+    if len(parts) < 4:
         await event.answer(
             translate(Config.DEFAULT_LANGUAGE, "texts.request_processing_error"),
             show_alert=True,
@@ -10276,8 +10147,6 @@ async def cmd_custom_confirm_test(event: CallbackQuery, state: FSMContext, **kwa
         return
     if not plan_name:
         plan_name = build_custom_plan_name(traffic, ip, days, servers)
-    # Тестовая подписка админа выдаётся только после подтверждения,
-    # поэтому заявка уходит в список ожидающих, как и обычный платёж.
     internal_uid, tg_id = await resolve_payment_identity(user_id)
     payment_id = f"pay_{internal_uid}_{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}"
     payment_data = {
@@ -10324,11 +10193,11 @@ async def cmd_custom_confirm_test(event: CallbackQuery, state: FSMContext, **kwa
 @router.callback_query(
     CustomTariffState.waiting_for_confirm, F.data.startswith("custom:confirm_payment:")
 )
-async def cmd_custom_confirm_payment(event: CallbackQuery, state: FSMContext, **kwargs):  # noqa: PLR0911
+async def cmd_custom_confirm_payment(event: CallbackQuery, state: FSMContext, **kwargs):
     if not await ensure_custom_tariff_access(event, state):
         return
     parts = event.data.split(":")
-    if len(parts) < 4:  # noqa: PLR2004
+    if len(parts) < 4:
         await event.answer(
             translate(Config.DEFAULT_LANGUAGE, "texts.request_processing_error"),
             show_alert=True,
@@ -10386,7 +10255,6 @@ async def cmd_custom_confirm_payment(event: CallbackQuery, state: FSMContext, **
         plan_name = build_custom_plan_name(traffic, ip, days, servers)
 
     if await is_admin_user(uid):
-        # Тестовая подписка админа - через путь подтверждения, как и обычный платёж.
         internal_uid, tg_id = await resolve_payment_identity(uid)
         payment_id = f"pay_{internal_uid}_{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}"
         payment_data = {
@@ -10536,7 +10404,7 @@ async def open_plan_offer(event: CallbackQuery, *, is_renewal: bool) -> None:
 async def cmd_show_payment_details(event: CallbackQuery):
     lang = await get_lang(event)
     parts = event.data.split(":")
-    if len(parts) < 3:  # noqa: PLR2004
+    if len(parts) < 3:
         await event.answer(
             translate(lang, "texts.request_processing_error"),
             show_alert=True,
@@ -10640,9 +10508,6 @@ async def cmd_test_plan(event: CallbackQuery, **kwargs: Any) -> None:
         await event.answer(error, show_alert=True)
         return
 
-    # Тестовая подписка выдаётся через тот же путь подтверждения, что и
-    # обычный платёж: заявка попадает в список ожидающих и выдаётся только
-    # после явного подтверждения администратора.
     internal_uid, tg_id = await resolve_payment_identity(user_id)
     payment_id = f"pay_{internal_uid}_{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}"
     payment_data = {
@@ -10757,7 +10622,7 @@ async def cmd_trial_plan(event: CallbackQuery, **kwargs):
 async def cmd_choose_payment_method(event: CallbackQuery, **kwargs):
     lang = await get_lang(event)
     parts = event.data.split(":")
-    if len(parts) < 3:  # noqa: PLR2004
+    if len(parts) < 3:
         await event.answer(
             translate(lang, "texts.request_processing_error"),
             show_alert=True,
@@ -10828,7 +10693,7 @@ async def cmd_choose_payment_method(event: CallbackQuery, **kwargs):
 async def cmd_show_yoomoney_payment(event: CallbackQuery, **kwargs):
     lang = await get_lang(event)
     parts = event.data.split(":")
-    if len(parts) < 3:  # noqa: PLR2004
+    if len(parts) < 3:
         await event.answer(
             translate(lang, "texts.request_processing_error"),
             show_alert=True,
@@ -10874,7 +10739,7 @@ async def cmd_show_yoomoney_payment(event: CallbackQuery, **kwargs):
 async def cmd_show_p2p_payment(event: CallbackQuery, **kwargs):
     lang = await get_lang(event)
     parts = event.data.split(":")
-    if len(parts) < 3:  # noqa: PLR2004
+    if len(parts) < 3:
         await event.answer(
             translate(lang, "texts.request_processing_error"),
             show_alert=True,
@@ -10937,7 +10802,7 @@ async def cmd_custom_show_p2p(event: CallbackQuery, state: FSMContext, **kwargs)
         return
     lang = await get_lang(event)
     parts = event.data.split(":")
-    if len(parts) < 3:  # noqa: PLR2004
+    if len(parts) < 3:
         await event.answer(
             translate(lang, "texts.request_processing_error"),
             show_alert=True,
@@ -10998,11 +10863,11 @@ async def cmd_custom_show_p2p(event: CallbackQuery, state: FSMContext, **kwargs)
 async def cmd_confirm_payment(event: CallbackQuery, **kwargs: Any) -> None:
     lang = await get_lang(event)
     parts = event.data.split(":")
-    if len(parts) == 3:  # noqa: PLR2004
+    if len(parts) == 3:
         method = "p2p"
         plan_id = parts[1]
         raw_uid = parts[2]
-    elif len(parts) >= 4:  # noqa: PLR2004
+    elif len(parts) >= 4:
         method = parts[1]
         plan_id = parts[2]
         raw_uid = parts[3]
@@ -11072,7 +10937,7 @@ async def cmd_confirm_payment(event: CallbackQuery, **kwargs: Any) -> None:
 
 
 @router.callback_query(F.data == "mysub")
-async def cmd_mysub(event: CallbackQuery, **kwargs):  # noqa: PLR0911, PLR0912, PLR0915
+async def cmd_mysub(event: CallbackQuery, **kwargs):
     user_id = get_event_user_id(event) or 0
     lang = await get_user_language(user_id)
     panel_types = Features.available_panel_types()
@@ -11403,7 +11268,6 @@ def resolve_display_ref_code(user: dict[str, Any] | None) -> str:
 
 
 def resolve_partner_bonus_caption(user: dict[str, Any] | None, lang: str) -> str:
-    """Человекочитаемое описание бонуса, который партнёр даёт приглашённому."""
     bonus_type, bonus_value = resolve_referral_bonus_spec(user)
     if bonus_type == "trust":
         return (
@@ -11438,8 +11302,6 @@ async def cmd_ref(event: CallbackQuery, **kwargs):
     total = await db.count_referrals(db_uid)
     paid = await db.count_referrals_paid(db_uid)
     link = get_ref_link(resolve_display_ref_code(user_data) or ref_code)
-    # Партнёр и обычный пользователь видят разные экраны: у партнёра своя
-    # ссылка, свой никнейм и свой бонус, а не дефолт реферальной программы.
     if user_data and user_data.get("is_mate"):
         text = translate(
             lang,
@@ -11639,7 +11501,7 @@ async def process_partner_social_links_msg(message: Message, state: FSMContext):
         )
         return
 
-    if not text or len(text) < 5:  # noqa: PLR2004
+    if not text or len(text) < 5:
         await message.answer(
             translate(lang, "texts.partner_empty_socials"),
         )
@@ -12135,7 +11997,6 @@ async def cmd_partner_withdraw(event: CallbackQuery, state: FSMContext, **kwargs
 
 
 async def _partner_withdrawal_parse_amount(user_id: int, lang: str, raw: str) -> tuple[float, str]:
-    """Проверяет сумму вывода. Возвращает (amount, код ошибки)."""
     try:
         amount = float(str(raw).replace(",", ".").strip())
     except (ValueError, TypeError):
@@ -12280,9 +12141,6 @@ async def process_partner_withdrawal_bank(event: Message, state: FSMContext, **k
     )
     await state.clear()
     if operation_id:
-        # Заявка живёт только в partner_operations.json. Дублировать её
-        # в списке ожидающих платежей нельзя: это не платёж, и админ
-        # видел бы одну и ту же операцию в двух меню.
         await event.answer(
             translate(lang, "texts.partner_withdraw_submitted", amount=amount),
             reply_markup=main_menu_keyboard(lang),
@@ -12359,11 +12217,6 @@ def build_partner_op_text(
 
 
 def is_partner_withdrawal_mirror(payment: dict[str, Any]) -> bool:
-    """Заявка на вывод средств - не платёж.
-
-    Старые версии зеркалили её в список ожидающих платежей, из-за чего
-    одна операция была видна админу сразу в двух меню.
-    """
     return (
         str(payment.get("plan_type", "")) == "withdrawal"
         or str(payment.get("payment_method", "")) == "partner_balance"
@@ -12396,7 +12249,7 @@ def build_partner_op_keyboard(
 
 
 @router.callback_query(F.data == "partner_operations")
-async def cmd_partner_operations(event: CallbackQuery, **kwargs):  # noqa: PLR0915
+async def cmd_partner_operations(event: CallbackQuery, **kwargs):
     if not await ensure_admin_access(event):
         return
     lang = await get_lang(event)
@@ -12488,8 +12341,6 @@ async def cmd_partner_accept_op(event: CallbackQuery, **kwargs):
     op = await claim_partner_operation_or_alert(event, op_id, "accept")
     if not op:
         return
-    # В партнёрских операциях user_id - это TID (chat_id для уведомлений).
-    # Обработчики ниже используют его и для БД, поэтому резолвить нельзя.
     uid = to_int(op.get("user_id"), 0)
     op_type = str(op.get("op_type", ""))
     if op_type == "partner_new":
@@ -12508,7 +12359,6 @@ async def cmd_partner_reject_op(event: CallbackQuery, **kwargs):
     op = await claim_partner_operation_or_alert(event, op_id, "reject")
     if not op:
         return
-    # В партнёрских операциях user_id - это TID (chat_id для уведомлений).
     uid = to_int(op.get("user_id"), 0)
     op_type = str(op.get("op_type", ""))
     if op_type == "partner_new":
@@ -12552,7 +12402,7 @@ async def _notify_partner_vpn_failure(uid: int, nickname: str, reason: str) -> N
         logger.error(f"Не удалось уведомить админов о сбое VPN партнёра {uid}: {e}")
 
 
-async def _create_partner_vpn_client(  # noqa: PLR0913, PLR0917
+async def _create_partner_vpn_client(
     uid: int,
     sanitized: str,
     existing: dict[str, Any] | None,
@@ -12603,8 +12453,6 @@ async def _create_partner_vpn_client(  # noqa: PLR0913, PLR0917
         ip_limit=0,
         vpn_url=sub_id,
         traffic_gb=0,
-        # В subscription_id лежит ID тарифа, а не sub_id панели: иначе
-        # нормализация искала план по нику партнёра и не находила его.
         subscription_id=PARTNER_PLAN_ID,
         expiry_sub_datatime=expiry_dt.isoformat(),
     ):
@@ -12982,9 +12830,6 @@ async def check_partner_expiry_notifications() -> None:
 
 
 async def _deactivate_partner(raw_id: int) -> None:
-    """Принимает UID или TID. Внутри жёстко разводит db_uid (БД) и
-    tg_id (Telegram chat_id) - раньше здесь использовался один и тот же
-    идентификатор для обоих, из-за чего сообщения уходили не туда."""
     db_uid = await db.resolve_internal_uid(raw_id)
     if db_uid <= 0:
         return
@@ -13027,8 +12872,6 @@ async def _deactivate_partner(raw_id: int) -> None:
             )
         except Exception as e:  # noqa: BLE001
             logger.error(f"Не удалось уведомить админов о балансе партнёра {ident}: {e}")
-    # Партнёрские операции в JSON хранят TID, но отклоняем по обоим
-    # идентификаторам - так закрываются и старые записи с UID.
     await reject_pending_partner_operations(tg_id, "Партнёрство деактивировано")
     if db_uid != tg_id:
         await reject_pending_partner_operations(db_uid, "Партнёрство деактивировано")
@@ -13112,7 +12955,7 @@ async def cmd_pay_await(event: CallbackQuery, **kwargs):
 
 
 @router.callback_query(F.data.startswith("pay_await_accept:"))
-async def cmd_pay_await_accept(event: CallbackQuery, **kwargs):  # noqa: PLR0911, PLR0915
+async def cmd_pay_await_accept(event: CallbackQuery, **kwargs):
     if not await ensure_admin_access(event):
         return
     payment_id = event.data.split(":", 1)[1]
@@ -13267,7 +13110,6 @@ async def cmd_pay_await_accept(event: CallbackQuery, **kwargs):  # noqa: PLR0911
 async def _issue_confirmed_admin_test_subscription(
     uid: int, plan: dict[str, Any], user_lang: str
 ) -> str | None:
-    """Выдаёт подтверждённую тестовую подписку и уведомляет админа."""
     test_sub_id = await create_subscription(
         uid,
         plan,
@@ -13302,7 +13144,6 @@ async def _issue_admin_test_subscription(
     internal_user_id: int,
     plan: dict[str, Any],
 ) -> None:
-    """Обрабатывает подтверждение тестовой подписки из бота."""
     user_lang = await get_user_language(uid)
     test_sub_id = await _issue_confirmed_admin_test_subscription(uid, plan, user_lang)
     if not test_sub_id:
@@ -13621,8 +13462,6 @@ async def process_broadcast_type(event: CallbackQuery, state: FSMContext, **kwar
 
 @router.message(BroadcastState.waiting_for_message)
 async def process_broadcast_message(event: Message, state: FSMContext, **kwargs):
-    # FSM-состояние не является авторизацией: админ мог быть снят с прав
-    # после входа в состояние.
     if not await ensure_admin_access(event, silent=True):
         await state.clear()
         return
@@ -13651,9 +13490,6 @@ async def process_broadcast_message(event: Message, state: FSMContext, **kwargs)
     await state.clear()
     sent = 0
     failed = 0
-    # get_*_user_ids() возвращают telegram_id - это chat_id для отправки.
-    # notify_user возвращает bool, а не бросает исключение, поэтому
-    # счётчик failed обязан опираться на возвращаемое значение.
     for tg_id in user_ids:
         try:
             if await notify_user(tg_id, msg):
@@ -13680,11 +13516,6 @@ async def process_broadcast_message(event: Message, state: FSMContext, **kwargs)
 
 
 def _debug_back_rows(lang: str, target: str = "debug_menu") -> list[list[dict[str, str]]]:
-    """Кнопка выхода из отладки.
-
-    Кнопка "Назад" вела в секцию, из которой был вход, и ломалась при
-    переходах между подменю, поэтому из отладки всегда ведёт "Главная".
-    """
     return [
         [
             {
@@ -13696,7 +13527,6 @@ def _debug_back_rows(lang: str, target: str = "debug_menu") -> list[list[dict[st
 
 
 def debug_main_keyboard(lang: str) -> InlineKeyboardMarkup:
-    """Корень debug-меню. Везде две кнопки в ряд + назад."""
     tech_work_text = (
         translate(lang, "buttons.disable_tech_work")
         if tech_work_service.is_enabled()
@@ -14051,8 +13881,6 @@ def _split_markdown_message(text: str, max_length: int = MAX_TG_LENGTH) -> list[
         if len(candidate) > max_length and current:
             parts.append(current)
             candidate = sep + block
-        # Сам блок тоже может быть длиннее лимита (огромный код-блок) -
-        # режем его по кускам, иначе parts содержит сверхдлинную часть.
         if len(candidate) > max_length:
             piece = candidate
             while len(piece) > max_length:
@@ -14257,8 +14085,6 @@ async def _end_tech_work_with_compensation(
     await tech_work_service.set_enabled(False)
 
     if broadcast and days > 0:
-        # TID нужен для is_admin_user, внутренний UID add_bonus_days_pending
-        # резолвит сам через get_user_by_any_id.
         for tg_id in await db.get_all_non_banned_user_ids():
             if await is_admin_user(tg_id):
                 continue
@@ -14493,7 +14319,7 @@ async def cmd_debug_view_abuse_user(event: CallbackQuery, **kwargs):
         return
     lang = await get_lang(event)
     parts = event.data.split(":")
-    if len(parts) < 2:  # noqa: PLR2004
+    if len(parts) < 2:
         await event.answer(translate(lang, "texts.error_generic"), show_alert=True)
         return
     uid = to_int(parts[1], 0)
@@ -14507,7 +14333,6 @@ async def cmd_debug_view_abuse_user(event: CallbackQuery, **kwargs):
             show_alert=True,
         )
         return
-    # В callback всегда лежит внутренний UID - приводим явно.
     internal_uid = to_int(user.get("user_id"), 0) or uid
     tg_id = to_int(user.get("telegram_id"), 0)
     tg_id_str = format_tg_suffix(tg_id)
@@ -14550,14 +14375,13 @@ async def cmd_debug_clear_abuse(event: CallbackQuery, **kwargs):
         return
     lang = await get_lang(event)
     parts = event.data.split(":")
-    if len(parts) < 2:  # noqa: PLR2004
+    if len(parts) < 2:
         await event.answer(translate(lang, "texts.error_generic"), show_alert=True)
         return
     raw_id = to_int(parts[1], 0)
     if raw_id <= 0:
         await event.answer(translate(lang, "texts.invalid_id"), show_alert=True)
         return
-    # Callback несёт внутренний UID, но принимаем и TID.
     user = await db.get_user_by_any_id(raw_id)
     if not user:
         await event.answer(translate(lang, "texts.user_not_found_alert"), show_alert=True)
@@ -14675,7 +14499,7 @@ async def process_trust_user_id(event: Message, state: FSMContext, **kwargs):
 
 
 @router.message(TrustScoreState.waiting_for_amount)
-async def process_trust_amount(event: Message, state: FSMContext, **kwargs):  # noqa: PLR0911, PLR0915
+async def process_trust_amount(event: Message, state: FSMContext, **kwargs):
     lang = await get_lang(event)
     if not Config.TRUST_SCORE_ENABLED:
         await state.clear()
@@ -14962,7 +14786,6 @@ async def confirm_remove_partner_handler(event: CallbackQuery, state: FSMContext
     uid = int(data.get("remove_partner_user_id", 0))
     await state.clear()
 
-    # Call the existing deactivate_partner function
     await _deactivate_partner(uid)
     user_data = await db.get_user_by_any_id(uid)
     tg_id = to_int(user_data.get("telegram_id", 0), 0) if user_data else 0
@@ -15014,7 +14837,6 @@ async def process_add_traffic_user_id(event: Message, state: FSMContext, **kwarg
         return
 
     tg_id = user_data.get("telegram_id", 0) if user_data else 0
-    # Раньше проверка была инвертирована: подписка ЕСТЬ -> "нет подписки".
     if not user_data or not normalize_sub_id(user_data.get("vpn_url")):
         tg_id_str = format_tg_suffix(tg_id)
         await event.answer(
@@ -15074,7 +14896,6 @@ async def process_add_traffic_gb(event: Message, state: FSMContext, **kwargs):
         )
         return
     internal_uid = user.get("user_id", uid)
-    # uid может быть UID: нельзя подставлять его как chat_id в уведомления.
     tg_id = to_int(user.get("telegram_id"), 0)
     tg_id_str = format_tg_suffix(tg_id) if tg_id else ""
 
@@ -15163,7 +14984,7 @@ async def process_compensate_user_id(event: Message, state: FSMContext, **kwargs
 
 
 @router.message(CompensateDaysState.waiting_for_days)
-async def process_compensate_days(event: Message, state: FSMContext, **kwargs):  # noqa: PLR0912, PLR0915
+async def process_compensate_days(event: Message, state: FSMContext, **kwargs):
     lang = await get_lang(event)
     val = (event.text or "").strip()
     if is_cancel_text(val, lang):
@@ -15258,7 +15079,6 @@ async def process_compensate_days(event: Message, state: FSMContext, **kwargs): 
 
         tg_id = to_int(user.get("telegram_id", 0), 0)
         tg_id_str = format_tg_suffix(tg_id)
-        # notify_user принимает TID (это chat_id), а не внутренний UID.
         if tg_id:
             with suppress(Exception):
                 await notify_user(
@@ -15320,7 +15140,6 @@ async def process_change_username_user_id(event: Message, state: FSMContext, **k
         await state.clear()
         await cmd_start(event, state)
         return
-    # Принимаем и UID, и TID - единое поведение со всеми debug-командами.
     internal_uid, target = await _resolve_target_user(val, event, lang)
     if internal_uid is None:
         return
@@ -15411,7 +15230,6 @@ async def process_change_password_user_id(event: Message, state: FSMContext, **k
         await state.clear()
         await cmd_start(event, state)
         return
-    # Принимаем и UID, и TID - единое поведение со всеми debug-командами.
     internal_uid, target = await _resolve_target_user(val, event, lang)
     if internal_uid is None:
         return
@@ -15488,9 +15306,6 @@ async def process_change_password_new(event: Message, state: FSMContext, **kwarg
 async def _debug_resolve_user(
     event: Message, state: FSMContext, lang: str, store_key: str
 ) -> tuple[int, dict[str, Any]] | None:
-    """Общий шаг для всех debug-операций: спрашивает UID/TID, резолвит
-    его во внутренний UID и кладёт в state. Возвращает None, если
-    пользователь не найден или ввёл отмену."""
     val = (event.text or "").strip()
     if is_cancel_text(val, lang):
         await state.clear()
@@ -15529,9 +15344,6 @@ async def _debug_finish(event: Message, lang: str, text: str, back_to: str = "de
     )
 
 
-# Один и тот же инструмент доступен из нескольких разделов (например, выдача
-# тарифа из "Подписка" и из "Аккаунт"). Сохраняем, откуда его запустили,
-# чтобы кнопка "Назад" вела в исходный раздел, а не всегда в корень.
 _DEBUG_RETURN_KEY = "debug_return_to"
 
 
@@ -15581,8 +15393,6 @@ async def process_manual_issue_user(event: Message, state: FSMContext, **kwargs)
     has_sub = bool(normalize_sub_id(user_data.get("vpn_url")))
     ident = user_ident(internal_uid, tg_id)
 
-    # Продление и замена возможны только при активной подписке, поэтому
-    # не показываем их пользователю без подписки.
     mode_rows: list[list[dict[str, str]]] = [
         [
             {
@@ -15781,8 +15591,6 @@ async def cmd_debug_manual_issue_confirm(event: CallbackQuery, state: FSMContext
 
     async with get_subscription_lock(internal_uid):
         if mode == "replace" and had_sub:
-            # Замена: старая подписка сносится целиком, неиспользованные
-            # дни и трафик при этом теряются - об этом предупреждает текст.
             cleanup = await cleanup_subscription(
                 internal_uid, "admin_manual_replace", notify_user_about_cleanup=False
             )
@@ -15932,7 +15740,6 @@ async def cmd_debug_subtract_days_confirm(event: CallbackQuery, state: FSMContex
     panel_ok = await panel.shift_client_expiry(base_email, -days)
     new_expiry = await db.shift_subscription_days(internal_uid, -days)
     if not new_expiry:
-        # Срок ушёл в прошлое - подписку сносим, иначе БД и панель разойдутся.
         result = await cleanup_subscription(
             internal_uid, "admin_days_subtracted", notify_user_about_cleanup=True
         )
@@ -16202,8 +16009,6 @@ async def cmd_debug_reset_partner_link_confirm(event: CallbackQuery, state: FSMC
         return
     tg_id = to_int(user_data.get("telegram_id"), 0)
     ident = user_ident(internal_uid, tg_id)
-    # Обнуляем код, чтобы _resolve_partner_ref_code сгенерировал новый
-    # по тем же правилам, что и при первой выдаче партнёрства.
     sanitized = sanitize_mate_nickname_or_uid(user_data.get("mate_nickname", ""), internal_uid)
     await db.update_user(internal_uid, mate_ref_link_code="", force=True)
     fresh = await db.find_user_by_any_id(internal_uid)
@@ -16375,7 +16180,6 @@ async def cmd_debug_full_reset_confirm(event: CallbackQuery, state: FSMContext, 
     tg_id = to_int(user_data.get("telegram_id"), 0)
     ident = user_ident(internal_uid, tg_id)
     was_partner = bool(user_data.get("is_mate"))
-    # 1. Подписка и клиент в панели.
     if normalize_sub_id(user_data.get("vpn_url")):
         cleanup = await cleanup_subscription(
             internal_uid, "admin_full_reset", notify_user_about_cleanup=False
@@ -16385,7 +16189,6 @@ async def cmd_debug_full_reset_confirm(event: CallbackQuery, state: FSMContext, 
                 f"Полный сброс {internal_uid}: подписка на панели не удалена, "
                 f"сброс БД продолжается (нормализатор повторит попытку)"
             )
-    # 2. Партнёрство: ссылка перегенерируется заново по текущим правилам.
     if was_partner:
         sanitized = sanitize_mate_nickname_or_uid(user_data.get("mate_nickname", ""), internal_uid)
         await db.update_user(internal_uid, mate_ref_link_code="", force=True)
@@ -16393,9 +16196,7 @@ async def cmd_debug_full_reset_confirm(event: CallbackQuery, state: FSMContext, 
         new_code = await _resolve_partner_ref_code(internal_uid, sanitized, fresh or user_data)
         if new_code:
             await db.reset_partner_link(internal_uid, new_code)
-    # 3. Его собственные рефералы и вся накопленная статистика.
     refs_cleared = await db.clear_referrals_of(internal_uid)
-    # 4. Собственная рефералка, триал, доверие, бонусные дни, абьюз.
     ok = await db.update_user(
         internal_uid,
         force=True,
@@ -16422,7 +16223,6 @@ async def cmd_debug_full_reset_confirm(event: CallbackQuery, state: FSMContext, 
             "debug_reset",
         )
         return
-    # 5. Персональный рефкод генерируется заново.
     await db.update_user(internal_uid, ref_code="", force=True)
     await db.ensure_ref_code_by_user_id(internal_uid)
     await _debug_notify_user(tg_id, "texts.full_reset_notification", refs_count=refs_cleared)
@@ -16473,7 +16273,6 @@ async def process_delete_account_user_id(event: Message, state: FSMContext, **kw
     internal_uid, user_data = resolved
     tg_id = to_int(user_data.get("telegram_id"), 0)
     back_to = await _debug_return_to(state, "debug_account")
-    # Администратора удалять нельзя: иначе можно лишить бота управления.
     if tg_id and await is_admin_user(tg_id):
         await _debug_finish(
             event,
@@ -16487,7 +16286,7 @@ async def process_delete_account_user_id(event: Message, state: FSMContext, **kw
         translate(
             lang,
             "texts.delete_account_confirm",
-            username=str(user_data.get("username") or "-"),
+            username=str(user_data.get("web_login") or "-"),
             is_partner=format_yes_no(user_data.get("is_mate"), lang),
             has_sub=format_yes_no(bool(normalize_sub_id(user_data.get("vpn_url"))), lang),
             **user_ident(internal_uid, tg_id),
@@ -16497,9 +16296,7 @@ async def process_delete_account_user_id(event: Message, state: FSMContext, **kw
 
 
 @router.message(DeleteAccountState.waiting_for_confirm)
-async def process_delete_account_confirm(  # noqa: PLR0911
-    event: Message, state: FSMContext, **kwargs
-):
+async def process_delete_account_confirm(event: Message, state: FSMContext, **kwargs):
     lang = await get_lang(event)
     val = (event.text or "").strip()
     back_to = await _debug_return_to(state, "debug_account")
@@ -16512,7 +16309,6 @@ async def process_delete_account_confirm(  # noqa: PLR0911
             delete_origin=True,
         )
         return
-    # Удаление необратимо, поэтому требуем явное подтверждение текстом.
     if not is_yes_text(val, lang):
         await event.answer(translate(lang, "texts.delete_account_need_yes"))
         return
@@ -16535,10 +16331,8 @@ async def process_delete_account_confirm(  # noqa: PLR0911
         )
         return
 
-    # Уведомляем до удаления: после DELETE отправить уже нечего.
     await _debug_notify_user(tg_id, "texts.delete_account_notification")
 
-    # 1. Клиент на панели, иначе он останется висеть после удаления строки.
     if normalize_sub_id(user_data.get("vpn_url")):
         cleanup = await cleanup_subscription(
             internal_uid, "admin_account_deleted", notify_user_about_cleanup=False
@@ -16552,7 +16346,6 @@ async def process_delete_account_confirm(  # noqa: PLR0911
                 event, lang, translate(lang, "texts.delete_account_fail", **ident), back_to
             )
             return
-    # 2. Рефералы обоих направлений.
     await db.clear_referrals_of(internal_uid)
 
     deleted = await db.admin_delete_account(internal_uid)
@@ -16567,8 +16360,6 @@ async def process_delete_account_confirm(  # noqa: PLR0911
 
 
 async def _try_rewrite_panel_sub_id(email: str, client: dict[str, Any], db_sub_id: str) -> str:
-    # "updated" - переписано; "skipped" - subId занят другим клиентом на панели
-    # (конфликт БД↔панель, повторная попытка бессмысленна); "failed" - ошибка.
     client["subId"] = db_sub_id
     payload = panel._client_payload_for_update(client)
     url = f"{panel.apibase}/panel/api/clients/update/{panel._quote_path(email)}"
@@ -16588,7 +16379,7 @@ async def _try_rewrite_panel_sub_id(email: str, client: dict[str, Any], db_sub_i
     return "failed"
 
 
-async def normalize_all_subscriptions_with_retry(  # noqa: PLR0912, PLR0915
+async def normalize_all_subscriptions_with_retry(
     max_iterations: int = 5, delay_between_iterations: int = 2
 ) -> dict[str, Any]:
     report = {
@@ -16638,10 +16429,6 @@ async def normalize_all_subscriptions_with_retry(  # noqa: PLR0912, PLR0915
 
                 is_admin = await is_admin_user(uid)
                 if is_admin:
-                    # Канонический Admin-клиент из .env (Config.ADMIN_SUB_ID) -
-                    # единственный источник истины независимо от того, есть ли
-                    # у админа своя подписка: БД переписывается в ADMIN_SUB_ID,
-                    # панель приводится к безлимиту со всеми inbound'ами.
                     configured_admin_sub_id = Config.ADMIN_SUB_ID or "Admin"
                     stored_admin_sub_id = normalize_sub_id(user.get("vpn_url"))
                     if stored_admin_sub_id != configured_admin_sub_id:
@@ -16649,9 +16436,6 @@ async def normalize_all_subscriptions_with_retry(  # noqa: PLR0912, PLR0915
                             f"  🔄 Админ {uid}: sub_id в БД '{stored_admin_sub_id}' "
                             f"!= '{configured_admin_sub_id}' из .env, восстанавливаем"
                         )
-                        # Считаем изменением только фактическое восстановление:
-                        # иначе при недоступной панели iter_changes не обнулится
-                        # и нормализатор выйдет по всем итерациям подряд.
                         if await _ensure_admin_subscription(uid):
                             iter_changes += 1
                             user = (await db.get_user_by_any_id(uid)) or user
@@ -16682,25 +16466,15 @@ async def normalize_all_subscriptions_with_retry(  # noqa: PLR0912, PLR0915
                                 logger.error(
                                     f"  ❌ Не удалось обновить plan_servers для админа {uid}"
                                 )
-                # Админ нормализуется дальше: привязка ко всем inbound'ам.
                 internal_uid = to_int(user.get("user_id"), uid)
-                # Единый расчёт адреса панели: у партнёра клиент живёт по
-                # mate_{tid}_{nick}@..., у канонического админа - по
-                # ADMIN_SUB_EMAIL. Раньше здесь жёстко подставлялся
-                # user_{uid}@..., поэтому партнёрские подписки не находились.
                 base_email = get_user_panel_email(internal_uid, user)
 
-                # === Шаг 1: Ищем план по subscription_id из БД ===
                 subscription_id = str(user.get("subscription_id") or "").strip()
                 if is_partner_grant(user) and subscription_id != PARTNER_PLAN_ID:
-                    # Старая выдача партнёру писала в subscription_id sub_id
-                    # панели (ник), поэтому тариф не находился никогда.
                     logger.info(
                         f"  🔄 Партнёрская подписка {uid}: subscription_id "
                         f"'{subscription_id}' -> '{PARTNER_PLAN_ID}'"
                     )
-                    # force для админа-партнёра: обычная защита update_user
-                    # блокирует запись в строку администратора.
                     repaired = await db.update_user_by_telegram_id(
                         uid, subscription_id=PARTNER_PLAN_ID, force=is_admin
                     )
@@ -16717,7 +16491,6 @@ async def normalize_all_subscriptions_with_retry(  # noqa: PLR0912, PLR0915
                         )
                 plan = resolve_user_plan(user)
 
-                # === Шаг 2: Если план найден - обновляем данные в БД ---
                 if plan:
                     plan_servers = get_plan_servers(plan)
                     plan_ip = to_int(plan.get("ip_limit"), 0)
@@ -16742,15 +16515,12 @@ async def normalize_all_subscriptions_with_retry(  # noqa: PLR0912, PLR0915
                         update_fields["ip_limit"] = plan_ip
                         needs_update = True
 
-                    if abs(stored_gb - plan_gb) > 0.1:  # noqa: PLR2004
+                    if abs(stored_gb - plan_gb) > 0.1:
                         logger.info(f"  🔄 Обновление трафика: {stored_gb} -> {plan_gb}")
                         update_fields["traffic_gb"] = plan_gb
                         needs_update = True
 
                     if needs_update:
-                        # force для админа: обычная защита update_user отклоняет
-                        # запись в строку администратора, и нормализация молча
-                        # считала сделанную работу изменением.
                         ok = await db.update_user_by_telegram_id(
                             uid, force=is_admin, **update_fields
                         )
@@ -16827,9 +16597,7 @@ async def normalize_all_subscriptions_with_retry(  # noqa: PLR0912, PLR0915
 
                     plan_servers = stored_servers
 
-                # === Шаг 3: Нормализуем на сервере ---
                 target_inbound_ids: list[int] = []
-                # Админ всегда привязывается ко ВСЕМ инбаундам (фулл без лимита).
                 if await is_admin_user(uid):
                     target_inbound_ids = [
                         to_int(inb.get("id"), 0)
@@ -16860,10 +16628,6 @@ async def normalize_all_subscriptions_with_retry(  # noqa: PLR0912, PLR0915
                 if clients is None:
                     clients = await panel.find_clients_full_by_email(base_email)
                     if not clients:
-                        # subId берём только из vpn_url: в subscription_id лежит
-                        # id тарифа, а у старых записей там вообще чужой subId.
-                        # Попытка выставить его панелью отбивалась "Duplicate subId"
-                        # и нормализация не сходилась никогда.
                         db_sub_id = normalize_sub_id(user.get("vpn_url") or "")
                         if db_sub_id:
                             ok, sub_clients = await panel.find_clients_by_sub_id_safe(db_sub_id)
@@ -16885,9 +16649,6 @@ async def normalize_all_subscriptions_with_retry(  # noqa: PLR0912, PLR0915
 
                         db_sub_id = normalize_sub_id(user.get("vpn_url") or "")
                         panel_sub_id = str(client.get("subId") or "")
-                        # У админа канонический subId из .env управляет
-                        # _ensure_admin_subscription - generic-переписывание
-                        # вечно конфликтует с Duplicate subId.
                         if db_sub_id and panel_sub_id != db_sub_id and not is_admin:
                             logger.info(f"  🔄 Исправляем subId: {panel_sub_id} -> {db_sub_id}")
                             sub_fix = await _try_rewrite_panel_sub_id(email, client, db_sub_id)
@@ -16970,7 +16731,7 @@ async def normalize_all_subscriptions_with_retry(  # noqa: PLR0912, PLR0915
                         extra_gb = to_int((fresh_user or user).get("extra_sub_gb"), 0)
                         total_gb = plan_gb + extra_gb
 
-                        if curr_ip != plan_ip or abs(curr_gb - total_gb) > 0.1:  # noqa: PLR2004
+                        if curr_ip != plan_ip or abs(curr_gb - total_gb) > 0.1:
                             logger.info(
                                 f"  🔄 Обновление настроек на сервере: IP {curr_ip}->{plan_ip}, GB {curr_gb}->{total_gb}"
                             )
@@ -16995,7 +16756,6 @@ async def normalize_all_subscriptions_with_retry(  # noqa: PLR0912, PLR0915
                                 f"  ✅ Настройки уже нормализованы: IP={curr_ip}, GB={curr_gb}"
                             )
 
-                # === Шаг 4: Обновляем expiry_sub_datatime из данных панели ---
                 if clients:
                     expiry_times = [to_int(c.get("expiryTime"), 0) for c in clients]
                     max_expiry = max((x for x in expiry_times if x > 0), default=0)
@@ -17003,10 +16763,6 @@ async def normalize_all_subscriptions_with_retry(  # noqa: PLR0912, PLR0915
                         expiry_iso = datetime.fromtimestamp(max_expiry / 1000, tz=UTC).isoformat()
                         stored_expiry = str(user.get("expiry_sub_datatime") or "").strip()
                         if expiry_needs_sync(stored_expiry, expiry_iso):
-                            # Запись в строку администратора защищена, поэтому для
-                            # него синхронизация идёт с force. Раньше флаг не
-                            # передавался, запись отклонялась, а лог всё равно
-                            # писал «Обновлён expiry» - правки не происходило.
                             ok = await db.update_user_by_telegram_id(
                                 uid, expiry_sub_datatime=expiry_iso, force=is_admin
                             )
@@ -17025,9 +16781,6 @@ async def normalize_all_subscriptions_with_retry(  # noqa: PLR0912, PLR0915
                 state = await get_subscription_state(uid)
                 status = state.get("status")
 
-                # Админская подписка - фулл без лимита: никогда не удаляется
-                # при expired/traffic_exhausted, но восстанавливается при
-                # missing_on_panel как канонический клиент Admin (все inbound'ы).
                 if await is_admin_user(uid):
                     if status in ("expired", "traffic_exhausted"):
                         logger.info(
@@ -17036,7 +16789,6 @@ async def normalize_all_subscriptions_with_retry(  # noqa: PLR0912, PLR0915
                         continue
                     if status == "missing_on_panel":
                         logger.info(f"  🔄 Админ {uid}: восстанавливаем канонический Admin клиент")
-                        # Единая точка восстановления: панель + БД из .env.
                         if await _ensure_admin_subscription(uid):
                             report["missing_recovered"] += 1
                             iter_changes += 1
@@ -17180,9 +16932,6 @@ async def normalize_all_subscriptions_with_retry(  # noqa: PLR0912, PLR0915
                 logger.exception(f"Ошибка нормализации {uid}")
                 report["errors"] += 1
 
-        # Считаем изменения за все итерации: счётчики отчёта покрывают не все
-        # правки (например, обновление expiry админа), и без суммы итог в отчёте
-        # расходился с логом итераций.
         report["total_changes"] += iter_changes
         logger.info(f"Итерация {iteration + 1} завершена: {iter_changes} изменений")
 
@@ -17261,9 +17010,6 @@ async def check_expired_subscriptions() -> None:
 async def recreate_subscription_for_user(user_id: int, user: dict[str, Any]) -> bool:
     try:
         if is_partner_grant(user):
-            # У партнёра клиент живёт по mate_{tid}_{nick}@..., а тариф
-            # синтетический: create_subscription создал бы обычного клиента
-            # по user_{uid}@... и выдал не тот адрес.
             logger.warning(
                 f"recreate_subscription_for_user: партнёрская подписка {user_id} "
                 f"пересоздаётся только нормализатором"
@@ -17300,7 +17046,7 @@ async def check_traffic_abuse() -> None:
         await asyncio.sleep(Config.TRAFFIC_ABUSE_CHECK_INTERVAL_SEC)
 
 
-async def _run_traffic_abuse_check() -> None:  # noqa: PLR0912, PLR0915
+async def _run_traffic_abuse_check() -> None:
     subscribed = await db.get_subscribed_user_ids()
     logger.info(f"Проверка трафика: {len(subscribed)} подписок")
 
@@ -17394,7 +17140,7 @@ async def _abuse_admin_header(header_key: str, internal_uid: int, telegram_id: i
     )
 
 
-async def _notify_admins_about_abuse(  # noqa: PLR0913
+async def _notify_admins_about_abuse(
     internal_uid: int,
     telegram_id: int,
     *,
@@ -17499,8 +17245,6 @@ async def cleanup_old_payments() -> None:
             cutoff = datetime.now(UTC) - timedelta(days=30)
 
             def should_remove(p: dict[str, Any]) -> bool:
-                # "confirmed" - это финальный статус из API-эндпоинта
-                # /payments/verify, эквивалент "accepted" из бота.
                 if p.get("status") not in ("accepted", "rejected", "confirmed"):
                     return False
                 processed = p.get("processed_at")
@@ -17530,7 +17274,7 @@ async def cleanup_old_payments() -> None:
 
 class SSLUpdateTask:
     @staticmethod
-    async def _run_ssh_update() -> bool:  # noqa: PLR0912, PLR0915
+    async def _run_ssh_update() -> bool:
         if not Config.SSH_HOST or not Config.SSH_USER:
             logger.warning("SSL задача пропущена: SSH_HOST/SSH_USER не настроены")
             return False
@@ -17541,7 +17285,7 @@ class SSLUpdateTask:
 
             def _connect() -> paramiko.SSHClient:
                 client = paramiko.SSHClient()
-                client.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # noqa: S507
+                client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
                 if Config.SSH_PASSWORD:
                     client.connect(
                         Config.SSH_HOST,
@@ -17565,7 +17309,7 @@ class SSLUpdateTask:
                     break
                 except Exception as exc:
                     last_error = exc
-                    if attempt < 2:  # noqa: PLR2004
+                    if attempt < 2:
                         await asyncio.sleep(1.0 * (2.0**attempt))
                     else:
                         raise
@@ -17686,7 +17430,7 @@ def sanitize_user(user: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in user.items() if k not in _SENSITIVE_USER_FIELDS}
 
 
-async def _build_profile_response(user: dict[str, Any]) -> dict[str, Any]:  # noqa: PLR0912, PLR0915
+async def _build_profile_response(user: dict[str, Any]) -> dict[str, Any]:
     lang = await db.get_user_language_by_user_id(user["user_id"]) or Config.DEFAULT_LANGUAGE
     db_uid = user["user_id"]
     sub_state = await get_subscription_state(db_uid)
@@ -17801,7 +17545,7 @@ async def _build_profile_response(user: dict[str, Any]) -> dict[str, Any]:  # no
         "telegram_id": to_int(user.get("telegram_id", 0), 0),
         "web_id": user.get("web_id", 0) or None,
         "username": str(user.get("username", "") or "") or None,
-        "login": str(user.get("username", "") or "") or None,
+        "login": str(user.get("web_login", "") or "") or None,
         "language": lang,
         "trust_score": trust_score,
         "discount_percent": discount,
@@ -17846,12 +17590,6 @@ _scheduled_tasks: set[asyncio.Task[Any]] = set()
 
 
 def spawn_tracked_task(coro: Any) -> asyncio.Task[Any]:
-    """Создаёт задачу и держит на неё ссылку.
-
-    Без ссылки asyncio может собрать задачу сборщиком мусора до её
-    завершения. Ссылка хранится в _scheduled_tasks, которая отменяется
-    при остановке приложения.
-    """
     task = asyncio.create_task(coro)
     _scheduled_tasks.add(task)
     task.add_done_callback(_scheduled_tasks.discard)
@@ -17859,14 +17597,14 @@ def spawn_tracked_task(coro: Any) -> asyncio.Task[Any]:
 
 
 class WebRegisterRequest(BaseModel):
-    username: str = Field(min_length=3, max_length=64)
+    web_login: str = Field(min_length=3, max_length=64)
     password: str = Field(min_length=Config.PASSWORD_MIN_LENGTH, max_length=128)
     tg_id: int | None = Field(default=None, gt=0)
     ref_code: str | None = Field(default=None, max_length=32)
 
 
 class WebLoginRequest(BaseModel):
-    username: str = Field(min_length=1, max_length=64)
+    web_login: str = Field(min_length=1, max_length=64)
     password: str = Field(min_length=1, max_length=128)
 
 
@@ -18021,8 +17759,7 @@ class BOT_FastAPI:
             )
         self._setup_routes()
 
-    def _setup_routes(self) -> None:  # noqa: PLR0915
-        # === Middleware ---
+    def _setup_routes(self) -> None:
 
         @self.app.middleware("http")
         async def api_enabled_middleware(request: Request, call_next: Callable) -> JSONResponse:
@@ -18076,7 +17813,6 @@ class BOT_FastAPI:
                 response.headers["Cache-Control"] = "no-store"
             return response
 
-        # === Rate limiting для FastAPI ---
         _api_request_times: dict[str, list[float]] = {}
         _API_RATE_LIMIT: int = Config.API_RATE_LIMIT
         _API_RATE_WINDOW: int = Config.API_RATE_WINDOW
@@ -18184,7 +17920,6 @@ class BOT_FastAPI:
             _api_request_times[client_ip] = recent
             return await call_next(request)
 
-        # === Tech work mode для FastAPI ---
         @self.app.middleware("http")
         async def tech_work_middleware(request: Request, call_next: Callable) -> JSONResponse:
             if not tech_work_service.is_enabled():
@@ -18229,7 +17964,6 @@ class BOT_FastAPI:
 
             return await call_next(request)
 
-        # === Auth helpers ---
         async def _get_current_user(
             request: Request,
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
@@ -18262,138 +17996,10 @@ class BOT_FastAPI:
                 )
             return user
 
-        # === Health ---
         @self.app.get("/api/v1/health")
         async def health() -> dict[str, str]:
             return {"status": "ok", "version": "1.0.0"}
 
-        # === Admin: Users ---
-        @self.app.get("/api/v1/users")
-        async def api_get_users(
-            page: int = Query(1, ge=1),
-            limit: int = Query(50, ge=1, le=200),
-            admin: str = Depends(_require_admin),
-        ) -> JSONResponse:
-            try:
-                offset = (page - 1) * limit
-                cur = await db.conn.execute(
-                    "SELECT * FROM users WHERE (web_id IS NOT NULL AND web_id != 0) OR (telegram_id IS NOT NULL AND telegram_id != 0) ORDER BY user_id LIMIT ? OFFSET ?",
-                    (limit, offset),
-                )
-                rows = await cur.fetchall()
-                users = [sanitize_user(dict(row)) for row in rows]
-                total_cur = await db.conn.execute(
-                    "SELECT COUNT(*) FROM users WHERE (web_id IS NOT NULL AND web_id != 0) OR (telegram_id IS NOT NULL AND telegram_id != 0)"
-                )
-                total_row = await total_cur.fetchone()
-                total = int(total_row[0]) if total_row else 0
-                return JSONResponse(
-                    content={
-                        "users": users,
-                        "total": total,
-                        "page": page,
-                        "limit": limit,
-                    }
-                )
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_get_users: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
-        @self.app.get("/api/v1/users/{user_id}")
-        async def api_get_user(
-            user_id: int,
-            admin: str = Depends(_require_admin),
-        ) -> JSONResponse:
-            try:
-                u = await db.get_user_by_any_id(user_id)
-                if not u:
-                    return JSONResponse(
-                        status_code=404,
-                        content={
-                            "error": translate(Config.DEFAULT_LANGUAGE, "texts.user_not_found")
-                        },
-                    )
-                return JSONResponse(content={"user": sanitize_user(u)})
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_get_user {user_id}: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
-        @self.app.get("/api/v1/users/search")
-        async def api_search_users(
-            query: str = Query(..., min_length=1),
-            admin: str = Depends(_require_admin),
-        ) -> JSONResponse:
-            try:
-                users = await db.search_users(query)
-                return JSONResponse(content={"users": [sanitize_user(u) for u in users]})
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_search_users: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
-        @self.app.get("/api/v1/users/{user_id}/subscription-state")
-        async def api_user_subscription_state(
-            user_id: int,
-            credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
-        ) -> JSONResponse:
-            if not credentials:
-                return JSONResponse(
-                    status_code=401,
-                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.unauthorized")},
-                )
-            session_user = await db.get_user_by_session_token(credentials.credentials)
-            if not session_user:
-                if _is_admin_token(credentials.credentials):
-                    pass
-                else:
-                    return JSONResponse(
-                        status_code=401,
-                        content={
-                            "error": translate(Config.DEFAULT_LANGUAGE, "texts.invalid_session")
-                        },
-                    )
-            else:
-                # В URL допустим и UID, и TID - сравниваем через resolve.
-                session_internal_uid = to_int(session_user.get("user_id"), 0)
-                target_internal_uid = await db.resolve_internal_uid(user_id)
-                if (
-                    target_internal_uid > 0
-                    and session_internal_uid != target_internal_uid
-                    and not _is_admin_token(credentials.credentials)
-                ):
-                    return JSONResponse(
-                        status_code=403,
-                        content={
-                            "error": translate(Config.DEFAULT_LANGUAGE, "texts.access_denied")
-                        },
-                    )
-            try:
-                state = await get_subscription_state(user_id)
-                return JSONResponse(content={"state": state})
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_user_subscription_state {user_id}: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
-        # === Stats ---
         @self.app.get("/api/v1/stats/overview")
         async def api_stats_overview() -> JSONResponse:
             try:
@@ -18401,30 +18007,6 @@ class BOT_FastAPI:
                 return JSONResponse(content=stats)
             except Exception as e:  # noqa: BLE001
                 logger.error(f"api_stats_overview: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
-        @self.app.get("/api/v1/admin/panel-status")
-        async def api_admin_panel_status(
-            admin: str = Depends(_require_admin),
-        ) -> JSONResponse:
-            try:
-                panel_info = await panel.get_panel_info()
-                server_status = await panel.get_server_status(sanitize=False)
-                nodes = await panel.get_nodes(sanitize=False)
-                return JSONResponse(
-                    content={
-                        "panel": panel_info,
-                        "server_status": server_status,
-                        "nodes": nodes,
-                    }
-                )
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_admin_panel_status: {e}")
                 return JSONResponse(
                     status_code=500,
                     content={
@@ -18492,7 +18074,6 @@ class BOT_FastAPI:
                     },
                 )
 
-        # === Tariffs ---
         @self.app.get("/api/v1/tariffs")
         async def api_get_tariffs() -> JSONResponse:
             try:
@@ -18516,13 +18097,12 @@ class BOT_FastAPI:
                     },
                 )
 
-        # === Auth (public) ---
         @self.app.post("/api/v1/auth/register")
-        async def api_auth_register(req: WebRegisterRequest, request: Request) -> JSONResponse:  # noqa: PLR0911
-            logger.info(f"API auth_register: username={req.username}")
+        async def api_auth_register(req: WebRegisterRequest, request: Request) -> JSONResponse:
+            logger.info(f"API auth_register: web_login={req.web_login}")
             try:
-                username = req.username.strip()
-                if not username or not req.password:
+                web_login = req.web_login.strip()
+                if not web_login or not req.password:
                     return JSONResponse(
                         status_code=400,
                         content={
@@ -18533,7 +18113,7 @@ class BOT_FastAPI:
                         },
                     )
                 client_ip = request.client.host if request.client else "unknown"
-                lockout = _check_auth_lockout(username, client_ip)
+                lockout = _check_auth_lockout(web_login, client_ip)
                 if lockout is not None and lockout > 0:
                     return JSONResponse(
                         status_code=429,
@@ -18561,7 +18141,7 @@ class BOT_FastAPI:
                             )
                         },
                     )
-                existing = await db.get_user_by_username(username)
+                existing = await db.get_user_by_web_login(web_login)
                 if existing:
                     return JSONResponse(
                         status_code=409,
@@ -18573,7 +18153,7 @@ class BOT_FastAPI:
                         },
                     )
                 password_hash = hash_password(req.password)
-                user = await db.create_web_account(username, password_hash, req.tg_id)
+                user = await db.create_web_account(web_login, password_hash, req.tg_id)
                 if not user:
                     return JSONResponse(
                         status_code=500,
@@ -18592,7 +18172,7 @@ class BOT_FastAPI:
                         logger.info(
                             f"Пользователь {user['user_id']} приглашен рефералом {ref_user.get('user_id')} через веб-регистрацию"
                         )
-                _clear_auth_failures(username, client_ip)
+                _clear_auth_failures(web_login, client_ip)
                 token = secrets.token_urlsafe(32)
                 expires = (
                     datetime.now(UTC) + timedelta(seconds=Config.SESSION_MAX_AGE)
@@ -18626,11 +18206,11 @@ class BOT_FastAPI:
 
         @self.app.post("/api/v1/auth/login")
         async def api_auth_login(req: WebLoginRequest, request: Request) -> JSONResponse:
-            logger.info(f"API auth_login: username={req.username}")
+            logger.info(f"API auth_login: web_login={req.web_login}")
             try:
-                username = req.username.strip()
+                web_login = req.web_login.strip()
                 client_ip = request.client.host if request.client else "unknown"
-                lockout = _check_auth_lockout(username, client_ip)
+                lockout = _check_auth_lockout(web_login, client_ip)
                 if lockout is not None and lockout > 0:
                     return JSONResponse(
                         status_code=429,
@@ -18643,15 +18223,15 @@ class BOT_FastAPI:
                         },
                     )
                 cur = await db.conn.execute(
-                    "SELECT * FROM users WHERE LOWER(username) = LOWER(?)",
-                    (username,),
+                    "SELECT * FROM users WHERE LOWER(web_login) = LOWER(?)",
+                    (web_login,),
                 )
                 row = await cur.fetchone()
                 user = dict(row) if row else None
                 if not user or not verify_password(req.password, user.get("password_hash", "")):
-                    _record_auth_failure(username, client_ip)
+                    _record_auth_failure(web_login, client_ip)
                     logger.warning(
-                        f"⚠️ API auth_login: неверные учётные данные username={req.username}"
+                        f"⚠️ API auth_login: неверные учётные данные web_login={req.web_login}"
                     )
                     return JSONResponse(
                         status_code=401,
@@ -18659,7 +18239,7 @@ class BOT_FastAPI:
                             "error": translate(Config.DEFAULT_LANGUAGE, "texts.invalid_credentials")
                         },
                     )
-                _clear_auth_failures(username, client_ip)
+                _clear_auth_failures(web_login, client_ip)
                 token = secrets.token_urlsafe(32)
                 expires = (
                     datetime.now(UTC) + timedelta(seconds=Config.SESSION_MAX_AGE)
@@ -18787,7 +18367,7 @@ class BOT_FastAPI:
             )
 
         @self.app.post("/api/v1/auth/telegram/link")
-        async def api_auth_telegram_link(  # noqa: PLR0911
+        async def api_auth_telegram_link(
             req: WebTelegramLinkRequest,
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
         ) -> JSONResponse:
@@ -18847,7 +18427,7 @@ class BOT_FastAPI:
                     await db.update_web_auth(
                         existing["user_id"],
                         web_id=user.get("web_id"),
-                        username=user.get("username"),
+                        web_login=user.get("web_login"),
                         password_hash=user.get("password_hash"),
                         web_auth_method=user.get("web_auth_method"),
                         session_token=user.get("session_token"),
@@ -18866,87 +18446,6 @@ class BOT_FastAPI:
             return JSONResponse(
                 content={"message": translate(Config.DEFAULT_LANGUAGE, "texts.api_telegram_linked")}
             )
-
-        @self.app.post("/api/v1/auth/telegram/login")
-        async def api_auth_telegram_login(  # noqa: PLR0911
-            req: TelegramLoginRequest,
-            credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
-        ) -> JSONResponse:
-            if not credentials:
-                return JSONResponse(
-                    status_code=401,
-                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.unauthorized")},
-                )
-            session_user = await db.get_user_by_session_token(credentials.credentials)
-            if not session_user:
-                return JSONResponse(
-                    status_code=401,
-                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.invalid_session")},
-                )
-            try:
-                verified_tg_id = await consume_telegram_verification(req.state)
-                if verified_tg_id is not None and verified_tg_id != req.tg_id:
-                    logger.warning(
-                        f"api_auth_telegram_login: tg_id mismatch: req={req.tg_id}, verified={verified_tg_id}"
-                    )
-                    return JSONResponse(
-                        status_code=403,
-                        content={
-                            "error": translate(
-                                Config.DEFAULT_LANGUAGE,
-                                "texts.telegram_id_verification_failed",
-                            )
-                        },
-                    )
-
-                tg_user = await db.get_user_by_any_id(req.tg_id)
-                if not tg_user or not tg_user.get("web_id"):
-                    return JSONResponse(
-                        status_code=404,
-                        content={
-                            "error": translate(
-                                Config.DEFAULT_LANGUAGE, "texts.no_web_account_linked"
-                            )
-                        },
-                    )
-                if tg_user["web_id"] != session_user["web_id"]:
-                    return JSONResponse(
-                        status_code=403,
-                        content={
-                            "error": translate(
-                                Config.DEFAULT_LANGUAGE,
-                                "texts.telegram_account_already_linked",
-                            )
-                        },
-                    )
-                token = secrets.token_urlsafe(32)
-                expires = (
-                    datetime.now(UTC) + timedelta(seconds=Config.SESSION_MAX_AGE)
-                ).isoformat()
-                await db.update_web_auth(
-                    tg_user["user_id"],
-                    session_token=token,
-                    session_expires_at=expires,
-                    session_created_at=datetime.now(UTC).isoformat(),
-                    web_last_login=datetime.now(UTC).isoformat(),
-                    web_auth_method="telegram",
-                )
-                return JSONResponse(
-                    content={
-                        "user_id": tg_user["user_id"],
-                        "web_id": tg_user["web_id"],
-                        "token": token,
-                    },
-                    headers=_cookie_headers_for_session(token),
-                )
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_auth_telegram_login: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
 
         @self.app.post("/api/v1/auth/telegram/start")
         async def api_auth_telegram_start() -> JSONResponse:
@@ -19054,67 +18553,6 @@ class BOT_FastAPI:
                     },
                 )
 
-        @self.app.post("/api/v1/auth/admin/token")
-        async def api_auth_admin_token(req: AdminTokenRequest) -> JSONResponse:
-            try:
-                if not Config.BOT_ADMIN_KEY or not secrets.compare_digest(
-                    req.admin_key, Config.BOT_ADMIN_KEY
-                ):
-                    return JSONResponse(
-                        status_code=401,
-                        content={
-                            "error": translate(Config.DEFAULT_LANGUAGE, "texts.invalid_admin_key")
-                        },
-                    )
-                access_token = _create_admin_jwt(admin_id=0, refresh=False)
-                refresh_token = _create_admin_jwt(admin_id=0, refresh=True)
-                return JSONResponse(
-                    content={
-                        "access_token": access_token,
-                        "refresh_token": refresh_token,
-                        "token_type": "bearer",
-                        "expires_in": Config.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-                    }
-                )
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_auth_admin_token: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
-        @self.app.post("/api/v1/auth/admin/refresh")
-        async def api_auth_admin_refresh(req: RefreshTokenRequest) -> JSONResponse:
-            try:
-                payload = _verify_admin_jwt(req.refresh_token)
-                if not payload or payload.get("type") != "refresh":
-                    return JSONResponse(
-                        status_code=401,
-                        content={
-                            "error": translate(
-                                Config.DEFAULT_LANGUAGE, "texts.invalid_refresh_token"
-                            )
-                        },
-                    )
-                access_token = _create_admin_jwt(admin_id=payload.get("admin_id", 0), refresh=False)
-                return JSONResponse(
-                    content={
-                        "access_token": access_token,
-                        "token_type": "bearer",
-                        "expires_in": Config.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-                    }
-                )
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_auth_admin_refresh: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
         @self.app.get("/api/v1/config/features")
         async def api_config_features() -> JSONResponse:
             try:
@@ -19129,107 +18567,6 @@ class BOT_FastAPI:
                 )
             except Exception as e:  # noqa: BLE001
                 logger.error(f"api_config_features: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
-        # === Admin endpoints ---
-        @self.app.post("/api/v1/users/{user_id}/subscribe")
-        async def api_subscribe(
-            user_id: int,
-            req: CreateSubscriptionRequest,
-            admin: str = Depends(_require_admin),
-        ) -> JSONResponse:
-            logger.info(f"API admin subscribe: user_id={user_id}, plan_id={req.plan_id}")
-            try:
-                user = await db.get_user_by_any_id(user_id)
-                if not user:
-                    return JSONResponse(
-                        status_code=404,
-                        content={
-                            "error": translate(Config.DEFAULT_LANGUAGE, "texts.user_not_found")
-                        },
-                    )
-                internal_uid = user.get("user_id", user_id)
-                plan = get_by_id(req.plan_id)
-                plan_name = req.plan_name or (
-                    plan.get("name", req.plan_id) if plan else req.plan_id
-                )
-                ip_limit = req.ip_limit or (plan.get("ip_limit", 0) if plan else 0)
-                traffic_gb = req.traffic_gb or (plan.get("traffic_gb", 0) if plan else 0)
-                servers = req.servers or (normalize_servers(plan.get("servers")) if plan else [])
-                await db.update_user(
-                    internal_uid,
-                    force=True,
-                    has_subscription=1,
-                    plan_text=plan_name,
-                    subscription_id=req.plan_id,
-                    ip_limit=ip_limit,
-                    traffic_gb=traffic_gb,
-                    vpn_url=servers[0] if servers else "",
-                )
-                return JSONResponse(
-                    content={
-                        "message": translate(
-                            Config.DEFAULT_LANGUAGE, "texts.api_subscription_created"
-                        )
-                    }
-                )
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_subscribe {user_id}: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
-        @self.app.post("/api/v1/users/{user_id}/unsubscribe")
-        async def api_unsubscribe(
-            user_id: int,
-            admin: str = Depends(_require_admin),
-        ) -> JSONResponse:
-            logger.info(f"API admin unsubscribe: user_id={user_id}")
-            try:
-                target_user = await db.get_user_by_any_id(user_id)
-                if target_user:
-                    tg_id = target_user.get("telegram_id", 0)
-                    if tg_id and await is_admin_user(tg_id):
-                        return JSONResponse(
-                            status_code=403,
-                            content={
-                                "error": translate(
-                                    Config.DEFAULT_LANGUAGE,
-                                    "texts.cannot_modify_admin",
-                                )
-                            },
-                        )
-                internal_uid = target_user.get("user_id", user_id) if target_user else user_id
-                await db.update_user(
-                    internal_uid,
-                    force=True,
-                    has_subscription=0,
-                    plan_text="",
-                    plan_servers="",
-                    subscription_id="",
-                    ip_limit=0,
-                    vpn_url="",
-                    traffic_gb=0,
-                    expiry_sub_datatime="",
-                )
-                logger.info(f"✅ API admin unsubscribe: подписка удалена user_id={user_id}")
-                return JSONResponse(
-                    content={
-                        "message": translate(
-                            Config.DEFAULT_LANGUAGE, "texts.api_subscription_removed"
-                        )
-                    }
-                )
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_unsubscribe {user_id}: {e}")
                 return JSONResponse(
                     status_code=500,
                     content={
@@ -19301,359 +18638,8 @@ class BOT_FastAPI:
                     },
                 )
 
-        @self.app.post("/api/v1/users/{user_id}/extend")
-        async def api_extend(
-            user_id: int,
-            req: ExtendSubscriptionRequest,
-            admin: str = Depends(_require_admin),
-        ) -> JSONResponse:
-            logger.info(f"API admin extend: user_id={user_id}, days={req.days}")
-            try:
-                user = await db.get_user_by_any_id(user_id)
-                if not user:
-                    return JSONResponse(
-                        status_code=404,
-                        content={
-                            "error": translate(Config.DEFAULT_LANGUAGE, "texts.user_not_found")
-                        },
-                    )
-                internal_uid = user.get("user_id", user_id)
-                extended = await panel.extend_client_expiry_by_user_id(internal_uid, req.days)
-                logger.info(f"API admin extend: user_id={user_id}, success={extended}")
-                return JSONResponse(
-                    content={
-                        "message": translate(
-                            Config.DEFAULT_LANGUAGE,
-                            "texts.api_extended_days",
-                            days=req.days,
-                        ),
-                        "success": extended,
-                    }
-                )
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_extend {user_id}: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
-        @self.app.delete("/api/v1/users/{user_id}")
-        async def api_delete_user(
-            user_id: int,
-            admin: str = Depends(_require_admin),
-        ) -> JSONResponse:
-            logger.warning(f"⚠️ API admin delete_user: user_id={user_id}")
-            try:
-                target_user = await db.get_user_by_any_id(user_id)
-                if target_user:
-                    tg_id = target_user.get("telegram_id", 0)
-                    if tg_id and await is_admin_user(tg_id):
-                        return JSONResponse(
-                            status_code=403,
-                            content={
-                                "error": translate(
-                                    Config.DEFAULT_LANGUAGE,
-                                    "texts.cannot_delete_admin_user",
-                                )
-                            },
-                        )
-                internal_uid = target_user.get("user_id", user_id) if target_user else user_id
-                await db.delete_user(internal_uid)
-                logger.info(f"✅ API admin delete_user: пользователь удалён user_id={user_id}")
-                return JSONResponse(
-                    content={
-                        "message": translate(Config.DEFAULT_LANGUAGE, "texts.api_user_deleted")
-                    }
-                )
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_delete_user {user_id}: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
-        @self.app.post("/api/v1/users/{user_id}/ban")
-        async def api_ban_user(
-            user_id: int,
-            req: BanUserRequest,
-            admin: str = Depends(_require_admin),
-        ) -> JSONResponse:
-            logger.info(f"API admin ban_user: user_id={user_id}, reason={req.reason}")
-            try:
-                target_user = await db.get_user_by_any_id(user_id)
-                if not target_user:
-                    return JSONResponse(
-                        status_code=404,
-                        content={
-                            "error": translate(Config.DEFAULT_LANGUAGE, "texts.user_not_found")
-                        },
-                    )
-                tg_id = target_user.get("telegram_id", 0)
-                if tg_id and await is_admin_user(tg_id):
-                    return JSONResponse(
-                        status_code=403,
-                        content={
-                            "error": translate(
-                                Config.DEFAULT_LANGUAGE,
-                                "texts.cannot_modify_admin",
-                            )
-                        },
-                    )
-                internal_uid = target_user.get("user_id", user_id)
-                success = await db.ban_user_by_uid(internal_uid, reason=req.reason)
-                if not success:
-                    return JSONResponse(
-                        status_code=400,
-                        content={
-                            "error": translate(Config.DEFAULT_LANGUAGE, "texts.failed_to_ban_user")
-                        },
-                    )
-                logger.info(f"✅ API admin ban_user: пользователь забанен user_id={user_id}")
-                return JSONResponse(
-                    content={
-                        "message": translate(Config.DEFAULT_LANGUAGE, "texts.api_user_banned"),
-                        "success": True,
-                    }
-                )
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_ban_user {user_id}: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
-        @self.app.post("/api/v1/users/{user_id}/unban")
-        async def api_unban_user(
-            user_id: int,
-            req: BanUserRequest,
-            admin: str = Depends(_require_admin),
-        ) -> JSONResponse:
-            logger.info(f"API admin unban_user: user_id={user_id}")
-            try:
-                target_user = await db.get_user_by_any_id(user_id)
-                if not target_user:
-                    return JSONResponse(
-                        status_code=404,
-                        content={
-                            "error": translate(Config.DEFAULT_LANGUAGE, "texts.user_not_found")
-                        },
-                    )
-                tg_id = target_user.get("telegram_id", 0)
-                if tg_id and await is_admin_user(tg_id):
-                    return JSONResponse(
-                        status_code=403,
-                        content={
-                            "error": translate(
-                                Config.DEFAULT_LANGUAGE,
-                                "texts.cannot_modify_admin",
-                            )
-                        },
-                    )
-                internal_uid = target_user.get("user_id", user_id)
-                success = await db.unban_user_by_uid(internal_uid)
-                if not success:
-                    return JSONResponse(
-                        status_code=400,
-                        content={
-                            "error": translate(
-                                Config.DEFAULT_LANGUAGE, "texts.failed_to_unban_user"
-                            )
-                        },
-                    )
-                logger.info(f"✅ API admin unban_user: разбанен user_id={user_id}")
-                return JSONResponse(
-                    content={
-                        "message": translate(Config.DEFAULT_LANGUAGE, "texts.api_user_unbanned"),
-                        "success": True,
-                    }
-                )
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_unban_user {user_id}: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
-        @self.app.post("/api/v1/users/{user_id}/ban-by-uid")
-        async def api_ban_user_by_uid(
-            user_id: int,
-            req: BanUserRequest,
-            admin: str = Depends(_require_admin),
-        ) -> JSONResponse:
-            logger.info(f"API admin ban_by_uid: uid={user_id}, reason={req.reason}")
-            try:
-                user = await db.get_user_by_any_id(user_id)
-                if not user:
-                    return JSONResponse(
-                        status_code=404,
-                        content={
-                            "error": translate(Config.DEFAULT_LANGUAGE, "texts.user_not_found")
-                        },
-                    )
-                success = await db.ban_user_by_uid(user_id, reason=req.reason)
-                if not success:
-                    return JSONResponse(
-                        status_code=400,
-                        content={
-                            "error": translate(Config.DEFAULT_LANGUAGE, "texts.failed_to_ban_user")
-                        },
-                    )
-                logger.info(f"✅ API admin ban_by_uid: пользователь забанен uid={user_id}")
-                return JSONResponse(
-                    content={
-                        "message": translate(Config.DEFAULT_LANGUAGE, "texts.api_user_banned"),
-                        "success": True,
-                    }
-                )
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_ban_user_by_uid {user_id}: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
-        @self.app.post("/api/v1/users/{user_id}/unban-by-uid")
-        async def api_unban_user_by_uid(
-            user_id: int,
-            req: BanUserRequest,
-            admin: str = Depends(_require_admin),
-        ) -> JSONResponse:
-            logger.info(f"API admin unban_by_uid: uid={user_id}")
-            try:
-                user = await db.get_user_by_any_id(user_id)
-                if not user:
-                    return JSONResponse(
-                        status_code=404,
-                        content={
-                            "error": translate(Config.DEFAULT_LANGUAGE, "texts.user_not_found")
-                        },
-                    )
-                success = await db.unban_user_by_uid(user_id)
-                if not success:
-                    return JSONResponse(
-                        status_code=400,
-                        content={
-                            "error": translate(
-                                Config.DEFAULT_LANGUAGE, "texts.failed_to_unban_user"
-                            )
-                        },
-                    )
-                logger.info(f"✅ API admin unban_by_uid: разбанен uid={user_id}")
-                return JSONResponse(
-                    content={
-                        "message": translate(
-                            Config.DEFAULT_LANGUAGE, "texts.api_user_unbanned_by_uid"
-                        ),
-                        "success": True,
-                    }
-                )
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_unban_user_by_uid {user_id}: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
-        @self.app.post("/api/v1/payments/confirm/{payment_id}")
-        async def api_confirm_payment(
-            payment_id: str,
-            admin: str = Depends(_require_admin),
-        ) -> JSONResponse:
-            logger.warning(
-                f"DEPRECATED: /payments/confirm/{payment_id}, "
-                f"используйте /payments/verify/{payment_id} с status=confirmed"
-            )
-            try:
-                payment = await json_db.claim_pending_payment(payment_id, 0, "accept")
-                if not payment:
-                    return JSONResponse(
-                        status_code=404,
-                        content={
-                            "error": translate(Config.DEFAULT_LANGUAGE, "texts.payment_not_found")
-                        },
-                    )
-                logger.info(
-                    f"✅ API admin confirm_payment: платёж подтверждён payment_id={payment_id}"
-                )
-                return JSONResponse(
-                    content={
-                        "message": translate(Config.DEFAULT_LANGUAGE, "texts.api_payment_confirmed")
-                    }
-                )
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_confirm_payment {payment_id}: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
-        @self.app.post("/api/v1/payments/reject/{payment_id}")
-        async def api_reject_payment(
-            payment_id: str,
-            admin: str = Depends(_require_admin),
-        ) -> JSONResponse:
-            logger.warning(
-                f"DEPRECATED: /payments/reject/{payment_id}, "
-                f"используйте /payments/verify/{payment_id} с status=rejected"
-            )
-            try:
-                payment = await json_db.claim_pending_payment(payment_id, 0, "reject")
-                if not payment:
-                    return JSONResponse(
-                        status_code=404,
-                        content={
-                            "error": translate(Config.DEFAULT_LANGUAGE, "texts.payment_not_found")
-                        },
-                    )
-                logger.info(f"⚠️ API admin reject_payment: платёж отклонён payment_id={payment_id}")
-                return JSONResponse(
-                    content={
-                        "message": translate(Config.DEFAULT_LANGUAGE, "texts.api_payment_rejected")
-                    }
-                )
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_reject_payment {payment_id}: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
-        @self.app.get("/api/v1/payments/pending")
-        async def api_pending_payments(
-            admin: str = Depends(_require_admin),
-        ) -> JSONResponse:
-            try:
-                payments = await json_db.read_all()
-                pending = [p for p in payments if p.get("status") == "pending"]
-                logger.info(f"API admin pending_payments: {len(pending)} ожидающих")
-                return JSONResponse(content={"payments": pending})
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_pending_payments: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
         @self.app.post("/api/v1/payments/create-checkout")
-        async def api_create_checkout(  # noqa: PLR0911, PLR0912, PLR0915
+        async def api_create_checkout(
             req: CreateCheckoutRequest,
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
         ) -> JSONResponse:
@@ -19842,135 +18828,6 @@ class BOT_FastAPI:
                     },
                 )
 
-        @self.app.get("/api/v1/operations/await")
-        async def api_await_operations(
-            admin: str = Depends(_require_admin),
-        ) -> JSONResponse:
-            logger.info("API admin await_operations: запрос списка")
-            try:
-                payments = await json_db.read_all()
-                pending = [p for p in payments if p.get("status") == "pending"]
-                return JSONResponse(content={"await_payments": pending})
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_await_operations: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
-        @self.app.get("/api/v1/operations/partner")
-        async def api_partner_operations(
-            admin: str = Depends(_require_admin),
-        ) -> JSONResponse:
-            logger.info("API admin partner_operations: запрос списка")
-            try:
-                ops = await get_pending_partner_operations()
-                return JSONResponse(content={"partner_operations": ops})
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_partner_operations: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
-        @self.app.post("/api/v1/broadcast/send")
-        async def api_broadcast(
-            req: BroadcastRequest,
-            admin: str = Depends(_require_admin),
-        ) -> JSONResponse:
-            logger.info(
-                f"API admin broadcast: message_len={len(req.message) if req.message else 0}"
-            )
-            try:
-                result = await notify_all_users(req.message)
-                logger.info(
-                    f"API admin broadcast: sent={result.get('sent', 0)}, failed={result.get('failed', 0)}"
-                )
-                return JSONResponse(content=result)
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_broadcast: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
-        @self.app.post("/api/v1/panel/clients/create")
-        async def api_create_client(
-            req: CreateClientRequest,
-            admin: str = Depends(_require_admin),
-        ) -> JSONResponse:
-            logger.info(
-                f"API admin create_client: email={req.email}, ip={req.limit_ip}, gb={req.total_gb}"
-            )
-            try:
-                inbound_ids = req.inbound_ids or await panel.get_matching_inbound_ids(None)
-                client_data = await panel.create_client(
-                    email=req.email,
-                    limit_ip=req.limit_ip,
-                    total_gb=req.total_gb,
-                    days=req.days,
-                    tg_id=req.user_id,
-                    inbound_ids=inbound_ids,
-                )
-                logger.info(f"API admin create_client: success={client_data is not None}")
-                return JSONResponse(content={"client": client_data})
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_create_client: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
-        @self.app.get("/api/v1/panel/clients")
-        async def api_list_clients(
-            admin: str = Depends(_require_admin),
-        ) -> JSONResponse:
-            logger.info("API admin list_clients")
-            try:
-                clients = await panel.get_all_clients()
-                return JSONResponse(content={"clients": clients})
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_list_clients: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
-        @self.app.delete("/api/v1/panel/clients/{sub_id}")
-        async def api_delete_client(
-            sub_id: str,
-            admin: str = Depends(_require_admin),
-        ) -> JSONResponse:
-            logger.info(f"API admin delete_client: sub_id={sub_id}")
-            try:
-                success = await panel.delete_client(sub_id)
-                logger.info(f"API admin delete_client: sub_id={sub_id}, success={success}")
-                return JSONResponse(
-                    content={
-                        "message": translate(Config.DEFAULT_LANGUAGE, "texts.api_client_deleted"),
-                        "success": success,
-                    }
-                )
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_delete_client {sub_id}: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
-        # === Пользовательский личный кабинет ---
         @self.app.get("/api/v1/profile")
         async def api_get_profile(
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
@@ -20055,9 +18912,8 @@ class BOT_FastAPI:
                 }
             )
 
-        # === Создание подписки через API ---
         @self.app.post("/api/v1/subscription/create")
-        async def api_create_subscription(  # noqa: PLR0911
+        async def api_create_subscription(
             req: CreateSubscriptionRequest,
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
         ) -> JSONResponse:
@@ -20193,9 +19049,8 @@ class BOT_FastAPI:
                     },
                 )
 
-        # === Продление подписки ---
         @self.app.post("/api/v1/subscription/renew")
-        async def api_renew_subscription(  # noqa: PLR0911
+        async def api_renew_subscription(
             req: CreateSubscriptionRequest,
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
         ) -> JSONResponse:
@@ -20303,9 +19158,8 @@ class BOT_FastAPI:
                     },
                 )
 
-        # === Пробный тариф ---
         @self.app.post("/api/v1/subscription/trial")
-        async def api_trial_subscription(  # noqa: PLR0911
+        async def api_trial_subscription(
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
         ) -> JSONResponse:
             if not credentials:
@@ -20404,9 +19258,8 @@ class BOT_FastAPI:
                     },
                 )
 
-        # === Тестовая подписка (только для администраторов) ===
         @self.app.post("/api/v1/subscription/test")
-        async def api_test_subscription(  # noqa: PLR0911
+        async def api_test_subscription(
             req: CreateCheckoutRequest,
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
         ) -> JSONResponse:
@@ -20481,9 +19334,6 @@ class BOT_FastAPI:
                         )
                     plan_name = str(plan.get("name", req.plan_id))
 
-                # Тестовая подписка идёт через тот же путь подтверждения, что и обычный
-                # платёж: заявка попадает в список ожидающих и выдаётся
-                # только после явного подтверждения администратора.
                 payment, store_err = await store_api_subscription_payment(
                     session_user,
                     plan_id=str(plan.get("id", req.plan_id)),
@@ -20530,7 +19380,6 @@ class BOT_FastAPI:
                     },
                 )
 
-        # === Получение VPN-ссылки ---
         @self.app.get("/api/v1/subscription/link")
         async def api_get_subscription_link(
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
@@ -20579,7 +19428,6 @@ class BOT_FastAPI:
                     },
                 )
 
-        # === Дополнительный трафик ---
         @self.app.post("/api/v1/subscription/add-traffic")
         async def api_add_traffic(
             req: dict[str, Any],
@@ -20626,7 +19474,6 @@ class BOT_FastAPI:
                     },
                 )
 
-        # === Проверка подписки по sub_id (публичный) ---
         @self.app.get("/api/v1/subscription/verify/{sub_id}")
         async def api_verify_subscription(
             sub_id: str,
@@ -20670,7 +19517,6 @@ class BOT_FastAPI:
                     },
                 )
 
-        # === Локации / Серверы (публичный) ---
         @self.app.get("/api/v1/locations")
         async def api_get_locations() -> JSONResponse:
             try:
@@ -20685,7 +19531,6 @@ class BOT_FastAPI:
                     },
                 )
 
-        # === Партнёрская программа (публично) ---
         @self.app.get("/api/v1/partner/public-info")
         async def api_partner_public_info() -> JSONResponse:
             try:
@@ -20713,7 +19558,6 @@ class BOT_FastAPI:
                     },
                 )
 
-        # === Партнёрский кабинет ---
         @self.app.get("/api/v1/partner/profile")
         async def api_partner_profile(
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
@@ -20774,7 +19618,7 @@ class BOT_FastAPI:
                 )
 
         @self.app.post("/api/v1/partner/apply")
-        async def api_partner_apply(  # noqa: PLR0911
+        async def api_partner_apply(
             req: dict[str, Any],
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
         ) -> JSONResponse:
@@ -20882,8 +19726,6 @@ class BOT_FastAPI:
                         },
                     )
                     if not operation_id:
-                        # Заявка создана, но операция не зарегистрирована (дубль по TID).
-                        # Сообщаем 409, иначе заявка навсегда остаётся без админ-обработки.
                         logger.warning(
                             f"api_partner_apply: заявка {app_id} без операции (user {tg_id})"
                         )
@@ -20944,7 +19786,6 @@ class BOT_FastAPI:
             tg_id = to_int(session_user.get("telegram_id"), 0)
             try:
                 ops = await get_pending_partner_operations()
-                # Операции партнёров хранят TID, session_user["user_id"] - это UID.
                 pending = any(
                     to_int(o.get("user_id"), 0) == tg_id and o.get("op_type") == "partner_new"
                     for o in ops
@@ -20960,7 +19801,7 @@ class BOT_FastAPI:
                 )
 
         @self.app.post("/api/v1/partner/renew")
-        async def api_partner_renew(  # noqa: PLR0911
+        async def api_partner_renew(
             req: dict[str, Any],
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
         ) -> JSONResponse:
@@ -21056,7 +19897,7 @@ class BOT_FastAPI:
                 )
 
         @self.app.post("/api/v1/partner/withdraw")
-        async def api_partner_withdraw(  # noqa: PLR0911
+        async def api_partner_withdraw(
             req: dict[str, Any],
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
         ) -> JSONResponse:
@@ -21138,9 +19979,6 @@ class BOT_FastAPI:
                     },
                 )
                 if operation_id:
-                    # Заявка на вывод - не платёж: в список ожидающих
-                    # платежей она не добавляется, чтобы не двоиться
-                    # с меню заявок.
                     return JSONResponse(
                         content={
                             "message": translate(
@@ -21168,7 +20006,6 @@ class BOT_FastAPI:
                     },
                 )
 
-        # === WebSocket ---
         @self.app.websocket("/ws/notifications/{user_id}")
         async def ws_notifications(websocket: WebSocket, user_id: str) -> None:
             logger.info(f"WS connect: notifications user_id={user_id}")
@@ -21216,9 +20053,8 @@ class BOT_FastAPI:
                 if websocket in _admin_connections:
                     _admin_connections.remove(websocket)
 
-        # === Custom Tariff Generation API ---
         @self.app.post("/api/v1/tariffs/custom/generate")
-        async def api_generate_custom_tariff(  # noqa: PLR0911
+        async def api_generate_custom_tariff(
             req: CustomTariffRequest,
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
         ) -> JSONResponse:
@@ -21291,7 +20127,6 @@ class BOT_FastAPI:
                     },
                 )
 
-        # === Custom Tariff Params API ---
         @self.app.get("/api/v1/tariffs/custom/params")
         async def api_get_custom_tariff_params(
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
@@ -21346,253 +20181,6 @@ class BOT_FastAPI:
                     },
                 )
 
-        # === Admin: Full User Info ---
-        @self.app.get("/api/v1/admin/users/{user_id}/full-info")
-        async def api_admin_user_full_info(
-            user_id: int,
-            include_payments: bool = Query(True),
-            include_referrals: bool = Query(True),
-            include_panel_data: bool = Query(True),
-            admin: str = Depends(_require_admin),
-        ) -> JSONResponse:
-            logger.info(f"API admin full-info: user_id={user_id}")
-            try:
-                user = await db.get_user_by_any_id(user_id)
-                if not user:
-                    return JSONResponse(
-                        status_code=404,
-                        content={
-                            "error": translate(Config.DEFAULT_LANGUAGE, "texts.user_not_found")
-                        },
-                    )
-                result: dict[str, Any] = {"user": sanitize_user(user)}
-                sub_state = await get_subscription_state(user_id)
-                result["subscription_state"] = sub_state
-                trust = await db.get_trust_score(user_id)
-                result["trust_score"] = trust
-                result["discount_percent"] = calculate_discount_percent(trust)
-                if include_referrals:
-                    db_uid = user.get("user_id", 0)
-                    result["referrals"] = {
-                        "total": await db.count_referrals(db_uid),
-                        "paid": await db.count_referrals_paid(db_uid),
-                        "ref_code": user.get("ref_code", ""),
-                        "ref_by": user.get("ref_by"),
-                    }
-                if bool(user.get("is_mate")):
-                    result["partner"] = {
-                        "balance": to_float(user.get("mate_balance", 0), 0.0),
-                        "commission_total": to_float(user.get("mate_commission_total", 0), 0.0),
-                        "status": str(user.get("mate_status", "")),
-                        "expiry": str(user.get("mate_expiry", "")),
-                        "nickname": str(user.get("mate_nickname", "")),
-                    }
-                if include_payments:
-                    all_payments = await json_db.read_all()
-                    candidates = await resolve_payment_id_candidates(user_id)
-                    user_payments = [
-                        p
-                        for p in all_payments
-                        if _id_candidate_set(p.get("user_id"), p.get("tg_id")) & candidates
-                    ]
-                    result["pending_payments"] = [
-                        p for p in user_payments if p.get("status") == "pending"
-                    ]
-                    result["payment_history"] = [
-                        p
-                        for p in user_payments
-                        if p.get("status") in ("accepted", "rejected", "confirmed")
-                    ]
-                if include_panel_data:
-                    base_email = build_base_email(user.get("user_id", user_id))
-                    panel_clients = await panel.find_clients_full_by_email(base_email)
-                    result["panel_clients"] = panel_clients
-                return JSONResponse(content=result)
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_admin_user_full_info {user_id}: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
-        # === Admin: Payment History ---
-        @self.app.get("/api/v1/admin/payments/history")
-        async def api_admin_payment_history(
-            page: int = Query(1, ge=1),
-            limit: int = Query(50, ge=1, le=200),
-            status: str | None = Query(None),
-            admin: str = Depends(_require_admin),
-        ) -> JSONResponse:
-            try:
-                all_payments = await json_db.read_all()
-                if status:
-                    all_payments = [p for p in all_payments if p.get("status") == status]
-                all_payments.sort(key=lambda p: p.get("timestamp", ""), reverse=True)
-                total = len(all_payments)
-                offset = (page - 1) * limit
-                page_payments = all_payments[offset : offset + limit]
-                return JSONResponse(
-                    content={
-                        "payments": page_payments,
-                        "total": total,
-                        "page": page,
-                        "limit": limit,
-                    }
-                )
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_admin_payment_history: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
-        # === Payment Verification API ---
-        @self.app.post("/api/v1/payments/verify/{payment_id}")
-        async def api_verify_payment(  # noqa: PLR0911, PLR0912, PLR0915
-            payment_id: str,
-            req: PaymentVerifyRequest,
-            admin: str = Depends(_require_admin),
-        ) -> JSONResponse:
-            logger.info(f"API verify_payment: payment_id={payment_id}, status={req.status}")
-            try:
-                if req.status not in ("confirmed", "rejected"):
-                    return JSONResponse(
-                        status_code=400,
-                        content={
-                            "error": translate(Config.DEFAULT_LANGUAGE, "texts.invalid_status")
-                        },
-                    )
-                action = "accept" if req.status == "confirmed" else "reject"
-                payment = await json_db.claim_pending_payment(payment_id, 0, action)
-                if not payment:
-                    return JSONResponse(
-                        status_code=404,
-                        content={
-                            "error": translate(
-                                Config.DEFAULT_LANGUAGE,
-                                "texts.payment_not_found_or_already_processed",
-                            )
-                        },
-                    )
-                await finalize_claimed_payment_or_alert(None, payment_id, action, req.status)
-                resolved = None
-                if req.status == "confirmed":
-                    resolved = await resolve_user_from_payment(payment)
-                    if not resolved:
-                        uid = to_int(payment.get("user_id"), 0)
-                        logger.error(
-                            f"api_verify_payment: пользователь не найден для платежа {payment_id}, uid={uid}"
-                        )
-                        return JSONResponse(
-                            content={
-                                "message": "payment_confirmed_but_user_not_found",
-                                "payment_id": payment_id,
-                            }
-                        )
-                    uid = resolved.telegram_id
-                    user_data = resolved.user_data
-                    plan_type = str(payment.get("plan_type", "catalog"))
-                    plan, error = build_plan_from_payment(payment)  # noqa: RUF059
-                    if plan:
-                        paid_amount = to_float(payment.get("amount"), 0.0)
-                        user_lang = await get_user_language(uid)
-
-                        if plan_type == "test":
-                            test_sub_id = await _issue_confirmed_admin_test_subscription(
-                                uid, plan, user_lang
-                            )
-                            if not test_sub_id:
-                                logger.error(
-                                    f"api_verify_payment {payment_id}: тестовая подписка "
-                                    f"не выдана, клиент не создан"
-                                )
-                                return JSONResponse(
-                                    status_code=500,
-                                    content={
-                                        "error": translate(
-                                            Config.DEFAULT_LANGUAGE,
-                                            "texts.vpn_subscription_create_failed",
-                                        ),
-                                        "payment_id": payment_id,
-                                    },
-                                )
-                            logger.info(
-                                f"✅ Payment {payment_id} confirmed, admin test subscription issued"
-                            )
-                            return JSONResponse(
-                                content={
-                                    "message": f"Payment {req.status}",
-                                    "payment_id": payment_id,
-                                }
-                            )
-
-                        ref_by = user_data.get("ref_by")
-                        ref_rewarded = user_data.get("ref_rewarded")
-                        bonus_for_user = Config.REF_BONUS_DAYS if ref_by and not ref_rewarded else 0
-                        st = await get_subscription_state(uid)
-                        if st.get("status") == "active":
-                            vpn_url = await renew_subscription(
-                                uid,
-                                plan,
-                                extra_days=bonus_for_user,
-                                paid_amount=paid_amount,
-                            )
-                        else:
-                            vpn_url = await create_subscription(
-                                uid,
-                                plan,
-                                extra_days=bonus_for_user,
-                                paid_amount=paid_amount,
-                            )
-                        if vpn_url:
-                            await db.set_has_subscription(uid)
-                            await grant_referral_bonus(
-                                uid, to_int(ref_by, 0), ref_rewarded, paid_amount
-                            )
-                            plan_name = str(payment.get("plan_name", ""))
-                            duration_days = int(plan.get("duration_days", 30)) if plan else 30
-                            text = translate(
-                                user_lang,
-                                "texts.subscription_purchased_notification",
-                                plan_name=plan_name,
-                                duration=format_duration(duration_days, user_lang),
-                            )
-                            await notify_user(uid, text)
-                        logger.info(f"✅ Payment {payment_id} confirmed, subscription created")
-                elif Config.TRUST_SCORE_ENABLED:
-                    if resolved:
-                        await apply_trust_score_delta(
-                            resolved.telegram_id,
-                            -TRUST_SCORE_PENALTY_PAYMENT_REJECTED,
-                        )
-                    else:
-                        raw_uid = to_int(payment.get("user_id"), 0)
-                        uid = await resolve_tg_id(raw_uid) if raw_uid > 0 else 0
-                        if uid > 0:
-                            await apply_trust_score_delta(
-                                uid, -TRUST_SCORE_PENALTY_PAYMENT_REJECTED
-                            )
-                    logger.info(f"⚠️ Payment {payment_id} rejected, trust penalty applied")
-                return JSONResponse(
-                    content={
-                        "message": f"Payment {req.status}",
-                        "payment_id": payment_id,
-                    }
-                )
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_verify_payment {payment_id}: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
-        # === Partner Stats API ---
         @self.app.get("/api/v1/partner/stats")
         async def api_partner_stats(
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
@@ -21643,7 +20231,6 @@ class BOT_FastAPI:
                     },
                 )
 
-        # === Referral Stats API ---
         @self.app.get("/api/v1/referrals/stats")
         async def api_referral_stats(
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
@@ -21692,99 +20279,6 @@ class BOT_FastAPI:
                     },
                 )
 
-        # === Admin: Bulk User Actions ---
-        @self.app.post("/api/v1/admin/users/bulk-action")
-        async def api_admin_bulk_action(  # noqa: PLR0912
-            req: BulkActionRequest,
-            admin: str = Depends(_require_admin),
-        ) -> JSONResponse:
-            logger.info(f"API admin bulk-action: action={req.action}, count={len(req.user_ids)}")
-            try:
-                result = {
-                    "processed": 0,
-                    "errors": 0,
-                    "skipped_admins": 0,
-                    "results": [],
-                }
-                for uid in req.user_ids:
-                    try:
-                        user = await db.get_user_by_any_id(uid)
-                        if user:
-                            tg_id = user.get("telegram_id", 0)
-                            if tg_id and await is_admin_user(tg_id):
-                                result["results"].append(
-                                    {
-                                        "user_id": uid,
-                                        "error": "Cannot modify admin user",
-                                    }
-                                )
-                                result["skipped_admins"] += 1
-                                continue
-                        if req.action == "ban":
-                            internal_uid = user.get("user_id", uid) if user else uid
-                            tg_id = user.get("telegram_id", uid) if user else uid
-                            success = await db.ban_user_by_uid(
-                                internal_uid, reason=req.reason or "bulk_ban"
-                            )
-                            if success:
-                                cleanup = await cleanup_subscription(
-                                    internal_uid,
-                                    "bulk_ban",
-                                    notify_user_about_cleanup=False,
-                                )
-                                if not cleanup.get("success"):
-                                    logger.warning(
-                                        f"Массовый бан {internal_uid}: бан выполнен, "
-                                        f"клиент на панели не удалён"
-                                    )
-                            else:
-                                result["errors"] += 1
-                                result["results"].append({"user_id": uid, "error": "ban failed"})
-                                continue
-                        elif req.action == "unban":
-                            internal_uid = user.get("user_id", uid) if user else uid
-                            success = await db.unban_user_by_uid(internal_uid)
-                            if not success:
-                                result["errors"] += 1
-                                result["results"].append({"user_id": uid, "error": "unban failed"})
-                                continue
-                        elif req.action == "remove_subscription":
-                            internal_uid = user.get("user_id", uid) if user else uid
-                            if not await db.remove_subscription(internal_uid):
-                                result["errors"] += 1
-                                result["results"].append(
-                                    {"user_id": uid, "error": "remove_subscription failed"}
-                                )
-                                continue
-                        elif req.action == "reset_trial":
-                            tg_id = user.get("telegram_id", uid) if user else uid
-                            await db.mark_trial_used(tg_id)
-                        else:
-                            result["results"].append(
-                                {
-                                    "user_id": uid,
-                                    "error": translate(
-                                        Config.DEFAULT_LANGUAGE, "texts.unknown_action"
-                                    ),
-                                }
-                            )
-                            result["errors"] += 1
-                            continue
-                        result["processed"] += 1
-                    except Exception as e:  # noqa: BLE001
-                        result["errors"] += 1
-                        result["results"].append({"user_id": uid, "error": str(e)})
-                return JSONResponse(content=result)
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_admin_bulk_action: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
-        # === Admin: Debug Cleanup ---
         @self.app.post("/api/v1/admin/debug/cleanup")
         async def api_admin_debug_cleanup(
             req: DebugCleanupRequest,
@@ -21842,7 +20336,6 @@ class BOT_FastAPI:
                     },
                 )
 
-        # === Admin: Debug Search ---
         @self.app.get("/api/v1/admin/debug/search")
         async def api_admin_debug_search(
             q: str = Query("", min_length=1),
@@ -21866,7 +20359,6 @@ class BOT_FastAPI:
                     },
                 )
 
-        # === Admin: System Health ---
         @self.app.get("/api/v1/admin/health")
         async def api_admin_health(
             admin: str = Depends(_require_admin),
@@ -21912,70 +20404,6 @@ class BOT_FastAPI:
                     },
                 )
 
-        # === Admin: Reset User State ---
-        @self.app.post("/api/v1/admin/users/{user_id}/reset")
-        async def api_admin_reset_user(
-            user_id: int,
-            admin: str = Depends(_require_admin),
-        ) -> JSONResponse:
-            logger.warning(f"API admin reset user: user_id={user_id}")
-            try:
-                target_user = await db.get_user_by_any_id(user_id)
-                if not target_user:
-                    return JSONResponse(
-                        status_code=404,
-                        content={
-                            "error": translate(Config.DEFAULT_LANGUAGE, "texts.user_not_found")
-                        },
-                    )
-                tg_id = target_user.get("telegram_id", 0)
-                tg_id_str = format_tg_suffix(tg_id)
-                if tg_id and await is_admin_user(tg_id):
-                    return JSONResponse(
-                        status_code=403,
-                        content={
-                            "error": translate(
-                                Config.DEFAULT_LANGUAGE,
-                                "texts.cannot_reset_admin_user",
-                            )
-                        },
-                    )
-                cleanup_result = await cleanup_subscription(
-                    user_id, "admin_reset", notify_user_about_cleanup=True
-                )
-                if not cleanup_result.get("success"):
-                    return JSONResponse(
-                        status_code=500,
-                        content={
-                            "error": translate(
-                                Config.DEFAULT_LANGUAGE,
-                                "texts.api_user_state_reset_fail",
-                                user_id=user_id,
-                                tg_id=tg_id_str,
-                            )
-                        },
-                    )
-                return JSONResponse(
-                    content={
-                        "message": translate(
-                            Config.DEFAULT_LANGUAGE,
-                            "texts.api_user_state_reset",
-                            user_id=user_id,
-                            tg_id=tg_id_str,
-                        ),
-                        "success": True,
-                    }
-                )
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"api_admin_reset_user {user_id}: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
-                    },
-                )
-
-        # === Admin: Send Message to User ---
         @self.app.post("/api/v1/admin/users/{user_id}/message")
         async def api_admin_send_message(
             user_id: int,
@@ -22028,44 +20456,59 @@ class BOT_FastAPI:
                     },
                 )
 
-        # === Admin: Export User Data ---
-        @self.app.get("/api/v1/admin/users/export")
-        async def api_admin_export_users(
-            format: str = Query("json", pattern="^(json|csv)$"),
+        @self.app.post("/api/v1/admin/users/{user_id}/ip-limit")
+        async def api_admin_change_ip_limit(
+            user_id: int,
+            req: dict[str, int],
             admin: str = Depends(_require_admin),
         ) -> JSONResponse:
             try:
-                all_users = await db.get_all_users()
-                if format == "csv":
-                    if not all_users:
-                        return JSONResponse(content={"data": ""})
-                    headers = list(all_users[0].keys())
-                    csv_lines = [",".join(headers)]
-                    for user in all_users:
-                        row = []
-                        for h in headers:
-                            val = str(user.get(h, "")).replace(",", ";")
-                            row.append(val)
-                        csv_lines.append(",".join(row))
-                    csv_data = "\n".join(csv_lines)
+                target_user = await db.get_user_by_any_id(user_id)
+                if not target_user:
                     return JSONResponse(
+                        status_code=404,
                         content={
-                            "data": csv_data,
-                            "format": "csv",
-                            "count": len(all_users),
-                        }
+                            "error": translate(Config.DEFAULT_LANGUAGE, "texts.user_not_found")
+                        },
                     )
-                else:
-                    sanitized = [sanitize_user(u) for u in all_users]
+                tg_id = target_user.get("telegram_id", 0)
+                if tg_id and await is_admin_user(tg_id):
                     return JSONResponse(
+                        status_code=403,
                         content={
-                            "data": sanitized,
-                            "format": "json",
-                            "count": len(sanitized),
-                        }
+                            "error": translate(
+                                Config.DEFAULT_LANGUAGE,
+                                "texts.cannot_modify_admin_user",
+                            )
+                        },
                     )
+                delta = int(req.get("delta", 0))
+                current_ip = to_int(target_user.get("ip_limit"), 1)
+                new_ip = max(1, current_ip + delta)
+                success = await db.update_user(user_id, ip_limit=new_ip, force=True)
+                if not success:
+                    return JSONResponse(
+                        status_code=500,
+                        content={
+                            "error": translate(Config.DEFAULT_LANGUAGE, "texts.update_failed")
+                        },
+                    )
+                sub_id = target_user.get("vpn_url") or ""
+                if sub_id:
+                    clients_ok, clients = await panel.find_clients_by_sub_id_safe(str(sub_id))
+                    if clients_ok and clients:
+                        for c in clients:
+                            email = str(c.get("email") or "")
+                            if email:
+                                await panel.update_client(email, {"limitIp": new_ip})
+                return JSONResponse(
+                    content={
+                        "before": current_ip,
+                        "ip_limit": new_ip,
+                    }
+                )
             except Exception as e:  # noqa: BLE001
-                logger.error(f"api_admin_export_users: {e}")
+                logger.error(f"api_admin_change_ip_limit {user_id}: {e}")
                 return JSONResponse(
                     status_code=500,
                     content={
@@ -22073,7 +20516,6 @@ class BOT_FastAPI:
                     },
                 )
 
-        # === Error handling for unknown endpoints ---
         @self.app.exception_handler(HTTPException)
         async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
             logger.warning(f"HTTP exception: {exc.status_code} - {exc.detail}")
@@ -22094,7 +20536,7 @@ class BOT_FastAPI:
 
 
 # --- Запуск ---
-async def main() -> None:  # noqa: PLR0912, PLR0915
+async def main() -> None:
     background_tasks: list[asyncio.Task] = []
     loop = asyncio.get_running_loop()
     shutdown_event = asyncio.Event()
@@ -22220,7 +20662,6 @@ async def main() -> None:  # noqa: PLR0912, PLR0915
                 logger.warning(f"Ошибка FastAPI сервера: {e}")
 
         try:
-            # Приоритет: API, подписки, безопасность, платежи, партнёры, SSL.
             background_tasks.append(asyncio.create_task(run_api()))
             logger.info(f"FastAPI сервер запущен на {Config.FASTAPI_HOST}:{Config.FASTAPI_PORT}")
             background_tasks.append(asyncio.create_task(check_expired_subscriptions()))

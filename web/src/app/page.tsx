@@ -1,4 +1,5 @@
 import { cookies, headers } from "next/headers";
+import Image from "next/image";
 import Header from "@/components/Header";
 import { getPublicLinksFromFeatures } from "@/lib/api";
 import {
@@ -17,9 +18,6 @@ const telegramIcon = (
   </svg>
 );
 
-// Главная читает cookies (сессия/язык) и тянет тарифы и статистику
-// с no-store, поэтому предрендерить её на этапе сборки бессмысленно:
-// next build падал с "Dynamic server usage". Явно помечаем роут динамическим.
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
@@ -61,8 +59,15 @@ export default async function Home() {
       <main>
         <div className="profile">
           <div className="profile-header">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img className="profile-avatar" src="/icon.jpg" alt={vpnName} />
+            {}
+            <Image
+              className="profile-avatar"
+              src="/icon.jpg"
+              alt={vpnName}
+              width={90}
+              height={90}
+              priority
+            />
             <div className="profile-info">
               <h1 className="profile-name">{vpnName}</h1>
               <div className="profile-social">

@@ -75,8 +75,7 @@ export default function SubscribePage() {
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const [customTariffParams, setCustomTariffParams] =
     useState<CustomTariffParams | null>(null);
-  // Тариф, выбранный на главной (?tariff=<id>). Объявлен до эффектов,
-  // чтобы редирект гостя на логин его сохранил.
+
   const requestedTariffId = searchParams.get("tariff");
 
   useEffect(() => {
@@ -111,40 +110,38 @@ export default function SubscribePage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) {
-      // Сохраняем выбранный тариф: без этого гость возвращался с логина
-      // на общий список и терял выбор.
+
       const next = requestedTariffId
         ? `/subscribe?tariff=${encodeURIComponent(requestedTariffId)}`
         : "/subscribe";
       router.replace(`/login?next=${encodeURIComponent(next)}`);
       return;
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setIsPartner(user.is_partner);
-    setHasPendingPartnerApplication(user.pending_partner_application);
-    setUserSubscriptionStatus(user.subscription.status);
-    setTrialUsed(Boolean(user.trial_used));
-    setHasPendingPayment(Boolean(user.has_pending_payment));
-    setIsAdmin(Boolean(user.is_admin));
-    setTelegramLinked(user.telegram_id > 0);
-    setUserTrustScore(user.trust_score || 0);
-    setUserDiscountPercent(user.discount_percent || 0);
-    setLoading(false);
+
+    Promise.resolve().then(() => {
+      setIsPartner(user.is_partner);
+      setHasPendingPartnerApplication(user.pending_partner_application);
+      setUserSubscriptionStatus(user.subscription.status);
+      setTrialUsed(Boolean(user.trial_used));
+      setHasPendingPayment(Boolean(user.has_pending_payment));
+      setIsAdmin(Boolean(user.is_admin));
+      setTelegramLinked(user.telegram_id > 0);
+      setUserTrustScore(user.trust_score || 0);
+      setUserDiscountPercent(user.discount_percent || 0);
+      setLoading(false);
+    });
   }, [authLoading, user, router, requestedTariffId]);
 
   const isSubscribed = userSubscriptionStatus === "active";
   const eligibleForTrial = !trialUsed && !isSubscribed && !isAdmin;
   const canBuy = !isSubscribed && !hasPendingPayment;
-  // Админ берёт тестовую подписку без оплаты, поэтому активная подписка
-  // и ожидающий платёж его не блокируют (как в боте).
+
   const canSelect = isAdmin || canBuy;
   const visibleTariffs = useMemo(
     () => tariffs.filter((t) => t.active && (!t.is_trial || eligibleForTrial)),
     [tariffs, eligibleForTrial],
   );
 
-  // Тариф из ?tariff=... показывается сразу, но выбор из URL не должен
-  // обходить те же проверки, что и клик по карточке.
   const preselectedTariff = useMemo(
     () =>
       requestedTariffId
@@ -165,7 +162,6 @@ export default function SubscribePage() {
     !urlBlockedKey &&
     !isAdmin;
 
-  // Активный тариф: явно выбранный пользователем важнее тарифа из URL.
   const activeTariff: Tariff | null = selectedTariff ?? preselectedTariff;
   const activeStep: Step =
     step !== "select" ? step : urlPreselectActive ? "offer" : "select";
@@ -198,7 +194,6 @@ export default function SubscribePage() {
     setError("");
   };
 
-  // Назад из оффера: снимаем и явный выбор, и предвыбор из URL.
   const handleBackToSelect = () => {
     setSelectedTariff(null);
     setUrlSelectionDismissed(true);
@@ -222,7 +217,6 @@ export default function SubscribePage() {
     setError("");
   };
 
-  // Тестовая подписка администратора: оформляется сразу, без оплаты.
   const handleAdminTestPlan = async (tariff: Tariff) => {
     setProcessing(true);
     setError("");

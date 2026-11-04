@@ -13,8 +13,7 @@ type AuthCallbackStatus = "idle" | "processing" | "error";
 
 export default function AuthCallback() {
   const { t } = useLanguage();
-  // state берётся из URL на этапе рендера, а не в эффекте:
-  // useSearchParams работает и на сервере, поэтому SSR и клиент совпадают.
+
   const searchParams = useSearchParams();
   const state = searchParams?.get("state") || null;
   const [status, setStatus] = useState<AuthCallbackStatus>(
@@ -37,7 +36,7 @@ export default function AuthCallback() {
           return saved;
         }
       } catch {
-        // ignore
+
       }
     }
     return "/profile";
@@ -64,7 +63,7 @@ export default function AuthCallback() {
           fail("auth_timeout");
         }
       } catch {
-        // игнорируем отдельные сбои опроса
+
       }
     };
 
