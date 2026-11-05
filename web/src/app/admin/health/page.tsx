@@ -93,14 +93,14 @@ export default function AdminHealthPage() {
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                  gap: "16px",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+                  gap: "12px",
                   marginTop: "16px",
                 }}
               >
                 <div
                   style={{
-                    padding: "20px",
+                    padding: "16px",
                     background: "var(--bg-tertiary)",
                     borderRadius: "var(--radius-md)",
                     textAlign: "center",
@@ -111,6 +111,10 @@ export default function AdminHealthPage() {
                       fontSize: "28px",
                       fontWeight: "700",
                       color: "var(--accent)",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      maxWidth: "100%",
                     }}
                   >
                     {health?.users.total || 0}

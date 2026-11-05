@@ -137,7 +137,6 @@ export default function ClientPage() {
   const subscriptionLinkError = linkFailed;
   const publicLinks = getPublicLinksFromFeatures(features);
   const clientApp = publicLinks.client_app_url || "";
-  const setupGuide = publicLinks.setup_guide_url || "";
   const supportUrl = publicLinks.support_url || "";
 
   return (
@@ -283,16 +282,6 @@ export default function ClientPage() {
 
                 <p className="text-secondary" style={{ marginTop: "16px" }}>
                   {t("texts.guide_support_hint")}
-                </p>
-                <p style={{ marginTop: "16px" }}>
-                  {t("texts.guide_available")}{" "}
-                  <a
-                    href={setupGuide}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {t("texts.guide_link")}
-                  </a>
                 </p>
               </div>
             </div>

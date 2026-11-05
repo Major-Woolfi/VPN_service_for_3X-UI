@@ -30,7 +30,7 @@ export default function LoginPage() {
   const searchParams = useSearchParams();
   const { t } = useLanguage();
   const [method, setMethod] = useState<"password" | "telegram">("password");
-  const [username, setUsername] = useState("");
+  const [web_login, setWebLogin] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -147,7 +147,7 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      await loginUser({ username: username.trim(), password });
+      await loginUser({ web_login: web_login.trim(), password });
       finish();
     } catch (err) {
       setError(err instanceof Error ? err.message : t("texts.login_error"));
@@ -199,9 +199,9 @@ export default function LoginPage() {
                       type="text"
                       placeholder={t("texts.username")}
                       className="faq-search-input"
-                      value={username}
+                      value={web_login}
                       onChange={(e) =>
-                        setUsername(e.target.value.replace(/[<>"'&]/g, ""))
+                        setWebLogin(e.target.value.replace(/[<>"'&]/g, ""))
                       }
                       autoComplete="username"
                       required

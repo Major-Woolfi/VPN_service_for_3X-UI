@@ -157,6 +157,8 @@ export default function NodeStatus({ admin }: { admin?: boolean } = {}) {
           : typeof node.base_path === "string"
             ? node.base_path
             : undefined,
+      panel_base:
+        typeof node.panel_base === "string" ? node.panel_base : undefined,
     };
   });
 

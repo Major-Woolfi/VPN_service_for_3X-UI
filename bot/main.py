@@ -36,9 +36,12 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import (
+    BufferedInputFile,
     CallbackQuery,
+    FSInputFile,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    InputFile,
     Message,
 )
 from aiogram.types.error_event import ErrorEvent
@@ -289,17 +292,78 @@ async def safe_send_message(
     text: str,
     reply_markup: InlineKeyboardMarkup | None = None,
 ) -> bool:
+    """Backward-compatible wrapper around safe_send_content for text-only messages."""
+    return await safe_send_content(
+        bot=bot,
+        user_id=user_id,
+        content_type="text",
+        text=text,
+        reply_markup=reply_markup,
+    )
+
+
+async def safe_send_content(
+    bot: Bot,
+    user_id: int,
+    content_type: str,
+    text: str | None = None,
+    file_id: str | None = None,
+    file_path: str | None = None,
+    file_bytes: bytes | None = None,
+    file_name: str | None = None,
+    caption: str | None = None,
+    reply_markup: InlineKeyboardMarkup | None = None,
+) -> bool:
+    """Send a message of any supported content type to a user.
+
+    content_type: "text" | "photo" | "document"
+    """
     if not bot.session:
-        logger.error(f"safe_send_message: сессия бота не инициализирована для user {user_id}")
+        logger.error(f"safe_send_content: сессия бота не инициализирована для user {user_id}")
         return False
+
     try:
-        await bot.send_message(
-            user_id,
-            truncate(text),
-            parse_mode=ParseMode.HTML,
-            reply_markup=reply_markup,
+        if content_type == "text":
+            payload_text = text or ""
+            await bot.send_message(
+                user_id,
+                truncate(payload_text),
+                parse_mode=ParseMode.HTML,
+                reply_markup=reply_markup,
+            )
+            return True
+
+        if content_type == "photo":
+            photo = _build_input_file(
+                file_id=file_id, file_path=file_path, file_bytes=file_bytes, file_name=file_name
+            )
+            await bot.send_photo(
+                user_id,
+                photo,
+                caption=truncate(caption or ""),
+                parse_mode=ParseMode.HTML,
+                reply_markup=reply_markup,
+            )
+            return True
+
+        if content_type == "document":
+            document = _build_input_file(
+                file_id=file_id, file_path=file_path, file_bytes=file_bytes, file_name=file_name
+            )
+            await bot.send_document(
+                user_id,
+                document,
+                caption=truncate(caption or ""),
+                parse_mode=ParseMode.HTML,
+                reply_markup=reply_markup,
+            )
+            return True
+
+        logger.error(
+            f"safe_send_content: неподдерживаемый тип контента {content_type} для user {user_id}"
         )
-        return True
+        return False
+
     except TelegramBadRequest as e:
         error_msg = str(e).lower()
         if (
@@ -308,19 +372,42 @@ async def safe_send_message(
             or "user is deactivated" in error_msg
         ):
             return False
-        plain = truncate(strip_html(text))
-        try:
-            await bot.send_message(user_id, plain, reply_markup=reply_markup)
-            logger.warning(f"HTML-разметка не прошла, отправлен plain-текст для user {user_id}")
-            return True
-        except TelegramBadRequest as plain_err:
-            if "blocked" in str(plain_err).lower() or "chat not found" in str(plain_err).lower():
+        # Fallback: strip HTML and retry as plain text
+        if content_type == "text" and text:
+            plain = truncate(strip_html(text))
+            try:
+                await bot.send_message(user_id, plain, reply_markup=reply_markup)
+                logger.warning(f"HTML-разметка не прошла, отправлен plain-текст для user {user_id}")
+                return True
+            except TelegramBadRequest as plain_err:
+                if (
+                    "blocked" in str(plain_err).lower()
+                    or "chat not found" in str(plain_err).lower()
+                ):
+                    return False
+                logger.error(f"Ошибка отправки plain-текста {user_id}: {plain_err}")
                 return False
-            logger.error(f"Ошибка отправки сообщения {user_id}: {plain_err}")
-            return False
-    except Exception as e:  # noqa: BLE001
-        logger.error(f"Ошибка отправки {user_id}: {e}")
+        logger.error(f"Ошибка отправки контента {content_type} пользователю {user_id}: {e}")
         return False
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Ошибка отправки контента {content_type} пользователю {user_id}: {e}")
+        return False
+
+
+def _build_input_file(
+    *,
+    file_id: str | None = None,
+    file_path: str | None = None,
+    file_bytes: bytes | None = None,
+    file_name: str | None = None,
+) -> InputFile | str:
+    if file_id:
+        return file_id
+    if file_path:
+        return FSInputFile(file_path, filename=file_name)
+    if file_bytes is not None:
+        return BufferedInputFile(file_bytes, filename=file_name or "file")
+    raise ValueError("Необходимо указать file_id, file_path или file_bytes")
 
 
 async def smart_answer(
@@ -3268,19 +3355,19 @@ class Database:
             return False
 
     @log_error
-    async def change_username(self, user_id: int, new_username: str) -> bool:
-        if user_id <= 0 or not new_username:
+    async def change_web_login(self, user_id: int, new_web_login: str) -> bool:
+        if user_id <= 0 or not new_web_login:
             return False
         try:
-            existing = await self.get_user_by_web_login(new_username)
+            existing = await self.get_user_by_web_login(new_web_login)
             if existing and to_int(existing.get("user_id"), 0) != user_id:
                 return False
             user = await self.get_user_by_id(user_id)
             if not user:
                 return False
-            return await self.update_user(user_id, force=True, web_login=new_username)
+            return await self.update_user(user_id, force=True, web_login=new_web_login)
         except Exception as e:  # noqa: BLE001
-            logger.error(f"change_username error: {e}")
+            logger.error(f"change_web_login error: {e}")
             return False
 
     @log_error
@@ -6420,7 +6507,12 @@ class UnbanUserState(StatesGroup):
 
 class BroadcastState(StatesGroup):
     waiting_for_broadcast_type = State()
+    waiting_for_content_type = State()
     waiting_for_message = State()
+    waiting_for_photo = State()
+    waiting_for_document = State()
+    waiting_for_caption = State()
+    waiting_for_confirm = State()
 
 
 class TrustScoreState(StatesGroup):
@@ -6456,9 +6548,9 @@ class CompensateDaysState(StatesGroup):
     waiting_for_days = State()
 
 
-class ChangeUsernameState(StatesGroup):
+class ChangeWebLoginState(StatesGroup):
     waiting_for_user_id = State()
-    waiting_for_new_username = State()
+    waiting_for_new_web_login = State()
 
 
 class ChangePasswordState(StatesGroup):
@@ -9010,6 +9102,14 @@ async def cmd_start(event: Message | CallbackQuery, state: FSMContext, **kwargs:
         logger.error(f"cmd_start: некорректный user_id {user_id}")
         return
 
+    # Обновляем username из Telegram на каждый визит (включая админов)
+    tg_username_start = (user.username or "").strip() or None
+    try:
+        await db.add_user(user_id)
+        await db.update_user_by_telegram_id(user_id, username=tg_username_start, force=True)
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"cmd_start: не удалось обновить username для {user_id}: {e}")
+
     try:
         ref_code: str = ""
         bot_auth_action: str | None = None
@@ -9330,11 +9430,6 @@ async def cmd_start(event: Message | CallbackQuery, state: FSMContext, **kwargs:
                 return
         else:
             lang = await db.get_user_language(user_id) or Config.DEFAULT_LANGUAGE
-
-        # Update username from Telegram @username on each visit
-        tg_username = (user.username or "").strip()
-        if tg_username:
-            await db.update_user(user_id, username=tg_username, force=True)
 
         total = await db.get_total_users()
         banned = await db.get_banned_users_count()
@@ -13450,14 +13545,76 @@ async def process_broadcast_type(event: CallbackQuery, state: FSMContext, **kwar
     broadcast_type = event.data
     await state.update_data(broadcast_type=broadcast_type)
     lang = await get_lang(event)
-    type_text = (
-        translate(lang, "texts.broadcast_target_all")
-        if broadcast_type == "broadcast_all"
-        else translate(lang, "texts.broadcast_target_active")
+    text = translate(lang, "texts.broadcast_content_type")
+    keyboard = kb(
+        [
+            [
+                {
+                    "text": translate(lang, "broadcast_content_text"),
+                    "callback_data": "broadcast_content_text",
+                }
+            ],
+            [
+                {
+                    "text": translate(lang, "broadcast_content_photo"),
+                    "callback_data": "broadcast_content_photo",
+                }
+            ],
+            [
+                {
+                    "text": translate(lang, "broadcast_content_document"),
+                    "callback_data": "broadcast_content_document",
+                }
+            ],
+            [
+                {
+                    "text": translate(lang, "buttons.cancel"),
+                    "callback_data": "cancel",
+                }
+            ],
+        ]
     )
-    text = translate(lang, "texts.broadcast_message_prompt", type_text=type_text)
-    await smart_answer(event, text, reply_markup=cancel_only_keyboard(lang), delete_origin=True)
-    await state.set_state(BroadcastState.waiting_for_message)
+    await smart_answer(event, text, reply_markup=keyboard, delete_origin=True)
+    await state.set_state(BroadcastState.waiting_for_content_type)
+
+
+@router.callback_query(BroadcastState.waiting_for_content_type)
+async def process_broadcast_content_type(event: CallbackQuery, state: FSMContext, **kwargs):
+    if not await ensure_admin_access(event):
+        return
+    if event.data in ("cancel", "start"):
+        await state.clear()
+        await cmd_start(event, state)
+        return
+    content_type = event.data
+    await state.update_data(content_type=content_type)
+    lang = await get_lang(event)
+
+    if content_type == "broadcast_content_text":
+        text = translate(
+            lang,
+            "texts.broadcast_message_prompt",
+            type_text=translate(
+                lang,
+                "texts.broadcast_target_all"
+                if (await state.get_data()).get("broadcast_type") == "broadcast_all"
+                else "texts.broadcast_target_active",
+            ),
+        )
+        await smart_answer(event, text, reply_markup=cancel_only_keyboard(lang), delete_origin=True)
+        await state.set_state(BroadcastState.waiting_for_message)
+    elif content_type == "broadcast_content_photo":
+        text = translate(lang, "broadcast_send_photo")
+        await smart_answer(event, text, reply_markup=cancel_only_keyboard(lang), delete_origin=True)
+        await state.set_state(BroadcastState.waiting_for_photo)
+    elif content_type == "broadcast_content_document":
+        text = translate(lang, "broadcast_send_document")
+        await smart_answer(event, text, reply_markup=cancel_only_keyboard(lang), delete_origin=True)
+        await state.set_state(BroadcastState.waiting_for_document)
+    else:
+        await event.answer(translate(lang, "texts.broadcast_invalid_type"))
+        await state.clear()
+        return
 
 
 @router.message(BroadcastState.waiting_for_message)
@@ -13477,8 +13634,160 @@ async def process_broadcast_message(event: Message, state: FSMContext, **kwargs)
         await state.clear()
         await cmd_start(event, state)
         return
+    await state.update_data(
+        message_text=msg,
+        file_id=None,
+        file_path=None,
+        file_bytes=None,
+        file_name=None,
+        caption=None,
+    )
+    await _show_broadcast_confirm(event, state, lang)
+
+
+@router.message(BroadcastState.waiting_for_photo, F.photo)
+async def process_broadcast_photo(event: Message, state: FSMContext, **kwargs):
+    if not await ensure_admin_access(event, silent=True):
+        await state.clear()
+        return
+    lang = await get_lang(event)
+    photo = event.photo[-1]
+    await state.update_data(
+        message_text=None,
+        file_id=photo.file_id,
+        file_path=None,
+        file_bytes=None,
+        file_name=None,
+        caption=None,
+        content_type="photo",
+    )
+    text = translate(lang, "broadcast_caption_prompt")
+    await smart_answer(event, text, reply_markup=cancel_only_keyboard(lang), delete_origin=True)
+    await state.set_state(BroadcastState.waiting_for_caption)
+
+
+@router.message(BroadcastState.waiting_for_document, F.document)
+async def process_broadcast_document(event: Message, state: FSMContext, **kwargs):
+    if not await ensure_admin_access(event, silent=True):
+        await state.clear()
+        return
+    lang = await get_lang(event)
+    document = event.document
+    await state.update_data(
+        message_text=None,
+        file_id=document.file_id,
+        file_path=None,
+        file_bytes=None,
+        file_name=document.file_name,
+        caption=None,
+        content_type="document",
+    )
+    text = translate(lang, "broadcast_caption_prompt")
+    await smart_answer(event, text, reply_markup=cancel_only_keyboard(lang), delete_origin=True)
+    await state.set_state(BroadcastState.waiting_for_caption)
+
+
+@router.message(BroadcastState.waiting_for_caption)
+async def process_broadcast_caption(event: Message, state: FSMContext, **kwargs):
+    if not await ensure_admin_access(event, silent=True):
+        await state.clear()
+        return
+    lang = await get_lang(event)
+    if not event.text or not isinstance(event.text, str):
+        await event.answer(translate(lang, "texts.broadcast_message_must_be_text"))
+        return
+    caption = event.text.strip()
+    if is_cancel_text(caption, lang):
+        await state.clear()
+        await cmd_start(event, state)
+        return
+    if caption.lower() in ("пропустить", "skip", "/skip"):
+        caption = None
+    await state.update_data(caption=caption)
+    await _show_broadcast_confirm(event, state, lang)
+
+
+async def _show_broadcast_confirm(event: Message | CallbackQuery, state: FSMContext, lang: str):
     data = await state.get_data()
     broadcast_type = data.get("broadcast_type")
+    content_type = data.get("content_type")
+    message_text = data.get("message_text")
+    caption = data.get("caption")
+    file_name = data.get("file_name")
+
+    if broadcast_type == "broadcast_all":
+        user_ids = await db.get_all_non_banned_user_ids()
+    elif broadcast_type == "broadcast_active":
+        user_ids = await db.get_subscribed_user_ids()
+    else:
+        if isinstance(event, Message):
+            await event.answer(translate(lang, "texts.broadcast_invalid_type"))
+        await state.clear()
+        return
+
+    count = len(user_ids)
+
+    # Build preview
+    preview_parts = [f"{translate(lang, 'broadcast_preview')}\n"]
+    preview_parts.append(
+        f"<b>{translate(lang, 'texts.broadcast_target_all') if broadcast_type == 'broadcast_all' else translate(lang, 'texts.broadcast_target_active')}</b>\n"
+    )
+    if content_type == "broadcast_content_text":
+        preview_parts.append(
+            f"<b>{translate(lang, 'broadcast_content_text')}</b>:\n{message_text or ''}\n"
+        )
+    elif content_type == "broadcast_content_photo":
+        preview_parts.append(f"<b>{translate(lang, 'broadcast_content_photo')}</b>\n")
+        if caption:
+            preview_parts.append(f"Подпись: {caption}\n")
+    elif content_type == "broadcast_content_document":
+        preview_parts.append(f"<b>{translate(lang, 'broadcast_content_document')}</b>\n")
+        if file_name:
+            preview_parts.append(f"Файл: {file_name}\n")
+        if caption:
+            preview_parts.append(f"Подпись: {caption}\n")
+
+    preview_parts.append(f"\n{translate(lang, 'broadcast_confirm_prompt', count=count)}")
+
+    text = "".join(preview_parts)
+
+    keyboard = kb(
+        [
+            [
+                {
+                    "text": translate(lang, "broadcast_confirm"),
+                    "callback_data": "broadcast_confirm_send",
+                }
+            ],
+            [
+                {
+                    "text": translate(lang, "broadcast_cancel"),
+                    "callback_data": "cancel",
+                }
+            ],
+        ]
+    )
+
+    if isinstance(event, CallbackQuery):
+        await smart_answer(event, text, reply_markup=keyboard, delete_origin=True)
+    else:
+        await event.answer(text, reply_markup=keyboard)
+    await state.set_state(BroadcastState.waiting_for_confirm)
+
+
+@router.callback_query(BroadcastState.waiting_for_confirm, F.data == "broadcast_confirm_send")
+async def process_broadcast_confirm(event: CallbackQuery, state: FSMContext, **kwargs):
+    if not await ensure_admin_access(event):
+        return
+    lang = await get_lang(event)
+    data = await state.get_data()
+    broadcast_type = data.get("broadcast_type")
+    content_type = data.get("content_type")
+    message_text = data.get("message_text")
+    caption = data.get("caption")
+    file_id = data.get("file_id")
+    file_name = data.get("file_name")
+
     if broadcast_type == "broadcast_all":
         user_ids = await db.get_all_non_banned_user_ids()
     elif broadcast_type == "broadcast_active":
@@ -13487,12 +13796,37 @@ async def process_broadcast_message(event: Message, state: FSMContext, **kwargs)
         await event.answer(translate(lang, "texts.broadcast_invalid_type"))
         await state.clear()
         return
+
     await state.clear()
     sent = 0
     failed = 0
+
     for tg_id in user_ids:
         try:
-            if await notify_user(tg_id, msg):
+            if content_type == "broadcast_content_text":
+                ok = await safe_send_message(
+                    event.bot,
+                    tg_id,
+                    message_text or "",
+                )
+            elif content_type in ("broadcast_content_photo", "broadcast_content_document"):
+                ok = await safe_send_content(
+                    event.bot,
+                    tg_id,
+                    content_type="photo"
+                    if content_type == "broadcast_content_photo"
+                    else "document",
+                    file_id=file_id,
+                    file_name=file_name,
+                    caption=caption,
+                )
+            else:
+                ok = await safe_send_message(
+                    event.bot,
+                    tg_id,
+                    message_text or "",
+                )
+            if ok:
                 sent += 1
             else:
                 failed += 1
@@ -13500,6 +13834,7 @@ async def process_broadcast_message(event: Message, state: FSMContext, **kwargs)
             failed += 1
         if (sent + failed) % 10 == 0:
             await asyncio.sleep(1.0)
+
     type_text = (
         translate(lang, "texts.broadcast_target_all")
         if broadcast_type == "broadcast_all"
@@ -13513,6 +13848,22 @@ async def process_broadcast_message(event: Message, state: FSMContext, **kwargs)
         failed_count=failed,
     )
     await smart_answer(event, text, reply_markup=main_menu_keyboard(lang), delete_origin=True)
+
+
+@router.message(BroadcastState.waiting_for_photo)
+async def process_broadcast_photo_wrong_type(event: Message, state: FSMContext, **kwargs):
+    if not await ensure_admin_access(event, silent=True):
+        await state.clear()
+        return
+    await event.answer("Пожалуйста, отправьте фото.")
+
+
+@router.message(BroadcastState.waiting_for_document)
+async def process_broadcast_document_wrong_type(event: Message, state: FSMContext, **kwargs):
+    if not await ensure_admin_access(event, silent=True):
+        await state.clear()
+        return
+    await event.answer("Пожалуйста, отправьте документ.")
 
 
 def _debug_back_rows(lang: str, target: str = "debug_menu") -> list[list[dict[str, str]]]:
@@ -13721,8 +14072,8 @@ async def cmd_debug_account_menu(event: CallbackQuery, **kwargs):
             [
                 [
                     {
-                        "text": translate(lang, "buttons.change_username"),
-                        "callback_data": "debug_change_username",
+                        "text": translate(lang, "buttons.change_web_login"),
+                        "callback_data": "debug_change_web_login",
                     },
                     {
                         "text": translate(lang, "buttons.change_password"),
@@ -15117,23 +15468,23 @@ async def cmd_compensate_active_subscribers(event: CallbackQuery, state: FSMCont
     await state.set_state(CompensateDaysState.waiting_for_days)
 
 
-# --- Смена логина (debug) ---
-@router.callback_query(F.data == "debug_change_username")
-async def cmd_debug_change_username(event: CallbackQuery, state: FSMContext, **kwargs):
+# --- Смена веб-логина (debug) ---
+@router.callback_query(F.data == "debug_change_web_login")
+async def cmd_debug_change_web_login(event: CallbackQuery, state: FSMContext, **kwargs):
     if not await ensure_admin_access(event):
         return
-    await state.set_state(ChangeUsernameState.waiting_for_user_id)
+    await state.set_state(ChangeWebLoginState.waiting_for_user_id)
     lang = await get_lang(event)
     await smart_answer(
         event,
-        translate(lang, "texts.change_username_prompt"),
+        translate(lang, "texts.change_web_login_prompt"),
         reply_markup=cancel_only_keyboard(),
         delete_origin=True,
     )
 
 
-@router.message(ChangeUsernameState.waiting_for_user_id)
-async def process_change_username_user_id(event: Message, state: FSMContext, **kwargs):
+@router.message(ChangeWebLoginState.waiting_for_user_id)
+async def process_change_web_login_user_id(event: Message, state: FSMContext, **kwargs):
     lang = await get_lang(event)
     val = (event.text or "").strip()
     if is_cancel_text(val, lang):
@@ -15145,12 +15496,12 @@ async def process_change_username_user_id(event: Message, state: FSMContext, **k
         return
     tg_id = to_int((target or {}).get("telegram_id"), 0)
     tg_id_str = format_tg_suffix(tg_id)
-    await state.update_data(change_username_uid=internal_uid)
-    await state.set_state(ChangeUsernameState.waiting_for_new_username)
+    await state.update_data(change_web_login_uid=internal_uid)
+    await state.set_state(ChangeWebLoginState.waiting_for_new_web_login)
     await event.answer(
         translate(
             lang,
-            "texts.change_username_new_prompt",
+            "texts.change_web_login_new_prompt",
             user_id=internal_uid,
             tg_id=tg_id_str,
         ),
@@ -15158,8 +15509,8 @@ async def process_change_username_user_id(event: Message, state: FSMContext, **k
     )
 
 
-@router.message(ChangeUsernameState.waiting_for_new_username)
-async def process_change_username_new(event: Message, state: FSMContext, **kwargs):
+@router.message(ChangeWebLoginState.waiting_for_new_web_login)
+async def process_change_web_login_new(event: Message, state: FSMContext, **kwargs):
     lang = await get_lang(event)
     val = (event.text or "").strip()
     if is_cancel_text(val, lang):
@@ -15167,13 +15518,13 @@ async def process_change_username_new(event: Message, state: FSMContext, **kwarg
         await cmd_start(event, state)
         return
     if not re.match(r"^[a-zA-Z0-9_]{3,32}$", val):
-        await event.answer(translate(lang, "texts.change_username_invalid"))
+        await event.answer(translate(lang, "texts.change_web_login_invalid"))
         return
     data = await state.get_data()
-    uid = data.get("change_username_uid", 0)
+    uid = data.get("change_web_login_uid", 0)
     await state.clear()
     try:
-        success = await db.change_username(uid, val)
+        success = await db.change_web_login(uid, val)
         if success:
             user_data = await db.get_user_by_any_id(uid)
             tg_id = to_int(user_data.get("telegram_id", 0), 0) if user_data else 0
@@ -15182,10 +15533,10 @@ async def process_change_username_new(event: Message, state: FSMContext, **kwarg
                 event,
                 translate(
                     lang,
-                    "texts.change_username_success",
+                    "texts.change_web_login_success",
                     user_id=uid,
                     tg_id=tg_id_str,
-                    new_username=val,
+                    new_web_login=val,
                 ),
                 reply_markup=main_menu_keyboard(lang),
                 delete_origin=True,
@@ -15193,15 +15544,15 @@ async def process_change_username_new(event: Message, state: FSMContext, **kwarg
         else:
             await smart_answer(
                 event,
-                translate(lang, "texts.change_username_fail"),
+                translate(lang, "texts.change_web_login_fail"),
                 reply_markup=main_menu_keyboard(lang),
                 delete_origin=True,
             )
     except Exception as e:  # noqa: BLE001
-        logger.error(f"change_username error: {e}")
+        logger.error(f"change_web_login error: {e}")
         await smart_answer(
             event,
-            translate(lang, "texts.change_username_fail"),
+            translate(lang, "texts.change_web_login_fail"),
             reply_markup=main_menu_keyboard(lang),
             delete_origin=True,
         )
@@ -18108,7 +18459,7 @@ class BOT_FastAPI:
                         content={
                             "error": translate(
                                 Config.DEFAULT_LANGUAGE,
-                                "texts.username_and_password_required",
+                                "texts.web_login_and_password_required",
                             )
                         },
                     )
@@ -18148,7 +18499,7 @@ class BOT_FastAPI:
                         content={
                             "error": translate(
                                 Config.DEFAULT_LANGUAGE,
-                                "texts.username_already_registered",
+                                "texts.web_login_already_registered",
                             )
                         },
                     )
@@ -20359,6 +20710,53 @@ class BOT_FastAPI:
                     },
                 )
 
+        @self.app.get("/api/v1/users")
+        async def api_admin_users(
+            admin: str = Depends(_require_admin),
+            page: int = 1,
+            limit: int = 50,
+        ) -> JSONResponse:
+            try:
+                all_users = await db.get_all_users()
+                total = len(all_users)
+                start = max(0, (page - 1) * limit)
+                end = start + limit
+                paginated = all_users[start:end]
+
+                users = []
+                for u in paginated:
+                    users.append(
+                        {
+                            "user_id": u.get("user_id", 0),
+                            "telegram_id": u.get("telegram_id", 0),
+                            "username": u.get("username") or "",
+                            "join_date": u.get("join_date") or "",
+                            "has_subscription": 1 if u.get("has_subscription") else 0,
+                            "is_mate": 1 if u.get("is_mate") else 0,
+                            "language": u.get("language") or "ru",
+                            "trust_score": u.get("trust_score", 0),
+                            "abuse_status": u.get("abuse_status") or None,
+                            "daily_traffic_usage": u.get("daily_traffic_usage"),
+                        }
+                    )
+
+                return JSONResponse(
+                    content={
+                        "users": users,
+                        "total": total,
+                        "page": page,
+                        "limit": limit,
+                    }
+                )
+            except Exception as e:  # noqa: BLE001
+                logger.error(f"api_admin_users: {e}")
+                return JSONResponse(
+                    status_code=500,
+                    content={
+                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
+                    },
+                )
+
         @self.app.get("/api/v1/admin/health")
         async def api_admin_health(
             admin: str = Depends(_require_admin),
@@ -20397,6 +20795,73 @@ class BOT_FastAPI:
                 )
             except Exception as e:  # noqa: BLE001
                 logger.error(f"api_admin_health: {e}")
+                return JSONResponse(
+                    status_code=500,
+                    content={
+                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
+                    },
+                )
+
+        @self.app.get("/api/v1/admin/panel-status")
+        async def api_admin_panel_status(
+            admin: str = Depends(_require_admin),
+        ) -> JSONResponse:
+            try:
+                panel_info = await panel.get_panel_info()
+                server_status = await panel.get_server_status(sanitize=True)
+                nodes_raw = await panel.get_nodes(sanitize=False)
+
+                minimal_panel = {
+                    "panel_version": panel_info.get("panel_version", ""),
+                    "xray_version": panel_info.get("xray_version", ""),
+                    "panel_base": panel_info.get("panel_base", ""),
+                }
+
+                minimal_status: dict[str, Any] = {}
+                if isinstance(server_status, dict):
+                    xray_obj = server_status.get("xray")
+                    xray_state = "offline"
+                    if isinstance(xray_obj, dict):
+                        raw_state = xray_obj.get("state")
+                        xray_state = (
+                            raw_state if raw_state and raw_state != "unknown" else "offline"
+                        )
+                    elif xray_obj is not None:
+                        xray_state = "offline"
+                    minimal_status["xray"] = {"state": xray_state}
+                    if "uptime" in server_status:
+                        minimal_status["uptime"] = server_status["uptime"]
+
+                minimal_nodes: list[dict[str, Any]] = []
+                for node in nodes_raw:
+                    if not isinstance(node, dict):
+                        continue
+                    node_status = node.get("status", "offline")
+                    if node_status == "unknown":
+                        node_status = "offline"
+                    minimal_nodes.append(
+                        {
+                            "name": node.get("name", ""),
+                            "status": node_status,
+                            "uptime": node.get("uptime"),
+                            "panel_version": node.get("panel_version", ""),
+                            "xray_version": node.get("xray_version", ""),
+                            "address": node.get("address"),
+                            "port": node.get("port"),
+                            "scheme": node.get("scheme"),
+                            "base_path": node.get("base_path") or node.get("basePath"),
+                        }
+                    )
+
+                return JSONResponse(
+                    content={
+                        "panel": minimal_panel,
+                        "server_status": minimal_status,
+                        "nodes": minimal_nodes,
+                    }
+                )
+            except Exception as e:  # noqa: BLE001
+                logger.error(f"api_admin_panel_status: {e}")
                 return JSONResponse(
                     status_code=500,
                     content={

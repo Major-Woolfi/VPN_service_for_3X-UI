@@ -21,7 +21,7 @@ function safeNextPath(): string {
 export default function RegisterPage() {
   const router = useRouter();
   const { t } = useLanguage();
-  const [username, setUsername] = useState("");
+  const [web_login, setWebLogin] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -32,8 +32,8 @@ export default function RegisterPage() {
     e.preventDefault();
     setError("");
 
-    const sanitizedUsername = username.replace(/[<>"'&]/g, "").trim();
-    if (sanitizedUsername.length < 3) {
+    const sanitizedWebLogin = web_login.replace(/[<>"'&]/g, "").trim();
+    if (sanitizedWebLogin.length < 3) {
       setError(t("texts.username_too_short"));
       return;
     }
@@ -49,7 +49,7 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       await registerUser({
-        username: sanitizedUsername,
+        web_login: sanitizedWebLogin,
         password,
         ref_code: refCode || undefined,
       });
@@ -85,17 +85,17 @@ export default function RegisterPage() {
                   className="flex flex-col gap-3"
                   noValidate
                 >
-                  <input
-                    type="text"
-                    placeholder={t("texts.username")}
-                    className="faq-search-input"
-                    value={username}
-                    onChange={(e) =>
-                      setUsername(e.target.value.replace(/[<>"'&]/g, ""))
-                    }
-                    autoComplete="username"
-                    required
-                  />
+                    <input
+                      type="text"
+                      placeholder={t("texts.username")}
+                      className="faq-search-input"
+                      value={web_login}
+                      onChange={(e) =>
+                        setWebLogin(e.target.value.replace(/[<>"'&]/g, ""))
+                      }
+                      autoComplete="username"
+                      required
+                    />
                   <input
                     type="password"
                     placeholder={t("texts.password")}

@@ -1340,7 +1340,6 @@ select.form-input {
 
 .data-table {
   width: 100%;
-  min-width: 720px;
   border-collapse: collapse;
   font-size: 14px;
 }

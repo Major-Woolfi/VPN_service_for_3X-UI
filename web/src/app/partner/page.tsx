@@ -239,95 +239,42 @@ export default function PartnerPage() {
         <div className="pinned-section fade-in">
           <h2>{t("texts.partner_requirements")}</h2>
           <div className="pinned-content">
-            <p style={{ marginTop: "16px", color: "var(--text-secondary)" }}>
-              <SafeHTML
-                html={tHtml("texts.partner_requirements_detailed", {
-                  min_followers: publicInfo.min_followers,
-                  min_avg_reach: publicInfo.min_avg_reach,
-                  required_socials: socialsList
-                    .map((s) => socialLabels[s] || s)
-                    .join(", "),
-                })}
-              />
-            </p>
+            <div style={{ marginTop: "16px", color: "var(--text-secondary)" }}>
+              <div>• {t("texts.partner_req_followers", { count: publicInfo.min_followers })}</div>
+              <div>• {t("texts.partner_req_reach", { count: publicInfo.min_avg_reach })}</div>
+              <div>• {t("texts.partner_req_socials", { socials: socialsList.map((s) => socialLabels[s] || s).join(", ") })}</div>
+            </div>
           </div>
         </div>
 
         <div className="pinned-section fade-in delay-1">
           <h2>{t("texts.partner_conditions")}</h2>
           <div className="pinned-content">
-            <p style={{ marginTop: "16px", color: "var(--text-secondary)" }}>
-              <SafeHTML
-                html={tHtml("texts.partner_conditions_detailed", {
-                  commission_percent: publicInfo.commission_percent,
-                })}
-              />
-            </p>
-            <div style={{ marginTop: "20px" }}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginBottom: "12px",
-                  paddingBottom: "12px",
-                  borderBottom: "1px solid var(--border-color)",
-                }}
-              >
-                <span style={{ color: "var(--text-secondary)" }}>
-                  {t("texts.partner_commission", {
-                    commission_percent: publicInfo.commission_percent,
-                  })}
-                </span>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginBottom: "12px",
-                  paddingBottom: "12px",
-                  borderBottom: "1px solid var(--border-color)",
-                }}
-              >
-                <span style={{ color: "var(--text-secondary)" }}>
-                  {t("texts.partner_payment_terms", { min_amount: 500 })}
-                </span>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginBottom: "12px",
-                  paddingBottom: "12px",
-                  borderBottom: "1px solid var(--border-color)",
-                }}
-              >
-                <span style={{ color: "var(--text-secondary)" }}>
-                  {t("texts.partner_period", {
-                    min: publicInfo.min_period_months,
-                    max: publicInfo.max_period_months,
-                  })}
-                </span>
-              </div>
-            </div>
-            <div
-              style={{
-                marginTop: "16px",
-                padding: "12px",
-                background: "var(--bg-tertiary)",
-                borderRadius: "var(--radius-sm)",
-              }}
-            >
-              <p
-                style={{
-                  fontSize: "13px",
-                  color: "var(--text-secondary)",
-                  lineHeight: "1.6",
-                }}
-              >
-                {t("texts.partner_withdrawal_info")}
-              </p>
+            <div style={{ marginTop: "16px", color: "var(--text-secondary)" }}>
+              <div>• {t("texts.partner_commission", { commission_percent: publicInfo.commission_percent })}</div>
+              <div>• {t("texts.partner_payment_terms", { min_amount: 500 })}</div>
+              <div>• {t("texts.partner_period", { min: publicInfo.min_period_months, max: publicInfo.max_period_months })}</div>
             </div>
           </div>
+        </div>
+
+        <div
+          style={{
+            marginTop: "16px",
+            padding: "12px",
+            background: "var(--bg-tertiary)",
+            borderRadius: "var(--radius-sm)",
+          }}
+        >
+          <p
+            style={{
+              fontSize: "13px",
+              color: "var(--text-secondary)",
+              lineHeight: "1.6",
+            }}
+          >
+            {t("texts.partner_withdrawal_info")}
+          </p>
         </div>
       </>
     );

@@ -1,12 +1,12 @@
 export interface WebRegisterRequest {
-  username: string;
+  web_login: string;
   password: string;
   tg_id?: number;
   ref_code?: string;
 }
 
 export interface WebLoginRequest {
-  username: string;
+  web_login: string;
   password: string;
 }
 
