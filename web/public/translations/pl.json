@@ -48,7 +48,10 @@
     "tiktok": "TikTok",
     "tos": "ToS",
     "withdraw": "Wypłać",
-    "youtube": "YouTube"
+    "youtube": "YouTube",
+    "partner_channel_add": "Dodaj kanał TG",
+    "partner_channel_verify_all": "Sprawdź wszystko",
+    "partner_channel_remove": "Usuń {channel}"
   },
   "texts": {
     "3x_ui": "3X-UI",
@@ -69,7 +72,6 @@
     "admin_section": "Administracyjne",
     "admin_test_mode_hint": "Dla administratorów - testowe zamówienie bez płatności.",
     "admin_user_trust": "Zaufanie",
-    "admin_user_username": "Login",
     "admin_user_vpn_url": "VPN URL",
     "all_users": "Wszystkich użytkowników",
     "alt_client": "v2RayTun (przestarzały)",
@@ -138,11 +140,9 @@
     "guide_incy_step_6": "Gotowe - VPN działa.",
     "guide_happ_step_1": "Pobierz Happ dla swojego systemu operacyjnego.",
     "guide_happ_step_2": "Otwórz Happ.",
-    "guide_happ_step_3": "Wklej subskrypcję z naszego bota.",
     "guide_happ_step_4": "Skonfiguruj routing i proxy aplikacji.",
     "guide_v2raytun_step_1": "Pobierz plik v2RayTun.",
     "guide_v2raytun_step_2": "Otwórz v2RayTun.",
-    "guide_v2raytun_step_3": "Wklej subskrypcję z naszego bota.",
     "guide_v2raytun_step_4": "Opcjonalnie: Ustawienia → Ustawienia aplikacji → Przywróć ustawienia.",
     "guide_v2raytun_step_5": "Opcjonalnie: Ustawienia → Routing i wybierz aplikacje pro-rosyjskie, które nie działają z VPN.",
     "have_account": "Masz już konto?",
@@ -338,8 +338,8 @@
     "uptime": "Czas pracy",
     "uptime_hours": "{hours} godz.",
     "user_id": "UID",
-    "username": "Login",
-    "username_too_short": "Nazwa użytkownika musi zawierać co najmniej 3 znaki",
+    "web_login": "Login",
+    "web_login_too_short": "Login musi zawierać co najmniej 3 znaki",
     "users_count": "Lista wszystkich użytkowników",
     "users_list": "Użytkownicy",
     "vpn_service": "Usługa VPN",
@@ -385,7 +385,15 @@
     "feature_17": "Płatności P2P i YooMoney",
     "feature_18": "Wsparcie przez Telegram",
     "feature_19": "Otwarty kod źródłowy (licencja MIT)",
-    "feature_20": "Wsparcie 24/7 przez Telegram"
+    "feature_20": "Wsparcie 24/7 przez Telegram",
+    "partner_channel_invalid_id": "❌ Nieprawidłowe ID kanału.",
+    "partner_channel_added": "✅ Kanał <b>{channel}</b> dodany do programu partnerskiego.",
+    "partner_channel_removed": "✅ Kanał usunięty.",
+    "partner_channel_removed_fail": "❌ Niepowodzenie usuwania kanału.",
+    "partner_channel_verified": "✅ Sprawdzone: {count} z {total} kanałów aktywnych.",
+    "partner_channel_verify_fail": "❌ Niepowodzenie weryfikacji kanałów.",
+    "partner_autopost_result": "📤 Opublikowano: {sent}/{total}, błędów: {failed}",
+    "partner_autopost_failed": "❌ Błąd autoposta."
   },
   "legal": {
     "offer": {

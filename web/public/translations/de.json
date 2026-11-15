@@ -48,7 +48,10 @@
     "tiktok": "TikTok",
     "tos": "ToS",
     "withdraw": "Auszahlen",
-    "youtube": "YouTube"
+    "youtube": "YouTube",
+    "partner_channel_add": "TG-Kanal hinzufügen",
+    "partner_channel_verify_all": "Alle prüfen",
+    "partner_channel_remove": "{channel} entfernen"
   },
   "texts": {
     "3x_ui": "3X-UI",
@@ -69,7 +72,6 @@
     "admin_section": "Admin",
     "admin_test_mode_hint": "Für Administratoren - Testbuchung ohne Zahlung.",
     "admin_user_trust": "Vertrauen",
-    "admin_user_username": "Login",
     "admin_user_vpn_url": "VPN URL",
     "all_users": "Nutzer gesamt",
     "alt_client": "v2RayTun (veraltet)",
@@ -138,11 +140,9 @@
     "guide_incy_step_6": "Fertig - VPN funktioniert.",
     "guide_happ_step_1": "Laden Sie Happ für Ihr Betriebssystem herunter.",
     "guide_happ_step_2": "Öffnen Sie Happ.",
-    "guide_happ_step_3": "Fügen Sie das Abonnement von unserem Bot ein.",
     "guide_happ_step_4": "Konfigurieren Sie Routing und App-Proxying.",
     "guide_v2raytun_step_1": "Laden Sie die v2RayTun-Datei herunter.",
     "guide_v2raytun_step_2": "Öffnen Sie v2RayTun.",
-    "guide_v2raytun_step_3": "Fügen Sie das Abonnement von unserem Bot ein.",
     "guide_v2raytun_step_4": "Optional: Einstellungen → App-Einstellungen → Einstellungen wiederherstellen.",
     "guide_v2raytun_step_5": "Optional: Einstellungen → Routing und pro-russische Apps auswählen, die nicht mit VPN funktionieren.",
     "have_account": "Bereits ein Konto?",
@@ -338,8 +338,8 @@
     "uptime": "Betriebszeit",
     "uptime_hours": "{hours} Std.",
     "user_id": "UID",
-    "username": "Login",
-    "username_too_short": "Der Benutzername muss mindestens 3 Zeichen enthalten",
+    "web_login": "Login",
+    "web_login_too_short": "Der Login muss mindestens 3 Zeichen enthalten",
     "users_count": "Liste aller Nutzer",
     "users_list": "Nutzer",
     "vpn_service": "VPN-Dienst",
@@ -385,7 +385,15 @@
     "feature_17": "P2P und YooMoney Zahlungen",
     "feature_18": "Support via Telegram",
     "feature_19": "Open Source (MIT Lizenz)",
-    "feature_20": "24/7 Support via Telegram"
+    "feature_20": "24/7 Support via Telegram",
+    "partner_channel_invalid_id": "❌ Ungültige Kanal-ID.",
+    "partner_channel_added": "✅ Kanal <b>{channel}</b> zum Partnerprogramm hinzugefügt.",
+    "partner_channel_removed": "✅ Kanal entfernt.",
+    "partner_channel_removed_fail": "❌ Kanalentfernung fehlgeschlagen.",
+    "partner_channel_verified": "✅ Geprüft: {count} von {total} Kanälen aktiv.",
+    "partner_channel_verify_fail": "❌ Kanalprüfung fehlgeschlagen.",
+    "partner_autopost_result": "📤 Veröffentlicht: {sent}/{total}, Fehler: {failed}",
+    "partner_autopost_failed": "❌ Autopost-Fehler."
   },
   "legal": {
     "offer": {

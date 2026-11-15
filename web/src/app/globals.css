@@ -539,6 +539,18 @@ img {
   padding: 32px 20px 60px;
 }
 
+@media (max-width: 768px) {
+  .profile {
+    padding: 20px 16px 40px;
+  }
+}
+
+@media (max-width: 480px) {
+  .profile {
+    padding: 16px 12px 32px;
+  }
+}
+
 /* === PROFILE HEADER === */
 .profile-header {
   display: flex;
@@ -1516,18 +1528,19 @@ select.form-input {
   word-break: break-word;
 }
 
-/* Сетка нод: одна колонка на телефоне, две на планшете, дальше - auto-fit.
-   Раньше ширина колонки зависела от чётности количества нод, из-за чего
-   сетка вела себя по-разному при добавлении и удалении одной ноды. */
+/* Сетка нод: одна колонка на телефоне, до трёх на десктопе.
+   При неполной последней строке узлы центрируются, а не растягиваются. */
 .node-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: 16px;
+  justify-items: center;
 }
 
 @media (min-width: 640px) {
   .node-grid {
     grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    justify-items: center;
   }
 }
 

@@ -19,20 +19,20 @@ export default function LiveStatusBar() {
 
   useEffect(() => {
     let cancelled = false;
-    let aborter = new AbortController();
+    let abortController = new AbortController();
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
     const check = async () => {
       if (typeof document !== "undefined" && document.hidden) return;
 
       if (timeoutId) clearTimeout(timeoutId);
-      aborter = new AbortController();
-      timeoutId = setTimeout(() => aborter.abort(), REQUEST_TIMEOUT_MS);
+      abortController = new AbortController();
+      timeoutId = setTimeout(() => abortController.abort(), REQUEST_TIMEOUT_MS);
 
       try {
         const res = await fetch(`${API_BASE_URL}/health`, {
           cache: "no-store",
-          signal: aborter.signal,
+          signal: abortController.signal,
         });
         if (!res.ok) throw new Error(t("texts.api_offline"));
         const data = (await res.json()) as Health;
@@ -45,10 +45,10 @@ export default function LiveStatusBar() {
         if (!cancelled) {
           setOnline(false);
         }
-        if (aborter.signal.aborted) {
-          console.error("[LiveStatusCode] health check timeout");
+        if (abortController.signal.aborted) {
+          console.error("[LiveStatusBar] health check timeout");
         } else {
-          console.error("[LiveStatusCode] health check error:", err);
+          console.error("[LiveStatusBar] health check Error:", err);
         }
       }
     };
@@ -65,7 +65,7 @@ export default function LiveStatusBar() {
 
     return () => {
       cancelled = true;
-      aborter.abort();
+      abortController.abort();
       if (timeoutId) clearTimeout(timeoutId);
       clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisibilityChange);
@@ -118,3 +118,5 @@ export default function LiveStatusBar() {
     </div>
   );
 }
+
+

@@ -48,7 +48,10 @@
     "tiktok": "TikTok",
     "tos": "ToS",
     "withdraw": "Withdraw",
-    "youtube": "YouTube"
+    "youtube": "YouTube",
+    "partner_channel_add": "Add TG Channel",
+    "partner_channel_verify_all": "Verify All",
+    "partner_channel_remove": "Remove {channel}"
   },
   "texts": {
     "3x_ui": "3X-UI",
@@ -69,7 +72,6 @@
     "admin_section": "Admin",
     "admin_test_mode_hint": "For administrators - test checkout without payment.",
     "admin_user_trust": "Trust",
-    "admin_user_username": "Login",
     "admin_user_vpn_url": "VPN URL",
     "all_users": "Total users",
     "alt_client": "v2RayTun (legacy)",
@@ -138,11 +140,9 @@
     "guide_incy_step_6": "Done - VPN is working.",
     "guide_happ_step_1": "Download Happ for your operating system.",
     "guide_happ_step_2": "Open Happ.",
-    "guide_happ_step_3": "Paste the subscription from our bot.",
     "guide_happ_step_4": "Configure routing and per-app proxying.",
     "guide_v2raytun_step_1": "Download the v2RayTun file.",
     "guide_v2raytun_step_2": "Open v2RayTun.",
-    "guide_v2raytun_step_3": "Paste the subscription from our bot.",
     "guide_v2raytun_step_4": "Optionally: Settings → App Settings → Restore Settings.",
     "guide_v2raytun_step_5": "Optionally: Settings → Routing and select pro-Russian apps that don't work with VPN.",
     "have_account": "Already have an account?",
@@ -338,8 +338,8 @@
     "uptime": "Uptime",
     "uptime_hours": "{hours} h.",
     "user_id": "UID",
-    "username": "Login",
-    "username_too_short": "Username must contain at least 3 characters",
+    "web_login": "Login",
+    "web_login_too_short": "Login must contain at least 3 characters",
     "users_count": "List of all users",
     "users_list": "Users",
     "vpn_service": "VPN service",
@@ -385,7 +385,15 @@
     "feature_17": "P2P and YooMoney payments",
     "feature_18": "Support via Telegram",
     "feature_19": "Open source (MIT license)",
-    "feature_20": "24/7 support via Telegram"
+    "feature_20": "24/7 support via Telegram",
+    "partner_channel_invalid_id": "❌ Invalid channel ID.",
+    "partner_channel_added": "✅ Channel <b>{channel}</b> added to the partner program.",
+    "partner_channel_removed": "✅ Channel removed.",
+    "partner_channel_removed_fail": "❌ Failed to remove channel.",
+    "partner_channel_verified": "✅ Checked: {count} of {total} channels active.",
+    "partner_channel_verify_fail": "❌ Failed to verify channels.",
+    "partner_autopost_result": "📤 Posted: {sent}/{total}, errors: {failed}",
+    "partner_autopost_failed": "❌ Failed to send autopost."
   },
   "legal": {
     "offer": {

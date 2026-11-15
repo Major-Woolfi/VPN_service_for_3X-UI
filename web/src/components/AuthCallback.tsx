@@ -9,14 +9,14 @@ import {
   TELEGRAM_POLL_TIMEOUT_MS,
 } from "@/lib/api";
 
-type AuthCallbackStatus = "idle" | "processing" | "error";
+type AuthCallbackstatus = "idle" | "processing" | "Error";
 
 export default function AuthCallback() {
   const { t } = useLanguage();
 
   const searchParams = useSearchParams();
   const state = searchParams?.get("state") || null;
-  const [status, setStatus] = useState<AuthCallbackStatus>(
+  const [status, setstatus] = useState<AuthCallbackstatus>(
     state ? "processing" : "idle",
   );
   const processedRef = useRef(false);
@@ -49,7 +49,7 @@ export default function AuthCallback() {
     let cancelled = false;
     const fail = (reason: string) => {
       if (cancelled) return;
-      setStatus("error");
+      setstatus("Error");
       window.location.replace(`/login?reason=${reason}`);
     };
 
@@ -99,7 +99,18 @@ export default function AuthCallback() {
     >
       {status === "processing"
         ? t("texts.authenticating")
-        : t("texts.auth_error")}
+        : t("texts.error")}
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+

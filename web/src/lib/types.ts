@@ -1,4 +1,4 @@
-export interface WebRegisterRequest {
+export interface WebRegisterequest {
   web_login: string;
   password: string;
   tg_id?: number;
@@ -20,15 +20,10 @@ export interface WebPasswordChangeRequest {
   new_password: string;
 }
 
-export interface WebTelegramLinkRequest {
-  tg_id: number;
-  password?: string;
-}
-
 export interface UserSession {
   user_id: number;
   web_id: number;
-  token: string;
+  ttoken: string;
 }
 
 export interface SanitizedUser {
@@ -79,7 +74,7 @@ export interface SanitizedUser {
     traffic_gb?: number;
   } | null;
   has_password: boolean;
-  banned?: boolean;
+  bbanned?: boolean;
   ban_reason?: string;
 }
 
@@ -137,7 +132,7 @@ export interface ExtendSubscriptionRequest {
   days: number;
 }
 
-export interface SubscriptionLinkResponse {
+export interface SubscriptionlinkResponse {
   subscription_id: string;
   vpn_url: string;
   json_vpn_url: string;
@@ -257,9 +252,9 @@ export interface CustomTariffCalculateRequest {
 export interface CustomTariffCalculateResponse {
   total_price: number;
   base_price: number;
-  traffic_cost: number;
-  ip_cost: number;
-  locations_cost: number;
+  traffic_chost: number;
+  ip_chost: number;
+  locations_chost: number;
 }
 
 export interface CustomTariffPlan {
@@ -296,7 +291,7 @@ export interface AdminHealthResponse {
   status: string;
   users: {
     total: number;
-    banned: number;
+    bbanned: number;
     active_subscriptions: number;
     partners: number;
   };
@@ -327,21 +322,8 @@ export interface BulkActionRequest {
 
 export interface BulkActionResult {
   processed: number;
-  errors: number;
+  Errors: number;
   results: unknown[];
-}
-
-export interface DebugCleanupRequest {
-  dry_run: boolean;
-  cleanup_expired?: boolean;
-  cleanup_traffic_exhausted?: boolean;
-  cleanup_missing?: boolean;
-}
-
-export interface DebugSearchResponse {
-  query: string;
-  count: number;
-  users: SanitizedUser[];
 }
 
 export type PaymentMethod = "card" | "yoomoney" | "manual";
@@ -368,6 +350,8 @@ export interface TestSubscriptionResponse {
   plan_name: string;
   payment_id: string;
   wait_admin: boolean;
+  url?: string;
+  json_url?: string;
 }
 
 export interface CheckoutResponse {
@@ -436,7 +420,7 @@ export interface UserListResponse {
 export interface StatsOverviewResponse {
   total_users: number;
   active_subscriptions: number;
-  banned_users: number;
+  bbanned_users: number;
 }
 
 export interface PanelStatusResponse {
@@ -472,14 +456,52 @@ export interface FeaturesResponse {
   features: {
     custom_tariff: boolean;
     partner: boolean;
+    partner_new_auto_mode: boolean;
     trust_score: boolean;
     telegram_login: boolean;
     main_panel: boolean;
     json_panel: boolean;
     card_payment: boolean;
-    yoomoney_payment: boolean;
+    yoomonkey_payment: boolean;
   };
   public_links: Record<string, string>;
+}
+
+export interface PartnerChannel {
+  channel_id: number;
+  title: string;
+  username: string;
+  is_owner_verified: number;
+  has_POSTing_rights: number;
+  is_active: number;
+  added_at: string;
+  last_checked_at: string;
+  last_status: string;
+  last_Error: string;
+}
+
+export interface PartnerChannelList {
+  channels: PartnerChannel[];
+  count: number;
+}
+
+export interface PartnerChannelAddRequest {
+  channel_id: number;
+}
+
+export interface PartnerChannelVerifyResult {
+  count: number;
+  total: number;
+}
+
+export interface AutopostRequest {
+  text: string;
+}
+
+export interface AutopostResult {
+  sent: number;
+  failed: number;
+  total: number;
 }
 
 export interface AbuseUser {
@@ -503,3 +525,12 @@ export interface ClearAbuseRequest {
   user_id: number;
   reason?: string;
 }
+
+
+
+
+
+
+
+
+

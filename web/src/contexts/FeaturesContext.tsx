@@ -14,7 +14,7 @@ import type { FeaturesResponse } from "@/lib/types";
 interface FeaturesContextType {
   features: FeaturesResponse | null;
   loading: boolean;
-  error: string | null;
+  Error: string | null;
 }
 
 const FeaturesContext = createContext<FeaturesContextType | undefined>(
@@ -32,7 +32,7 @@ export function FeaturesProvider({
     initialFeatures,
   );
   const [loading, setLoading] = useState(initialFeatures === null);
-  const [error, setError] = useState<string | null>(null);
+  const [Error, setError] = useState<string | null>(null);
 
   const initialSignature = initialFeatures
     ? JSON.stringify(initialFeatures)
@@ -54,8 +54,8 @@ export function FeaturesProvider({
       } catch (err) {
         if (!cancelled) {
           setError(
-            err instanceof Error
-              ? err.message
+            typeof err === "object" && err !== null && "message" in err
+              ? (err as { message: string }).message
               : t("texts.failed_to_load_features"),
           );
         }
@@ -69,7 +69,7 @@ export function FeaturesProvider({
   }, [initialFeatures]);
 
   return (
-    <FeaturesContext.Provider value={{ features, loading, error }}>
+    <FeaturesContext.Provider value={{ features, loading, Error }}>
       {children}
     </FeaturesContext.Provider>
   );
@@ -82,3 +82,6 @@ export function useFeatures() {
   }
   return context;
 }
+
+
+

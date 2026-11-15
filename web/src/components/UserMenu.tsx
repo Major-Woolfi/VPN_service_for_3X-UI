@@ -69,7 +69,7 @@ function LanguageSwitcher() {
 export default function UserMenu() {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const { authorizedLinks, adminLinks } = useNavigation();
+  const { authorizedlinks, adminlinks } = useNavigation();
   const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -144,7 +144,7 @@ export default function UserMenu() {
                   )}
                 </span>
               </div>
-              {authorizedLinks.map((link) => (
+              {authorizedlinks.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
@@ -179,7 +179,7 @@ export default function UserMenu() {
                   </Link>
                 </>
               )}
-              {adminLinks.map((link) => (
+              {adminlinks.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
@@ -230,3 +230,20 @@ export default function UserMenu() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

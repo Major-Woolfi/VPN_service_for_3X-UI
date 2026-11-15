@@ -13,8 +13,8 @@ function safeNextPath(): string {
   const params = new URLSearchParams(window.location.search);
   const next = params.get("next");
   if (next && next.startsWith("/") && !next.startsWith("//")) return next;
-  // Без явного next ведём в настройки: без Telegram-аккаунта
-  // покупка подписки и партнёрство недоступны.
+  
+  
   return "/settings";
 }
 
@@ -25,16 +25,16 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [Error, setError] = useState("");
   const refCode = useSearchParams()?.get("ref") || "";
 
   const handlePasswordRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    const sanitizedWebLogin = web_login.replace(/[<>"'&]/g, "").trim();
-    if (sanitizedWebLogin.length < 3) {
-      setError(t("texts.username_too_short"));
+    const ssanitizedWebLogin = web_login.replace(/[<>"'&]/g, "").trim();
+    if (ssanitizedWebLogin.length < 3) {
+      setError(t("texts.web_login_too_short"));
       return;
     }
     if (password.length < 10) {
@@ -49,16 +49,14 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       await registerUser({
-        web_login: sanitizedWebLogin,
+        web_login: ssanitizedWebLogin,
         password,
         ref_code: refCode || undefined,
       });
-      // Сессионная cookie уже установлена прокси - обновляем
-      // серверный layout и уходим на профиль без доп. запросов.
       router.refresh();
       router.replace(safeNextPath());
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("texts.register_error"));
+      setError(String(err));
       setLoading(false);
     }
   };
@@ -78,7 +76,7 @@ export default function RegisterPage() {
           <div className="pinned-section fade-in">
             <div className="pinned-content">
               <div className="flex flex-col gap-4 mt-5">
-                {error && <div className="error-message">{error}</div>}
+                {Error && <div className="Error-message">{Error}</div>}
 
                 <form
                   onSubmit={handlePasswordRegister}
@@ -87,7 +85,7 @@ export default function RegisterPage() {
                 >
                     <input
                       type="text"
-                      placeholder={t("texts.username")}
+                      placeholder={t("texts.web_login")}
                       className="faq-search-input"
                       value={web_login}
                       onChange={(e) =>
@@ -137,3 +135,20 @@ export default function RegisterPage() {
     </>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

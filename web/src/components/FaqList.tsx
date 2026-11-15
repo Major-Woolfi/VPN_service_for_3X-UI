@@ -8,7 +8,7 @@ type FaqItem = {
   question: string;
   answer: string;
   category: string;
-  categoryKey: string;
+  ccategoryKey: string;
 };
 
 type FaqCategory = {
@@ -42,7 +42,7 @@ export default function FaqList() {
             question: qData.question,
             answer: qData.answer,
             category: catData.title || categoryKey,
-            categoryKey,
+            ccategoryKey: categoryKey,
           });
         }
       }
@@ -165,3 +165,12 @@ export default function FaqList() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+

@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  detectLanguage,
+  detectlanguage,
   getServerLegalDocument,
   getServerSiteCopy,
-  normalizeServerLanguage,
-  LEGAL_DOCUMENT_KEYS,
+  normalizeServerlanguage,
+  LEGAL_DOCUMENT_keyS,
 } from "./i18n-server";
 import { getServerLanguages } from "./i18n-server";
 
@@ -18,32 +18,32 @@ const testCases: Array<[string, string]> = [
   ["en;q=0,ru;q=0.5", "ru"],
   ["fr;q=bogus,de;q=0.5", "de"],
   ["en;q=1.1,ru;q=0.8", "ru"],
-  ["en;q=0,de;q=0", detectLanguage()],
+  ["en;q=0,de;q=0", detectlanguage()],
 ];
 
-test("detectLanguage selects the supported language with the highest quality", () => {
+test("detectlanguage selects the supported language with the highest quality", () => {
   for (const [header, expected] of testCases) {
-    assert.equal(detectLanguage(header), expected);
+    assert.equal(detectlanguage(header), expected);
   }
 });
 
-test("detectLanguage uses the fallback for empty or unsupported languages", () => {
-  assert.equal(detectLanguage(), detectLanguage("fr"));
-  assert.equal(detectLanguage("   "), detectLanguage("fr"));
+test("detectlanguage uses the fallback for empty or unsupported languages", () => {
+  assert.equal(detectlanguage(), detectlanguage("fr"));
+  assert.equal(detectlanguage("   "), detectlanguage("fr"));
 });
 
-test("normalizeServerLanguage keeps supported codes and falls back otherwise", () => {
+test("normalizeServerlanguage keeps supported codes and falls back otherwise", () => {
   const languages = getServerLanguages();
-  const fallback = detectLanguage();
+  const fallback = detectlanguage();
 
   for (const language of languages) {
-    assert.equal(normalizeServerLanguage(language), language);
-    assert.equal(normalizeServerLanguage(language.toUpperCase()), language);
+    assert.equal(normalizeServerlanguage(language), language);
+    assert.equal(normalizeServerlanguage(language.toUpperCase()), language);
   }
-  assert.equal(normalizeServerLanguage("en-US"), "en");
-  assert.equal(normalizeServerLanguage("pt_BR"), fallback);
-  assert.equal(normalizeServerLanguage(undefined), fallback);
-  assert.equal(normalizeServerLanguage(""), fallback);
+  assert.equal(normalizeServerlanguage("en-US"), "en");
+  assert.equal(normalizeServerlanguage("pt_BR"), fallback);
+  assert.equal(normalizeServerlanguage(undefined), fallback);
+  assert.equal(normalizeServerlanguage(""), fallback);
 });
 
 test("getServerSiteCopy resolves SEO texts for every language", () => {
@@ -62,12 +62,12 @@ test("getServerSiteCopy resolves SEO texts for every language", () => {
 
 test("getServerSiteCopy falls back for unsupported languages", () => {
   const copy = getServerSiteCopy("fr");
-  assert.deepEqual(copy, getServerSiteCopy(detectLanguage()));
+  assert.deepEqual(copy, getServerSiteCopy(detectlanguage()));
 });
 
 test("getServerLegalDocument returns complete documents with formatted sections", () => {
   for (const language of getServerLanguages()) {
-    for (const key of LEGAL_DOCUMENT_KEYS) {
+    for (const key of LEGAL_DOCUMENT_keyS) {
       const doc = getServerLegalDocument(language, key);
       assert.ok(doc.title.length > 0, `${language}/${key} title`);
       assert.ok(doc.subtitle.length > 0, `${language}/${key} subtitle`);
@@ -94,7 +94,17 @@ test("getServerLegalDocument returns complete documents with formatted sections"
 });
 
 test("getServerLegalDocument uses the fallback language when a document is missing", () => {
-  const fallback = detectLanguage();
+  const fallback = detectlanguage();
   const unsupported = getServerLegalDocument("fr", "tos");
   assert.deepEqual(unsupported, getServerLegalDocument(fallback, "tos"));
 });
+
+
+
+
+
+
+
+
+
+

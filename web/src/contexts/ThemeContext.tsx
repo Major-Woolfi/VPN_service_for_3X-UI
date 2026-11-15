@@ -5,7 +5,7 @@ import {
   useContext,
   useState,
   useEffect,
-  ReactNode,
+  type ReactNode,
 } from "react";
 
 type Theme = "dark" | "light";
@@ -25,9 +25,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       try {
         const stored = localStorage.getItem(THEME_KEY) as Theme | null;
         if (stored === "light" || stored === "dark") return stored;
-      } catch {
-
-      }
+      } catch {}
       if (window.matchMedia("(prefers-color-scheme: light)").matches)
         return "light";
     }
@@ -39,9 +37,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     document.documentElement.classList.add(`theme-${theme}`);
     try {
       localStorage.setItem(THEME_KEY, theme);
-    } catch {
-
-    }
+    } catch {}
   }, [theme]);
 
   const toggleTheme = () => {

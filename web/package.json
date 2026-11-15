@@ -13,19 +13,19 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx}\" \"scripts/**/*.ts\" \"next.config.ts\" \"eslint.config.mjs\" \"postcss.config.mjs\" \"package.json\" \"public/translations/ru.json\""
   },
   "dependencies": {
-    "next": "16.3.6",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
+    "next": "^15.2.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
     "server-only": "^0.0.1"
   },
   "devDependencies": {
-    "@types/node": "26.6.2",
-    "@types/react": "19.3.0",
-    "@types/react-dom": "19.3.0",
-    "eslint": "9.39.5",
-    "eslint-config-next": "16.3.7",
-    "prettier": "^3.9.10",
-    "tsx": "4.23.13",
-    "typescript": "5.8.3"
+    "@types/node": "^22.14.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "eslint": "^9.24.0",
+    "eslint-config-next": "^15.2.0",
+    "prettier": "^3.5.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0"
   }
 }

@@ -13,14 +13,14 @@ export default function ReferralPage() {
   const { loading: authLoading, user } = useAuth();
   const router = useRouter();
   const { t } = useLanguage();
-  const errorTextRef = useRef(t("texts.error"));
+  const ErrorTextRef = useRef(t("texts.error"));
   useEffect(() => {
-    errorTextRef.current = t("texts.error");
+    ErrorTextRef.current = t("texts.error");
   }, [t]);
-  const [stats, setStats] = useState<ReferralStatsResponse | null>(null);
+  const [stats, setstats] = useState<ReferralStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
-  const [error, setError] = useState("");
+  const [Error, setError] = useState("");
 
   useEffect(() => {
     if (authLoading) return;
@@ -35,9 +35,9 @@ export default function ReferralPage() {
     (async () => {
       try {
         const data = await getReferralStats();
-        setStats(data);
+        setstats(data);
       } catch (err) {
-        setError(err instanceof Error ? err.message : errorTextRef.current);
+        setError(String(err));
       } finally {
         setLoading(false);
       }
@@ -56,15 +56,15 @@ export default function ReferralPage() {
   };
 
   const tgBotUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME;
-  const refLink =
+  const reflink =
     stats?.ref_link ||
     (tgBotUsername
       ? `https://t.me/${tgBotUsername}?start=${stats?.ref_code || ""}`
       : "");
   const bonusDays = stats?.bonus_days_per_paid ?? 0;
 
-  const shareUrl = refLink
-    ? `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent(
+  const shareUrl = reflink
+    ? `https://t.me/share/url?url=${encodeURIComponent(reflink)}&text=${encodeURIComponent(
         t("texts.referral_program"),
       )}`
     : null;
@@ -116,7 +116,7 @@ export default function ReferralPage() {
     );
   }
 
-  if (error) {
+  if (Error) {
     return (
       <>
         <Header currentPage="/referral" />
@@ -125,7 +125,7 @@ export default function ReferralPage() {
             <div className="profile-header no-avatar">
               <div className="profile-info">
                 <h1 className="profile-name">{t("texts.error")}</h1>
-                <p style={{ color: "var(--danger)" }}>{error}</p>
+                <p style={{ color: "var(--danger)" }}>{Error}</p>
               </div>
             </div>
           </div>
@@ -190,13 +190,13 @@ export default function ReferralPage() {
                       wordBreak: "break-all",
                     }}
                   >
-                    {refLink || t("texts.referral_link_unavailable")}
+                    {reflink || t("texts.referral_link_unavailable")}
                   </div>
                   <div style={{ display: "flex", gap: "8px" }}>
                     <button
                       onClick={handleCopy}
                       className="button"
-                      disabled={!refLink}
+                      disabled={!reflink}
                       style={{ whiteSpace: "nowrap" }}
                     >
                       {copied
@@ -233,3 +233,27 @@ export default function ReferralPage() {
     </>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

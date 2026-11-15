@@ -52,8 +52,8 @@ test("disallowed tags are escaped to text", () => {
   );
   assert.equal(render("<div>x</div>"), "&lt;div&gt;x&lt;/div&gt;");
   assert.equal(
-    render("<img src=x onerror=alert(1)>"),
-    "&lt;img src=x onerror=alert(1)&gt;",
+    render("<img src=x onError=alert(1)>"),
+    "&lt;img src=x onError=alert(1)&gt;",
   );
 });
 
@@ -63,7 +63,7 @@ test("unsafe hrefs are dropped but their text is kept", () => {
   assert.equal(render('<a href=__STR_48__>y</a>'), "y");
 });
 
-test("safe hrefs become anchors with rel protection", () => {
+test("safe hrefs become anchors with rel protsection", () => {
   for (const href of [
     "https://example.com",
     "http://example.com",

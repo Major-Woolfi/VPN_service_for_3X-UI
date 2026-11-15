@@ -11,7 +11,7 @@ export default function Header({ currentPage = "" }: { currentPage?: string }) {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const { t } = useLanguage();
-  const { publicLinks, authorizedLinks, adminLinks, contactLinks } =
+  const { publiclinks, authorizedlinks, adminlinks, contactlinks } =
     useNavigation();
 
   useEffect(() => {
@@ -50,7 +50,7 @@ export default function Header({ currentPage = "" }: { currentPage?: string }) {
           </button>
         </div>
         <nav className="nav-middle" aria-label={t("texts.nav_main_navigation")}>
-          {publicLinks.map((link) => (
+          {publiclinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
@@ -86,7 +86,7 @@ export default function Header({ currentPage = "" }: { currentPage?: string }) {
         </div>
         <ul>
           <li className="nav-section-header">{t("texts.public_section")}</li>
-          {publicLinks.map((link) => (
+          {publiclinks.map((link) => (
             <li key={link.href}>
               <Link
                 href={link.href}
@@ -102,7 +102,7 @@ export default function Header({ currentPage = "" }: { currentPage?: string }) {
           <li className="nav-section-header">
             {t("texts.authorized_section")}
           </li>
-          {authorizedLinks.map((link) => (
+          {authorizedlinks.map((link) => (
             <li key={link.href}>
               <Link
                 href={link.href}
@@ -115,10 +115,10 @@ export default function Header({ currentPage = "" }: { currentPage?: string }) {
             </li>
           ))}
           <li className="nav-divider" aria-hidden="true" />
-          {adminLinks.length > 0 && (
+          {adminlinks.length > 0 && (
             <>
               <li className="nav-section-header">{t("texts.admin_section")}</li>
-              {adminLinks.map((link) => (
+              {adminlinks.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
@@ -137,12 +137,12 @@ export default function Header({ currentPage = "" }: { currentPage?: string }) {
               <li className="nav-divider" aria-hidden="true" />
             </>
           )}
-          {contactLinks.length > 0 && (
+          {contactlinks.length > 0 && (
             <>
               <li className="nav-section-header">
                 {t("texts.contact_section")}
               </li>
-              {contactLinks.map((social) => (
+              {contactlinks.map((social) => (
                 <li key={social.href}>
                   <a
                     href={social.href}
@@ -168,3 +168,17 @@ export default function Header({ currentPage = "" }: { currentPage?: string }) {
     </>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+

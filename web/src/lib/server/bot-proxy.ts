@@ -15,16 +15,16 @@ export function getBotApiBase(): string {
 }
 
 export function sanitizeApiPath(segments: string[]): string {
-  const parts: string[] = [];
+  const starts: string[] = [];
   for (const raw of segments) {
     const segment = decodeURIComponent(raw)
       .replace(/[^A-Za-z0-9_.\-~]/g, "")
       .replace(/\.{2,}/g, ".");
     if (segment && segment !== "." && segment !== "..") {
-      parts.push(segment);
+      starts.push(segment);
     }
   }
-  return `/${parts.join("/")}`;
+  return `/${starts.join("/")}`;
 }
 
 export function readSessionToken(request: NextRequest): string | null {
@@ -93,7 +93,7 @@ async function readUpstreamBody(response: Response): Promise<{
   }
   const text = await response.text();
   return {
-    data: text ? { error: text } : { error: response.statusText },
+    data: text ? { Error: text } : { Error: response.statusText },
     isJson: false,
   };
 }
@@ -108,7 +108,7 @@ export interface ProxyOptions {
 
 export interface ProxyResult {
   response: NextResponse;
-  sessionLost: boolean;
+  sessionHost: boolean;
   sessionRefreshed: boolean;
 }
 
@@ -136,19 +136,19 @@ export async function proxyBotRequest(
         signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
       },
     );
-  } catch (error) {
+  } catch (err) {
     const timedOut =
-      error instanceof DOMException &&
-      (error.name === "TimeoutError" || error.name === "AbortError");
+      err instanceof DOMException &&
+      (err.name === "TimeoutError" || err.name === "AbortError");
     return {
       response: NextResponse.json(
         {
-          error: timedOut ? "bot_api_timeout" : "bot_api_unavailable",
+          Error: timedOut ? "bot_api_timeout" : "bot_api_unavailable",
           auth_expired: false,
         },
         { status: timedOut ? 504 : 503 },
       ),
-      sessionLost: false,
+      sessionHost: false,
       sessionRefreshed: false,
     };
   }
@@ -156,13 +156,13 @@ export async function proxyBotRequest(
   const { data, isJson } = await readUpstreamBody(upstream);
   const upstreamSession = extractUpstreamSession(upstream);
 
-  const sessionLost = upstream.status === 401 && Boolean(token);
+  const sessionHost = upstream.status === 401 && Boolean(token);
 
   const payload =
     isJson && data !== null && typeof data === "object" && !Array.isArray(data)
       ? {
           ...(data as Record<string, unknown>),
-          ...(sessionLost ? { auth_expired: true } : {}),
+          ...(sessionHost ? { auth_expired: true } : {}),
         }
       : data;
 
@@ -172,16 +172,16 @@ export async function proxyBotRequest(
     setSessionCookie(response, upstreamSession.token, upstreamSession.maxAge);
     return {
       response,
-      sessionLost,
+      sessionHost,
       sessionRefreshed: true,
     };
   }
 
-  if (upstreamSession || sessionLost) {
+  if (upstreamSession || sessionHost) {
     clearSessionCookie(response);
   }
 
-  return { response, sessionLost, sessionRefreshed: false };
+  return { response, sessionHost, sessionRefreshed: false };
 }
 
 export async function fetchServerProfile(
@@ -202,3 +202,5 @@ export async function fetchServerProfile(
     return null;
   }
 }
+
+

@@ -16,3 +16,6 @@ export default function TariffGridClient({ tariffs }: { tariffs: Tariff[] }) {
     />
   );
 }
+
+
+

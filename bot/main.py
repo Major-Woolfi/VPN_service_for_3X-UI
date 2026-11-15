@@ -372,7 +372,7 @@ async def safe_send_content(
             or "user is deactivated" in error_msg
         ):
             return False
-        # Fallback: strip HTML and retry as plain text
+
         if content_type == "text" and text:
             plain = truncate(strip_html(text))
             try:
@@ -703,6 +703,14 @@ class Config:
     PARTNER_COMMISSION_PERCENT: int = env_int("PARTNER_COMMISSION_PERCENT", 10)
     PARTNER_EXPIRY_GRACE_DAYS: int = env_int("PARTNER_EXPIRY_GRACE_DAYS", 7)
 
+    PARTNER_NEW_AUTO_MODE: bool = str_to_bool(os.getenv("PARTNER_NEW_AUTO_MODE", "false"))
+
+    PARTNER_BONUS_TYPE: str = os.getenv("PARTNER_BONUS_TYPE", "days").strip().lower()
+
+    PARTNER_BONUS_VALUE: int = env_int("PARTNER_BONUS_VALUE", 5)
+
+    PARTNER_CHANNEL_CHECK_INTERVAL_SEC: int = env_int("PARTNER_CHANNEL_CHECK_INTERVAL_SEC", 10800)
+
     RATE_LIMIT_COOLDOWN: float = env_float("RATE_LIMIT_COOLDOWN", 0.3)
     API_RATE_LIMIT: int = env_int("API_RATE_LIMIT", 120)
     API_RATE_WINDOW: int = env_int("API_RATE_WINDOW", 60)
@@ -714,6 +722,10 @@ class Config:
     TRAFFIC_ABUSE_DAILY_LIMIT_GB: float = env_float("TRAFFIC_ABUSE_DAILY_LIMIT_GB", 50.0)
     TRAFFIC_ABUSE_TOTAL_LIMIT_GB: float = env_float("TRAFFIC_ABUSE_TOTAL_LIMIT_GB", 1000.0)
     PAYMENT_CLEANUP_INTERVAL_SEC: int = env_int("PAYMENT_CLEANUP_INTERVAL_SEC", 259200)
+
+    BROADCAST_DELETE_DEAD_USERS: bool = str_to_bool(
+        os.getenv("BROADCAST_DELETE_DEAD_USERS", "false")
+    )
 
     @classmethod
     def required_socials_list(cls) -> list[str]:
@@ -879,6 +891,7 @@ class Features:
         return {
             "custom_tariff": Features.custom_tariff_available(),
             "partner": Features.partner_available(),
+            "partner_new_auto_mode": Features.partner_new_auto_mode_available(),
             "trust_score": Config.TRUST_SCORE_ENABLED,
             "telegram_login": bool(BOT_USERNAME),
             "main_panel": bool(Config.SUB_PANEL_BASE),
@@ -894,6 +907,17 @@ class Features:
     @staticmethod
     def partner_available() -> bool:
         return bool(Config.PARTNER_ENABLED)
+
+    @staticmethod
+    def partner_new_auto_mode_available() -> bool:
+        return bool(Config.PARTNER_ENABLED and Config.PARTNER_NEW_AUTO_MODE)
+
+    @staticmethod
+    def partner_bonus_type() -> str:
+        bt = Config.PARTNER_BONUS_TYPE
+        if bt not in ("days", "discount"):
+            return "days"
+        return bt
 
     @staticmethod
     def payment_methods_count() -> int:
@@ -1973,7 +1997,7 @@ class TariffCatalog:
     def is_trial(plan: dict[str, Any] | None) -> bool:
         if not plan:
             return False
-        return plan.get("id") == "trial" or plan.get("price_rub", 0) == 0
+        return plan.get("id") == "trial"
 
     def load(self) -> None:
         if not os.path.exists(self.path):
@@ -2253,9 +2277,7 @@ def build_custom_plan(
     plan_name: str | None = None,
 ) -> dict[str, Any]:
     selected = normalize_servers(servers)
-    base = int(  # noqa: RUF046
-        round(calculate_custom_tariff_total(traffic_gb, ip_limit, duration_days, selected))
-    )
+    base = round(calculate_custom_tariff_total(traffic_gb, ip_limit, duration_days, selected))
     return {
         "id": "custom",
         "name": plan_name or build_custom_plan_name(traffic_gb, ip_limit, duration_days, selected),
@@ -2347,9 +2369,10 @@ def build_custom_plan_from_payment(
 
 def build_plan_from_payment(payment: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
     plan_type = str(payment.get("plan_type", "catalog"))
-    if plan_type in ("custom", "test") or str(payment.get("plan_id", "")) == "custom":
+    plan_id = str(payment.get("plan_id", ""))
+    if plan_type == "custom" or plan_id == "custom":
         return build_custom_plan_from_payment(payment)
-    return get_purchasable_catalog_plan(str(payment.get("plan_id", "")))
+    return get_purchasable_catalog_plan(plan_id)
 
 
 # --- Очки доверия ---
@@ -2632,10 +2655,7 @@ class Database:
                         admin_test_expiry TEXT DEFAULT ''
                     )
                 """)
-                logger.info("init_db: CREATE TABLE выполнен, запуск _migrate_users_table")
-                await self._migrate_users_table()
-                logger.info("init_db: _migrate_users_table выполнен")
-                await self._migrate_json_user_ids()
+                logger.info("init_db: CREATE TABLE выполнен, индексы создаются")
                 try:
                     await self.conn.execute("""
                         CREATE UNIQUE INDEX IF NOT EXISTS idx_users_ref_code
@@ -2664,8 +2684,7 @@ class Database:
                     "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_web_id "
                     "ON users(web_id) WHERE web_id != 0"
                 )
-                logger.info("init_db: индексы созданы, запуск _cleanup_duplicate_users")
-                await self._cleanup_duplicate_users()
+                logger.info("init_db: индексы созданы")
                 await self.conn.commit()
                 self._init_in_progress = False
                 self._db_initialized = True
@@ -2674,135 +2693,6 @@ class Database:
                 self._init_in_progress = False
                 logger.error(f"Ошибка инициализации БД: {e}")
                 raise DatabaseError(f"Ошибка init_db: {e}") from e
-
-    async def _migrate_users_table(self) -> None:
-        if not self.conn:
-            return
-        logger.info("init_db._migrate_users_table: начало")
-        cur = await self.conn.execute("PRAGMA table_info(users)")
-        rows = await cur.fetchall()
-        existing = {str(row[1]) for row in rows}
-        for column, definition in self.USER_COLUMN_DEFS.items():
-            if column in existing:
-                continue
-            await self.conn.execute(f"ALTER TABLE users ADD COLUMN {column} {definition}")
-            logger.info(f"Добавлена колонка users.{column}")
-
-        for column in self.DEPRECATED_USER_COLUMNS:
-            if column not in existing:
-                continue
-            try:
-                await self.conn.execute(f"ALTER TABLE users DROP COLUMN {column}")
-                logger.info(f"Удалена устаревшая колонка users.{column}")
-            except Exception as e:  # noqa: BLE001
-                logger.warning(
-                    f"Не удалось удалить users.{column}: {e}. "
-                    f"Удалите вручную после резервной копии."
-                )
-
-        if "telegram_id" not in existing:
-            await self.conn.execute("ALTER TABLE users ADD COLUMN telegram_id INTEGER DEFAULT 0")
-            await self.conn.execute("UPDATE users SET telegram_id = user_id WHERE telegram_id = 0")
-            await self.conn.commit()
-            logger.info("telegram_id миграция завершена")
-
-        await self.conn.execute(
-            "UPDATE users SET web_login = username, username = '' "
-            "WHERE COALESCE(web_login, '') = '' "
-            "AND COALESCE(username, '') != '' "
-            "AND COALESCE(password_hash, '') != ''"
-        )
-        await self.conn.commit()
-        logger.info("Миграция логина: старый username перенесён в web_login")
-
-        await self.conn.execute(
-            "UPDATE users SET language = ? WHERE COALESCE(language, '') = ''",
-            (Config.DEFAULT_LANGUAGE,),
-        )
-        await self.conn.commit()
-        logger.info("Миграция языка: пустые значения заменены на DEFAULT_LANGUAGE")
-
-        logger.info("init_db._migrate_users_table: конец")
-
-    async def _migrate_json_user_ids(self) -> None:
-        for path in (Config.DATA_AWAIT, Config.PARTNER_OPS_FILE):
-            if not await asyncio.to_thread(os.path.exists, path):
-                continue
-            try:
-                import aiofiles
-
-                async with aiofiles.open(path, encoding="utf-8") as f:
-                    content = await f.read()
-                data = json.loads(content) if content else []
-                if not isinstance(data, list):
-                    continue
-                changed = False
-                for item in data:
-                    if not isinstance(item, dict):
-                        continue
-                    uid = to_int(item.get("user_id"), 0)
-                    if uid <= 0:
-                        continue
-                    if item.get("tg_id") and to_int(item.get("tg_id"), 0) == uid:
-                        continue
-                    tg = await self._resolve_to_tg_id(uid)
-                    if tg and tg != uid:
-                        item["tg_id"] = tg
-                        changed = True
-                if changed:
-                    tmp = f"{path}.tmp"
-                    async with aiofiles.open(tmp, "w", encoding="utf-8") as f:
-                        await f.write(json.dumps(data, ensure_ascii=False, indent=2))
-                    os.replace(tmp, path)
-                    logger.info(f"Миграция user_id → tg_id завершена в {path}")
-            except Exception as e:  # noqa: BLE001
-                logger.warning(f"Миграция {path}: {e}")
-
-    async def _resolve_to_tg_id(self, raw_id: int) -> int:
-        if not self.conn or raw_id <= 0:
-            return 0
-        user = await self.get_user_by_any_id(raw_id)
-        if user:
-            return to_int(user.get("telegram_id"), raw_id)
-        return 0
-
-    async def _cleanup_duplicate_users(self) -> None:
-        if not self.conn:
-            return
-        logger.info("init_db._cleanup_duplicate_users: начало")
-        try:
-            cur = await self.conn.execute(
-                "SELECT telegram_id, COUNT(*) as cnt FROM users "
-                "WHERE telegram_id != 0 GROUP BY telegram_id HAVING cnt > 1"
-            )
-            dup_tg = await cur.fetchall()
-            for row in dup_tg:
-                tg_id = row[0]
-                await self.conn.execute(
-                    "DELETE FROM users WHERE telegram_id = ? AND user_id NOT IN "
-                    "(SELECT MIN(user_id) FROM users WHERE telegram_id = ?)",
-                    (tg_id, tg_id),
-                )
-
-            cur = await self.conn.execute(
-                "SELECT web_id, COUNT(*) as cnt FROM users "
-                "WHERE web_id != 0 GROUP BY web_id HAVING cnt > 1"
-            )
-            dup_web = await cur.fetchall()
-            for row in dup_web:
-                web_id = row[0]
-                await self.conn.execute(
-                    "DELETE FROM users WHERE web_id = ? AND user_id NOT IN "
-                    "(SELECT MIN(user_id) FROM users WHERE web_id = ?)",
-                    (web_id, web_id),
-                )
-
-            await self.conn.commit()
-            if dup_tg or dup_web:
-                logger.info(f"Очистка дубликатов: telegram_id={len(dup_tg)}, web_id={len(dup_web)}")
-        except Exception as e:  # noqa: BLE001
-            logger.error(f"_cleanup_duplicate_users: {e}")
-        logger.info("init_db._cleanup_duplicate_users: конец")
 
     @log_error
     async def add_user(self, telegram_id: int, *, force: bool = False) -> bool:
@@ -3730,20 +3620,23 @@ class Database:
             return None
 
     @log_error
-    async def reset_all_trials(self) -> tuple[int, int]:
+    async def reset_all_trials(self) -> tuple[int, int, list[int]]:
         if not self.conn:
-            return 0, 1
+            return 0, 1, []
         try:
-            cur_count = await self.conn.execute("SELECT COUNT(*) FROM users")
-            total = cur_count.fetchone()[0]
+            cur = await self.conn.execute(
+                "SELECT telegram_id FROM users WHERE trial_used = 1 AND telegram_id != 0"
+            )
+            rows = await cur.fetchall()
+            notified_ids = [row[0] for row in rows if row[0]]
 
             await self.conn.execute("UPDATE users SET trial_used = 0")
             await self.conn.commit()
 
-            return total, 0
+            return len(notified_ids), 0, notified_ids
         except Exception as e:  # noqa: BLE001
             logger.error(f"reset_all_trials: {e}")
-            return 0, 1
+            return 0, 1, []
 
     @log_error
     async def get_partner_by_user_id(self, user_id: int) -> dict[str, Any] | None:
@@ -3772,6 +3665,171 @@ class Database:
         except Exception as e:  # noqa: BLE001
             logger.error(f"get_mate_user_ids: {e}")
             return []
+
+    # --- Новая авто-партнёрка: управление ТГК каналами партнёра ---
+    @log_error
+    async def add_partner_channel(
+        self,
+        channel_id: int,
+        owner_user_id: int,
+        owner_telegram_id: int,
+        title: str = "",
+        username: str = "",
+    ) -> bool:
+        if not self.conn:
+            return False
+        try:
+            async with self.lock:
+                await self.conn.execute(
+                    """INSERT INTO partner_tg_channels
+                        (channel_id, title, username, owner_user_id, owner_telegram_id,
+                         added_at, last_checked_at, last_status, is_active)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, '', 1)
+                     ON CONFLICT(channel_id) DO UPDATE SET
+                        title=excluded.title,
+                        username=excluded.username,
+                        owner_user_id=excluded.owner_user_id,
+                        owner_telegram_id=excluded.owner_telegram_id,
+                        is_active=1,
+                        last_status='',
+                        last_error=''""",
+                    (
+                        channel_id,
+                        title,
+                        username,
+                        owner_user_id,
+                        owner_telegram_id,
+                        datetime.now(UTC).isoformat(),
+                        datetime.now(UTC).isoformat(),
+                    ),
+                )
+                await self.conn.commit()
+            return True
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"add_partner_channel {channel_id}: {e}")
+            return False
+
+    @log_error
+    async def remove_partner_channel(self, channel_id: int) -> bool:
+        if not self.conn:
+            return False
+        try:
+            async with self.lock:
+                await self.conn.execute(
+                    "DELETE FROM partner_tg_channels WHERE channel_id = ?", (channel_id,)
+                )
+                await self.conn.commit()
+            return True
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"remove_partner_channel {channel_id}: {e}")
+            return False
+
+    @log_error
+    async def deactivate_partner_channel(self, channel_id: int) -> bool:
+        if not self.conn:
+            return False
+        try:
+            async with self.lock:
+                await self.conn.execute(
+                    "UPDATE partner_tg_channels SET is_active = 0 WHERE channel_id = ?",
+                    (channel_id,),
+                )
+                await self.conn.commit()
+            return True
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"deactivate_partner_channel {channel_id}: {e}")
+            return False
+
+    @log_error
+    async def get_partner_channels(self, owner_user_id: int) -> list[dict[str, Any]]:
+        if not self.conn:
+            return []
+        try:
+            cur = await self.conn.execute(
+                "SELECT * FROM partner_tg_channels WHERE owner_user_id = ? ORDER BY added_at",
+                (owner_user_id,),
+            )
+            rows = await cur.fetchall()
+            return [dict(row) for row in rows]
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"get_partner_channels {owner_user_id}: {e}")
+            return []
+
+    @log_error
+    async def get_all_active_partner_channels(self) -> list[dict[str, Any]]:
+        if not self.conn:
+            return []
+        try:
+            cur = await self.conn.execute(
+                "SELECT * FROM partner_tg_channels WHERE is_active = 1 ORDER BY channel_id"
+            )
+            rows = await cur.fetchall()
+            return [dict(row) for row in rows]
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"get_all_active_partner_channels: {e}")
+            return []
+
+    @log_error
+    async def update_partner_channel_status(
+        self,
+        channel_id: int,
+        *,
+        is_owner_verified: int | None = None,
+        has_posting_rights: int | None = None,
+        is_active: int | None = None,
+        last_status: str | None = None,
+        last_error: str | None = None,
+    ) -> bool:
+        if not self.conn:
+            return False
+        sets: list[str] = []
+        values: list[Any] = []
+        if is_owner_verified is not None:
+            sets.append("is_owner_verified = ?")
+            values.append(is_owner_verified)
+        if has_posting_rights is not None:
+            sets.append("has_posting_rights = ?")
+            values.append(has_posting_rights)
+        if is_active is not None:
+            sets.append("is_active = ?")
+            values.append(is_active)
+        if last_status is not None:
+            sets.append("last_status = ?")
+            values.append(last_status)
+        if last_error is not None:
+            sets.append("last_error = ?")
+            values.append(last_error)
+        if not sets:
+            return False
+        sets.append("last_checked_at = ?")
+        values.append(datetime.now(UTC).isoformat())
+        values.append(channel_id)
+        try:
+            async with self.lock:
+                await self.conn.execute(
+                    f"UPDATE partner_tg_channels SET {', '.join(sets)} WHERE channel_id = ?",
+                    values,
+                )
+                await self.conn.commit()
+            return True
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"update_partner_channel_status {channel_id}: {e}")
+            return False
+
+    @log_error
+    async def count_partner_channels(self, owner_user_id: int) -> int:
+        if not self.conn:
+            return 0
+        try:
+            cur = await self.conn.execute(
+                "SELECT COUNT(*) FROM partner_tg_channels WHERE owner_user_id = ? AND is_active = 1",
+                (owner_user_id,),
+            )
+            row = await cur.fetchone()
+            return to_int(row[0], 0) if row else 0
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"count_partner_channels {owner_user_id}: {e}")
+            return 0
 
     @log_error
     async def count_partner_referrals(self, user_id: int) -> int:
@@ -3923,9 +3981,13 @@ class Database:
         try:
             async with self.lock:
                 cursor = await self.conn.execute(
-                    """UPDATE users SET mate_balance = mate_balance - ?
+                    """UPDATE users SET mate_balance = mate_balance - ?,
+                        mate_commission_total = CASE
+                            WHEN mate_commission_total >= ? THEN mate_commission_total - ?
+                            ELSE 0
+                        END
                     WHERE user_id = ? AND mate_balance >= ?""",
-                    (amount, internal_uid, amount),
+                    (amount, amount, amount, internal_uid, amount),
                 )
                 await self.conn.commit()
                 if cursor.rowcount == 0:
@@ -4344,13 +4406,16 @@ class Database:
                 updates = {}
                 for field in sub_fields:
                     val = delete_data.get(field)
-                    if val is not None and val not in {"", 0}:  # noqa: SIM102
-                        if (
+                    if (
+                        val is not None
+                        and val not in {"", 0}
+                        and (
                             not keep_data.get(field)
                             or keep_data.get(field) == ""
                             or keep_data.get(field) == 0
-                        ):
-                            updates[field] = val
+                        )
+                    ):
+                        updates[field] = val
 
                 if delete_data.get("ref_code") and not keep_data.get("ref_code"):
                     updates["ref_code"] = delete_data["ref_code"]
@@ -4652,7 +4717,7 @@ class Database:
 try:
     import fcntl as _fcntl
 except ImportError:
-    _fcntl = None  # Windows fallback
+    _fcntl = None
 
 try:
     import msvcrt as _msvcrt
@@ -4694,7 +4759,7 @@ class _InterProcessFileLock:
                         if time.monotonic() >= deadline:
                             with suppress(OSError):
                                 fh.close()
-                            self._fh = None  # type: ignore[attr-defined]
+                            self._fh = None
                             raise TimeoutError(
                                 f"Не удалось получить блокировку {self.lock_path}"
                             ) from None
@@ -4703,7 +4768,7 @@ class _InterProcessFileLock:
                 _msvcrt.locking(fh.fileno(), _msvcrt.LK_LOCK, 1)
         except OSError:
             fh.close()
-            self._fh = None  # type: ignore[attr-defined]
+            self._fh = None
             raise
 
     def _release(self) -> None:
@@ -4721,7 +4786,7 @@ class _InterProcessFileLock:
         finally:
             with suppress(OSError):
                 fh.close()
-            self._fh = None  # type: ignore[attr-defined]
+            self._fh = None
 
 
 class JSONStorage:
@@ -4932,7 +4997,8 @@ class JSONStorage:
                         p["processing_action"] = None
                         p["last_error"] = "Timeout"
                         released += 1
-                except Exception:  # noqa: BLE001, S112
+                except Exception as e:  # noqa: BLE001
+                    logger.error(f"Ошибка очистки партнёрских операций: {e}")
                     continue
             return released
 
@@ -5306,7 +5372,8 @@ async def release_stale_partner_operations() -> int:
                         o["processing_action"] = None
                         o["last_error"] = "Timeout"
                         released += 1
-                except Exception:  # noqa: BLE001, S112
+                except Exception as e:  # noqa: BLE001
+                    logger.error(f"Ошибка очистки партнёрских операций: {e}")
                     continue
             return released
 
@@ -5510,6 +5577,10 @@ class PanelAPI:
             return status, data, text
 
         logger.warning("Требуется реавторизация")
+
+        self.token = None
+        self.logged_in = False
+
         reauth_future = self._reauth_future
         if reauth_future is None:
             reauth_future = asyncio.get_running_loop().create_future()
@@ -6507,11 +6578,7 @@ class UnbanUserState(StatesGroup):
 
 class BroadcastState(StatesGroup):
     waiting_for_broadcast_type = State()
-    waiting_for_content_type = State()
     waiting_for_message = State()
-    waiting_for_photo = State()
-    waiting_for_document = State()
-    waiting_for_caption = State()
     waiting_for_confirm = State()
 
 
@@ -6636,12 +6703,13 @@ dp.callback_query.middleware(CallbackAnswerMiddleware())
 db = Database(Config.DATA_FILE)
 json_db = JSONStorage(Config.DATA_AWAIT)
 panel = PanelAPI()
-BOT_USERNAME = ""
+BOT_USERNAME = os.getenv("BOT_USERNAME", "").strip()
 
 
 def set_bot_username(username: str) -> None:
     global BOT_USERNAME
-    BOT_USERNAME = username or ""
+    if not BOT_USERNAME:
+        BOT_USERNAME = username or ""
 
 
 # --- Клавиатуры и вспомогательные функции ---
@@ -7395,10 +7463,10 @@ async def show_custom_summary(event: Message | CallbackQuery, state: FSMContext)
             delete_origin=True,
         )
         return
-    base_total = int(round(calculate_custom_tariff_total(traffic, ip, days, servers)))  # noqa: RUF046
+    base_total = round(calculate_custom_tariff_total(traffic, ip, days, servers))
     trust = await db.get_trust_score(get_event_user_id(event) or 0)
     final_price, disc = apply_trust_discount(float(base_total), trust)
-    final_price_int = max(0, int(round(final_price)))  # noqa: RUF046
+    final_price_int = max(0, round(final_price))
     plan_name = build_custom_plan_name(traffic, ip, days, servers)
     loc_total = sum(get_location_price_per_day(s) for s in servers)
     await state.update_data(
@@ -7423,12 +7491,12 @@ async def show_custom_summary(event: Message | CallbackQuery, state: FSMContext)
     else:
         price_line = translate(
             Config.DEFAULT_LANGUAGE,
-            "texts.custom_tariff_summary_total",
+            "texts.payment_total",
             final_price=final_price_int,
         )
 
     uid = get_event_user_id(event) or 0
-    next_step = translate(Config.DEFAULT_LANGUAGE, "texts.custom_tariff_user_payment_hint")
+    next_step = translate(Config.DEFAULT_LANGUAGE, "texts.buy_user_payment_hint")
     markup = kb(
         [
             [
@@ -7469,9 +7537,8 @@ async def show_offer_agreement(
     lang: str = Config.DEFAULT_LANGUAGE,
 ) -> None:
     user_id = get_event_user_id(event) or 0
-    if not await is_admin_user(user_id):  # noqa: SIM102
-        if await block_if_pending_payment(event, user_id):
-            return
+    if not await is_admin_user(user_id) and await block_if_pending_payment(event, user_id):
+        return
     text = translate(lang, "texts.offer_agreement")
     keyboard = []
     if Config.PUBLIC_OFFER_URL:
@@ -7630,7 +7697,7 @@ async def cleanup_subscription(
         and reason == "traffic_exhausted"
     ):
         trust_before = await db.get_trust_score(internal_uid)
-        changed, before, after, delta = await apply_trust_score_delta(  # noqa: RUF059
+        changed, _before, after, delta = await apply_trust_score_delta(
             internal_uid, -TRUST_SCORE_PENALTY_TRAFFIC_EXHAUSTED
         )
         if changed:
@@ -7762,6 +7829,154 @@ async def cleanup_admin_test_subscriptions() -> dict[str, int]:
             logger.error(f"Ошибка при очистке тестовой подписки админа {admin_id}: {e}")
 
     return result
+
+
+# --- Новая авто-партнёрка: проверка прав бота в ТГК каналах ---
+PARTNER_CHANNEL_CB = "pch"
+PARTNER_CHANNEL_ACTION_LIST = "list"
+PARTNER_CHANNEL_ACTION_ADD = "add"
+PARTNER_CHANNEL_ACTION_REMOVE = "rem"
+PARTNER_CHANNEL_ACTION_VERIFY = "ver"
+
+
+async def verify_channel_rights(bot: Bot, channel_id: int) -> dict[str, Any]:
+    """Проверяет права бота в канале: админ + право на публикацию."""
+    result: dict[str, Any] = {
+        "ok": False,
+        "title": "",
+        "username": "",
+        "is_admin": False,
+        "can_post": False,
+        "error": "",
+    }
+    try:
+        chat = await bot.get_chat(channel_id)
+        result["title"] = str(chat.title or "")
+        result["username"] = str(chat.username or "")
+        me = await bot.get_chat_member(channel_id, bot.id)
+        status = str(me.status or "")
+        if status in ("administrator", "creator"):
+            result["is_admin"] = True
+            result["can_post"] = bool(getattr(me, "can_post_messages", False))
+            result["ok"] = result["can_post"]
+        else:
+            result["error"] = f"бот не администратор канала (статус: {status})"
+    except Exception as e:  # noqa: BLE001
+        result["error"] = type(e).__name__
+        logger.warning(f"verify_channel_rights {channel_id}: {e}")
+    return result
+
+
+async def _append_partner_bonus(text: str, language: str, ref_link: str = "") -> str:
+    """Добавляет в конец текста репоста бонус по партнёрской ссылке владельца ТГК.
+    Тип бонуса берётся из .env (ровно один из: days | discount)."""
+    bonus_type = Config.partner_bonus_type()
+    value = Config.PARTNER_BONUS_VALUE
+    if bonus_type == "days":
+        key = "texts.partner_auto_bonus_days"
+        kwargs = {"days": value, "ref_link": ref_link}
+    else:
+        key = "texts.partner_auto_bonus_discount"
+        kwargs = {"percent": value, "ref_link": ref_link}
+    try:
+        bonus = translate(language, key, **kwargs)
+    except Exception:  # noqa: BLE001
+        if bonus_type == "days":
+            bonus = f"🎁 Бонус: {value} дней по ссылке: {ref_link}"
+        else:
+            bonus = f"🎁 Скидка: {value}% по ссылке: {ref_link}"
+    return f"{text}\n\n{bonus}"
+
+
+async def send_auto_post_to_partner_channels(text: str) -> dict[str, Any]:
+    """Отправляет текст во все активные подтверждённые ТГК партнёров с бонусом."""
+    if not bot:
+        return {"sent": 0, "failed": 0, "error": "бот не инициализирован"}
+    channels = await db.get_all_active_partner_channels()
+    sent = 0
+    failed = 0
+    for ch in channels:
+        channel_id = to_int(ch.get("channel_id"), 0)
+        if not channel_id:
+            continue
+        owner_tg = to_int(ch.get("owner_telegram_id"), 0)
+        language = Config.DEFAULT_LANGUAGE
+        ref_link = ""
+        if owner_tg:
+            u = await db.get_user_by_telegram_id(owner_tg)
+            if u:
+                if u.get("language"):
+                    language = str(u.get("language") or Config.DEFAULT_LANGUAGE)
+                ref_link = get_ref_link(str(u.get("mate_ref_link_code") or ""))
+        msg = await _append_partner_bonus(text, language, ref_link)
+        try:
+            await bot.send_message(channel_id, msg, parse_mode=ParseMode.HTML)
+            await db.update_partner_channel_status(channel_id, last_status="posted", last_error="")
+            sent += 1
+        except Exception as e:  # noqa: BLE001
+            failed += 1
+            await db.update_partner_channel_status(
+                channel_id, last_status="error", last_error=str(e)[:200]
+            )
+            logger.warning(f"send_auto_post_to_partner_channels {channel_id}: {e}")
+    return {"sent": sent, "failed": failed, "total": len(channels)}
+
+
+async def check_partner_channels_loop() -> None:
+    """Фоновая задача: раз в N часов проверяет права бота во всех ТГК партнёров."""
+    while True:
+        try:
+            await asyncio.sleep(Config.PARTNER_CHANNEL_CHECK_INTERVAL_SEC)
+            channels = await db.get_all_active_partner_channels()
+            if not channels:
+                continue
+            by_owner: dict[int, list[dict[str, Any]]] = {}
+            for ch in channels:
+                by_owner.setdefault(to_int(ch.get("owner_user_id"), 0), []).append(ch)
+            for owner_user_id, owner_channels in by_owner.items():
+                still_active = 0
+                if not bot:
+                    continue
+                for ch in owner_channels:
+                    channel_id = to_int(ch.get("channel_id"), 0)
+                    check = await verify_channel_rights(bot, channel_id)
+                    if check["ok"]:
+                        await db.update_partner_channel_status(
+                            channel_id,
+                            is_owner_verified=1,
+                            has_posting_rights=1,
+                            is_active=1,
+                            last_status=check.get("title", ""),
+                            last_error="",
+                        )
+                        still_active += 1
+                    else:
+                        await db.update_partner_channel_status(
+                            channel_id,
+                            is_owner_verified=0,
+                            has_posting_rights=0,
+                            is_active=0,
+                            last_status="lost_rights",
+                            last_error=str(check.get("error", ""))[:200],
+                        )
+                        owner_tg = to_int(ch.get("owner_telegram_id"), 0)
+                        if owner_tg:
+                            with suppress(Exception):
+                                await safe_send_message(
+                                    bot,
+                                    owner_tg,
+                                    translate(
+                                        await get_user_language(owner_tg),
+                                        "texts.partner_terminated_bot_removed",
+                                        channel=check.get("title") or str(channel_id),
+                                    ),
+                                )
+                if still_active == 0:
+                    await _deactivate_partner(owner_user_id, "rights_check")
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"check_partner_channels_loop: {e}")
 
 
 async def ensure_startup_admin_accounts() -> None:
@@ -7949,6 +8164,303 @@ async def _ensure_admin_subscription(admin_id: int) -> bool:
         except Exception as e:  # noqa: BLE001
             logger.error(f"_ensure_admin_subscription {admin_id}: {e}")
             return False
+
+
+# --- Новая авто-партнёрка: управление ТГК каналами partner-а ---
+class PartnerChannelStates(StatesGroup):
+    waiting_channel_id = State()
+
+
+async def _partner_channel_menu_text(owner_user_id: int, lang: str) -> str:
+    channels = await db.get_partner_channels(owner_user_id)
+    active = [c for c in channels if to_int(c.get("is_active"), 0) == 1]
+    bonus_type = Config.partner_bonus_type()
+    value = Config.PARTNER_BONUS_VALUE
+    if bonus_type == "days":
+        bonus_txt = translate(lang, "texts.partner_bonus_label_days", value=value)
+    else:
+        bonus_txt = translate(lang, "texts.partner_bonus_label_discount", percent=value)
+    lines = [
+        translate(lang, "texts.partner_channels_title"),
+        translate(lang, "texts.partner_channels_count", count=len(active)),
+        "",
+        translate(lang, "texts.partner_auto_bonus_info", bonus=bonus_txt),
+    ]
+    user = await db.get_user_by_any_id(owner_user_id)
+    ref_code = str((user or {}).get("mate_ref_link_code", "") or "")
+    if ref_code:
+        lines.append("")
+        lines.append(
+            translate(
+                lang,
+                "texts.partner_channels_my_link",
+                link=get_ref_link(ref_code),
+            )
+        )
+    if not channels:
+        lines.append(translate(lang, "texts.partner_channels_empty"))
+    else:
+        lines.append("")
+        lines.append(translate(lang, "texts.partner_channels_list"))
+        for ch in channels:
+            cid = to_int(ch.get("channel_id"), 0)
+            title = str(ch.get("title") or str(cid))
+            verified = to_int(ch.get("is_owner_verified"), 0)
+            ch_active = to_int(ch.get("is_active"), 0)
+            mark = "✅" if (verified and ch_active) else "❌"
+            lines.append(f"{mark} <b>{html.escape(title)}</b> <code>{cid}</code>")
+    return "\n".join(lines)
+
+
+def _partner_channel_keyboard(
+    lang: str, channels: list[dict[str, Any]] | None = None
+) -> InlineKeyboardMarkup:
+    channels = channels or []
+    buttons: list[list[InlineKeyboardButton]] = [
+        [
+            InlineKeyboardButton(
+                text=translate(lang, "buttons.partner_channel_add"),
+                callback_data="pch:add",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text=translate(lang, "buttons.partner_channel_verify_all"),
+                callback_data="pch:verify_all",
+            )
+        ],
+    ]
+    for ch in channels:
+        cid = to_int(ch.get("channel_id"), 0)
+        title = str(ch.get("title") or str(cid))
+        if cid:
+            buttons.append(
+                [
+                    InlineKeyboardButton(
+                        text=translate(
+                            lang, "buttons.partner_channel_remove", channel=html.escape(title)[:24]
+                        ),
+                        callback_data=f"pch:rem:{cid}",
+                    )
+                ]
+            )
+    buttons.append(
+        [InlineKeyboardButton(text=translate(lang, "buttons.back"), callback_data="partner_menu")]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+@router.callback_query(F.data == "pch:list")
+async def cb_partner_channel_list(event: CallbackQuery, **kwargs: Any) -> None:
+    if not Features.partner_new_auto_mode_available():
+        await event.answer(
+            translate(await get_user_language(event.from_user.id), "texts.feature_disabled")
+        )
+        return
+    user_data = await db.get_user_by_telegram_id(event.from_user.id)
+    if not user_data or not user_data.get("is_mate"):
+        await event.answer(
+            translate(await get_user_language(event.from_user.id), "texts.not_partner")
+        )
+        return
+    lang = await get_user_language(event.from_user.id)
+    owner_user_id = to_int(user_data.get("user_id"), event.from_user.id)
+    text = await _partner_channel_menu_text(owner_user_id, lang)
+    channels = await db.get_partner_channels(owner_user_id)
+    await event.message.edit_text(text, reply_markup=_partner_channel_keyboard(lang, channels))
+    await event.answer()
+
+
+@router.callback_query(F.data == "pch:add")
+async def cb_partner_channel_add(event: CallbackQuery, state: FSMContext, **kwargs: Any) -> None:
+    if not Features.partner_new_auto_mode_available():
+        await event.answer(
+            translate(await get_user_language(event.from_user.id), "texts.feature_disabled")
+        )
+        return
+    lang = await get_user_language(event.from_user.id)
+    await state.set_state(PartnerChannelStates.waiting_channel_id)
+    await event.message.edit_text(
+        translate(lang, "texts.partner_channel_add_prompt"),
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text=translate(lang, "buttons.cancel"), callback_data="pch:list"
+                    )
+                ]
+            ]
+        ),
+    )
+    await event.answer()
+
+
+@router.message(PartnerChannelStates.waiting_channel_id, F.text)
+async def msg_partner_channel_add(message: Message, state: FSMContext) -> None:
+    if not Features.partner_new_auto_mode_available():
+        await state.clear()
+        return
+    lang = await get_user_language(message.from_user.id)
+    raw = (message.text or "").strip()
+    channel_id = 0
+    try:
+        channel_id = int(raw)
+    except ValueError:
+        channel_id = 0
+    if not channel_id:
+        await message.answer(translate(lang, "texts.partner_channel_invalid_id"))
+        return
+
+    check = (
+        await verify_channel_rights(bot, channel_id) if bot else {"ok": False, "error": "no_bot"}
+    )
+    if not check["ok"]:
+        await message.answer(
+            translate(
+                lang,
+                "texts.partner_channel_add_failed",
+                channel=html.escape(str(check.get("title") or channel_id)),
+                error=html.escape(str(check.get("error", ""))),
+            )
+        )
+        await state.clear()
+        return
+    user_data = await db.get_user_by_telegram_id(message.from_user.id)
+    if not user_data:
+        await message.answer(translate(lang, "texts.user_not_found"))
+        await state.clear()
+        return
+    owner_user_id = to_int(user_data.get("user_id"), message.from_user.id)
+    existing_channels = await db.get_partner_channels(owner_user_id)
+    is_first_channel = len(existing_channels) == 0
+    await db.add_partner_channel(
+        channel_id,
+        owner_user_id,
+        message.from_user.id,
+        title=str(check.get("title", "")),
+        username=str(check.get("username", "")),
+    )
+    if is_first_channel:
+        await db.update_user(
+            owner_user_id,
+            force=True,
+            is_mate=1,
+            mate_bonus_type=Config.partner_bonus_type(),
+            mate_bonus_value=Config.PARTNER_BONUS_VALUE,
+            mate_status="active",
+        )
+    await db.update_partner_channel_status(
+        channel_id,
+        is_owner_verified=1,
+        has_posting_rights=to_int(1 if check.get("can_post") else 0),
+        is_active=1,
+        last_status=str(check.get("title", "")),
+        last_error="",
+    )
+    await state.clear()
+    await message.answer(
+        translate(
+            lang, "texts.partner_channel_added", channel=html.escape(str(check.get("title", "")))
+        )
+    )
+
+    owner_user_id = to_int(user_data.get("user_id"), message.from_user.id)
+    text = await _partner_channel_menu_text(owner_user_id, lang)
+    channels = await db.get_partner_channels(owner_user_id)
+    await message.answer(text, reply_markup=_partner_channel_keyboard(lang, channels))
+
+
+@router.callback_query(F.data.startswith("pch:rem:"))
+async def cb_partner_channel_remove(event: CallbackQuery, **kwargs: Any) -> None:
+    if not Features.partner_new_auto_mode_available():
+        await event.answer(
+            translate(await get_user_language(event.from_user.id), "texts.feature_disabled")
+        )
+        return
+    lang = await get_user_language(event.from_user.id)
+    try:
+        channel_id = int(str(event.data).split(":", 2)[2])
+    except Exception:  # noqa: BLE001
+        await event.answer(translate(lang, "texts.partner_channel_invalid_id"))
+        return
+    user_data = await db.get_user_by_telegram_id(event.from_user.id)
+    if not user_data:
+        await event.answer(translate(lang, "texts.user_not_found"))
+        return
+    owner_user_id = to_int(user_data.get("user_id"), event.from_user.id)
+    await db.remove_partner_channel(channel_id)
+    await event.answer(translate(lang, "texts.partner_channel_removed"))
+    text = await _partner_channel_menu_text(owner_user_id, lang)
+    channels = await db.get_partner_channels(owner_user_id)
+    await event.message.edit_text(text, reply_markup=_partner_channel_keyboard(lang, channels))
+
+
+@router.callback_query(F.data == "pch:verify_all")
+async def cb_partner_channel_verify_all(event: CallbackQuery, **kwargs: Any) -> None:
+    if not Features.partner_new_auto_mode_available():
+        await event.answer(
+            translate(await get_user_language(event.from_user.id), "texts.feature_disabled")
+        )
+        return
+    lang = await get_user_language(event.from_user.id)
+    user_data = await db.get_user_by_telegram_id(event.from_user.id)
+    if not user_data:
+        await event.answer(translate(lang, "texts.user_not_found"))
+        return
+    owner_user_id = to_int(user_data.get("user_id"), event.from_user.id)
+    channels = await db.get_partner_channels(owner_user_id)
+    ok_count = 0
+    for ch in channels:
+        cid = to_int(ch.get("channel_id"), 0)
+        check = await verify_channel_rights(bot, cid) if bot else {"ok": False, "error": "no_bot"}
+        await db.update_partner_channel_status(
+            cid,
+            is_owner_verified=to_int(1 if check.get("ok") else 0),
+            has_posting_rights=to_int(1 if check.get("can_post") else 0),
+            is_active=to_int(1 if check.get("ok") else 0),
+            last_status=str(check.get("title", "")) if check.get("ok") else "lost_rights",
+            last_error="" if check.get("ok") else str(check.get("error", ""))[:200],
+        )
+        if check["ok"]:
+            ok_count += 1
+    await event.answer(
+        translate(lang, "texts.partner_channel_verified", count=ok_count, total=len(channels))
+    )
+    owner_user_id = to_int(user_data.get("user_id"), event.from_user.id)
+    text = await _partner_channel_menu_text(owner_user_id, lang)
+    channels = await db.get_partner_channels(owner_user_id)
+    await event.message.edit_text(text, reply_markup=_partner_channel_keyboard(lang, channels))
+
+
+@router.message(Command("autopost"))
+async def cmd_autopost(message: Message, **kwargs: Any) -> None:
+    if not Features.partner_new_auto_mode_available():
+        await message.answer(
+            translate(await get_user_language(message.from_user.id), "texts.feature_disabled")
+        )
+        return
+    if message.from_user.id not in Config.ADMIN_USER_ID_SET:
+        await message.answer(
+            translate(await get_user_language(message.from_user.id), "texts.admin_only")
+        )
+        return
+    raw = (message.text or "").replace("/autopost", "", 1).strip()
+    if not raw:
+        await message.answer(
+            translate(await get_user_language(message.from_user.id), "texts.partner_autopost_usage")
+        )
+        return
+    lang = await get_user_language(message.from_user.id)
+    res = await send_auto_post_to_partner_channels(raw)
+    await message.answer(
+        translate(
+            lang,
+            "texts.partner_autopost_result",
+            sent=res.get("sent", 0),
+            failed=res.get("failed", 0),
+            total=res.get("total", 0),
+        )
+    )
 
 
 async def _notify_subscription_creation_failed(
@@ -9102,7 +9614,6 @@ async def cmd_start(event: Message | CallbackQuery, state: FSMContext, **kwargs:
         logger.error(f"cmd_start: некорректный user_id {user_id}")
         return
 
-    # Обновляем username из Telegram на каждый визит (включая админов)
     tg_username_start = (user.username or "").strip() or None
     try:
         await db.add_user(user_id)
@@ -9588,9 +10099,8 @@ async def show_tariffs_catalog(
 @router.callback_query(F.data == "buy:choose_custom")
 async def cmd_buy_choose_custom(event: CallbackQuery, *, is_renewal: bool = False, **kwargs):
     user_id = get_event_user_id(event) or 0
-    if not await is_admin_user(user_id):  # noqa: SIM102
-        if await block_if_pending_payment(event, user_id):
-            return
+    if not await is_admin_user(user_id) and await block_if_pending_payment(event, user_id):
+        return
     await event.answer()
     await cmd_custom_start(event, is_renewal=is_renewal, **kwargs)
 
@@ -10475,9 +10985,10 @@ async def cmd_renew_plan(event: CallbackQuery, **kwargs):
 async def open_plan_offer(event: CallbackQuery, *, is_renewal: bool) -> None:
     user_id = get_event_user_id(event) or 0
     lang = await get_user_language(user_id)
-    if not await is_admin_user(user_id):
-        if await block_if_pending_partner_application(event, user_id):
-            return
+    if not await is_admin_user(user_id) and await block_if_pending_partner_application(
+        event, user_id
+    ):
+        return
         if not is_renewal:
             st = await ensure_subscription_state(user_id, notify_user_about_cleanup=True)
             if st.get("status") == "active" and not is_expiring_soon(st, Config.EXPIRY_ALERT_DAYS):
@@ -10531,7 +11042,7 @@ async def cmd_show_payment_details(event: CallbackQuery):
     duration = int(plan.get("duration_days", 30))
     trust = await db.get_trust_score(uid)
     final_price, disc = apply_trust_discount(price, trust)
-    final_price_int = int(round(final_price))  # noqa: RUF046
+    final_price_int = round(final_price)
     servers = get_plan_servers(plan)
     loc_line = (
         translate(
@@ -10603,38 +11114,34 @@ async def cmd_test_plan(event: CallbackQuery, **kwargs: Any) -> None:
         await event.answer(error, show_alert=True)
         return
 
-    internal_uid, tg_id = await resolve_payment_identity(user_id)
-    payment_id = f"pay_{internal_uid}_{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}"
-    payment_data = {
-        "payment_id": payment_id,
-        "user_id": internal_uid,
-        "tg_id": tg_id,
-        "plan_id": plan_id,
-        "plan_type": "test",
-        "plan_name": plan.get("name", plan_id),
-        "amount": 0.0,
-        "timestamp": datetime.now(UTC).isoformat(),
-        "status": "pending",
-        "payment_method": "test",
-        "source": "bot",
-    }
-    if not await json_db.add_pending_for_user(user_id, payment_data):
-        await smart_answer(
-            event,
-            translate(user_lang, "texts.payment_request_already_exists"),
-            reply_markup=main_menu_keyboard(user_lang),
-            delete_origin=True,
+    plan_suffix = translate(user_lang, "texts.test_plan_suffix")
+    vpn_url = await create_subscription(
+        user_id,
+        plan,
+        plan_suffix=plan_suffix,
+        earn_trust=False,
+        is_admin_test=True,
+    )
+    if not vpn_url:
+        await event.answer(
+            translate(user_lang, "texts.failed_to_create_trial_subscription"),
+            show_alert=True,
         )
         return
-    await notify_admins_pending_payment(payment_data)
     await smart_answer(
         event,
         translate(
             user_lang,
-            "texts.test_subscription_requested",
+            "texts.test_subscription_created",
             plan_name=plan.get("name", plan_id),
+            ip_limit=plan.get("ip_limit", 0),
+            traffic=format_traffic(plan.get("traffic_gb", 0), user_lang),
+            servers=format_servers(plan.get("servers")),
+            duration=format_duration(int(plan.get("duration_days", 30)), user_lang),
+            subscription_links=build_subscription_link_blocks(vpn_url, user_lang),
+            subscription_setup_required=translate(user_lang, "texts.subscription_setup_required"),
         ),
-        reply_markup=main_menu_keyboard(user_lang),
+        reply_markup=build_setup_keyboard(user_lang),
         delete_origin=True,
     )
 
@@ -10819,7 +11326,7 @@ async def cmd_show_yoomoney_payment(event: CallbackQuery, **kwargs):
     price = to_float(plan.get("price_rub", 0), 0.0)
     trust = await db.get_trust_score(uid)
     final_price, _ = apply_trust_discount(price, trust)
-    final_price_int = int(round(final_price))  # noqa: RUF046
+    final_price_int = round(final_price)
     await _build_yoomoney_payment(
         event=event,
         uid=uid,
@@ -10865,7 +11372,7 @@ async def cmd_show_p2p_payment(event: CallbackQuery, **kwargs):
     price = to_float(plan.get("price_rub", 0), 0.0)
     trust = await db.get_trust_score(uid)
     final_price, _ = apply_trust_discount(price, trust)
-    final_price_int = int(round(final_price))  # noqa: RUF046
+    final_price_int = round(final_price)
 
     text = translate(
         lang,
@@ -10999,7 +11506,7 @@ async def cmd_confirm_payment(event: CallbackQuery, **kwargs: Any) -> None:
         return
     price = to_float(plan.get("price_rub", 0), 0.0)
     trust = await db.get_trust_score(uid)
-    amount = max(0, int(round(apply_trust_discount(price, trust)[0])))  # noqa: RUF046
+    amount = max(0, round(apply_trust_discount(price, trust)[0]))
     internal_uid, tg_id = await resolve_payment_identity(uid)
     payment_id = f"pay_{internal_uid}_{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}"
     payment_data = {
@@ -11433,9 +11940,10 @@ async def cmd_become_partner(event: CallbackQuery, **kwargs):
             delete_origin=True,
         )
         return
-    if not await is_admin_user(user_id):  # noqa: SIM102
-        if await block_if_pending_partner_application(event, user_id):
-            return
+    if not await is_admin_user(user_id) and await block_if_pending_partner_application(
+        event, user_id
+    ):
+        return
     if not Config.PARTNER_ENABLED:
         await smart_answer(
             event,
@@ -11858,20 +12366,19 @@ async def process_partner_bonus_value_msg(message: Message, state: FSMContext):
                 ),
             )
             return
-    elif bonus_type == "trust":  # noqa: SIM102
-        if (
-            bonus_value < Config.PARTNER_TRUST_POINTS_MIN
-            or bonus_value > Config.PARTNER_TRUST_POINTS_MAX
-        ):
-            await message.answer(
-                translate(
-                    lang,
-                    "texts.partner_bonus_trust_out_of_range",
-                    min_points=Config.PARTNER_TRUST_POINTS_MIN,
-                    max_points=Config.PARTNER_TRUST_POINTS_MAX,
-                ),
-            )
-            return
+    elif bonus_type == "trust" and (
+        bonus_value < Config.PARTNER_TRUST_POINTS_MIN
+        or bonus_value > Config.PARTNER_TRUST_POINTS_MAX
+    ):
+        await message.answer(
+            translate(
+                lang,
+                "texts.partner_bonus_trust_out_of_range",
+                min_points=Config.PARTNER_TRUST_POINTS_MIN,
+                max_points=Config.PARTNER_TRUST_POINTS_MAX,
+            ),
+        )
+        return
 
     await state.update_data(bonus_value=bonus_value)
     data = await state.get_data()
@@ -12052,9 +12559,8 @@ async def partner_renew_confirm(event: CallbackQuery, **kwargs):
 async def cmd_partner_withdraw(event: CallbackQuery, state: FSMContext, **kwargs):
     user_id = get_event_user_id(event) or 0
     lang = await get_user_language(user_id)
-    if not await is_admin_user(user_id):  # noqa: SIM102
-        if await block_if_pending_payment(event, user_id):
-            return
+    if not await is_admin_user(user_id) and await block_if_pending_payment(event, user_id):
+        return
     user_data = await db.get_user_by_any_id(user_id)
     if not user_data or not user_data.get("is_mate"):
         await smart_answer(
@@ -12580,12 +13086,13 @@ async def _handle_partner_new_accept(event: CallbackQuery, op: dict[str, Any], u
             show_alert=True,
         )
         return
+    avg_reach = to_int(op.get("avg_reach", 0))
     success = await db.set_user_as_partner(
         uid,
         nickname=nickname,
         social_links=social_links,
         followers=followers,
-        avg_reach=0,
+        avg_reach=avg_reach,
         period_months=period_months,
         bonus_type=bonus_type,
         bonus_value=bonus_value,
@@ -12676,8 +13183,7 @@ async def _handle_partner_renewal_accept(
             current_expiry = datetime.now(UTC)
     else:
         current_expiry = datetime.now(UTC)
-    if current_expiry <= datetime.now(UTC):  # noqa: PLR1730
-        current_expiry = datetime.now(UTC)
+    current_expiry = max(datetime.now(UTC), current_expiry)
     new_expiry = current_expiry + timedelta(days=months * 30)
     if not await finalize_partner_operation(
         op.get("operation_id", ""),
@@ -12881,6 +13387,15 @@ async def check_partner_expiry_notifications() -> None:
             user_data = await db.get_user_by_any_id(uid)
             if not user_data:
                 return
+
+            if Features.partner_new_auto_mode_available():
+                try:
+                    ch = await db.get_partner_channels(to_int(user_data.get("user_id"), uid))
+                    active_ch = [c for c in ch if to_int(c.get("is_active"), 0) == 1]
+                    if active_ch:
+                        return
+                except Exception:  # noqa: BLE001, S110
+                    pass
             expiry = user_data.get("mate_expiry", "")
             if not expiry:
                 return
@@ -12909,7 +13424,7 @@ async def check_partner_expiry_notifications() -> None:
                     pass
             elif expiry_dt <= now:
                 try:
-                    await _deactivate_partner(uid)
+                    await _deactivate_partner(uid, "expired")
                 except Exception as e:  # noqa: BLE001
                     logger.error(f"Ошибка деактивации партнёра {uid}: {e}")
 
@@ -12924,7 +13439,7 @@ async def check_partner_expiry_notifications() -> None:
         await asyncio.sleep(SECONDS_IN_DAY)
 
 
-async def _deactivate_partner(raw_id: int) -> None:
+async def _deactivate_partner(raw_id: int, reason: str = "manual") -> None:
     db_uid = await db.resolve_internal_uid(raw_id)
     if db_uid <= 0:
         return
@@ -12933,7 +13448,7 @@ async def _deactivate_partner(raw_id: int) -> None:
         return
     tg_id = to_int(user_data.get("telegram_id"), 0)
     ident = format_uid(db_uid, tg_id)
-    logger.info(f"Деактивация партнёрства для {ident}")
+    logger.info(f"Деактивация партнёрства для {ident}, причина={reason}")
     if tg_id:
         with suppress(Exception):
             await safe_send_message(
@@ -12941,7 +13456,7 @@ async def _deactivate_partner(raw_id: int) -> None:
                 tg_id,
                 translate(
                     await get_user_language(tg_id),
-                    "texts.partner_expiry_expired",
+                    f"texts.partner_terminated_{reason}",
                 ),
             )
     vpn_url = user_data.get("vpn_url", "")
@@ -13305,11 +13820,11 @@ async def cmd_pay_await_reject(event: CallbackQuery, **kwargs):
         )
     trust_line = ""
     if Config.TRUST_SCORE_ENABLED and uid > 0:
-        changed, before, after, delta = await apply_trust_score_delta(
+        changed, _before, after, delta = await apply_trust_score_delta(
             uid, -TRUST_SCORE_PENALTY_PAYMENT_REJECTED
         )
         if changed:
-            trust_line = build_trust_change_line(delta, before, after)
+            trust_line = build_trust_change_line(delta, _before, after)
     if uid > 0:
         user_lang = await get_user_language(uid)
         with suppress(Exception):
@@ -13545,76 +14060,15 @@ async def process_broadcast_type(event: CallbackQuery, state: FSMContext, **kwar
     broadcast_type = event.data
     await state.update_data(broadcast_type=broadcast_type)
     lang = await get_lang(event)
-    text = translate(lang, "texts.broadcast_content_type")
-    keyboard = kb(
-        [
-            [
-                {
-                    "text": translate(lang, "broadcast_content_text"),
-                    "callback_data": "broadcast_content_text",
-                }
-            ],
-            [
-                {
-                    "text": translate(lang, "broadcast_content_photo"),
-                    "callback_data": "broadcast_content_photo",
-                }
-            ],
-            [
-                {
-                    "text": translate(lang, "broadcast_content_document"),
-                    "callback_data": "broadcast_content_document",
-                }
-            ],
-            [
-                {
-                    "text": translate(lang, "buttons.cancel"),
-                    "callback_data": "cancel",
-                }
-            ],
-        ]
+    type_text = translate(
+        lang,
+        "texts.broadcast_target_all"
+        if broadcast_type == "broadcast_all"
+        else "texts.broadcast_target_active",
     )
-    await smart_answer(event, text, reply_markup=keyboard, delete_origin=True)
-    await state.set_state(BroadcastState.waiting_for_content_type)
-
-
-@router.callback_query(BroadcastState.waiting_for_content_type)
-async def process_broadcast_content_type(event: CallbackQuery, state: FSMContext, **kwargs):
-    if not await ensure_admin_access(event):
-        return
-    if event.data in ("cancel", "start"):
-        await state.clear()
-        await cmd_start(event, state)
-        return
-    content_type = event.data
-    await state.update_data(content_type=content_type)
-    lang = await get_lang(event)
-
-    if content_type == "broadcast_content_text":
-        text = translate(
-            lang,
-            "texts.broadcast_message_prompt",
-            type_text=translate(
-                lang,
-                "texts.broadcast_target_all"
-                if (await state.get_data()).get("broadcast_type") == "broadcast_all"
-                else "texts.broadcast_target_active",
-            ),
-        )
-        await smart_answer(event, text, reply_markup=cancel_only_keyboard(lang), delete_origin=True)
-        await state.set_state(BroadcastState.waiting_for_message)
-    elif content_type == "broadcast_content_photo":
-        text = translate(lang, "broadcast_send_photo")
-        await smart_answer(event, text, reply_markup=cancel_only_keyboard(lang), delete_origin=True)
-        await state.set_state(BroadcastState.waiting_for_photo)
-    elif content_type == "broadcast_content_document":
-        text = translate(lang, "broadcast_send_document")
-        await smart_answer(event, text, reply_markup=cancel_only_keyboard(lang), delete_origin=True)
-        await state.set_state(BroadcastState.waiting_for_document)
-    else:
-        await event.answer(translate(lang, "texts.broadcast_invalid_type"))
-        await state.clear()
-        return
+    text = translate(lang, "texts.broadcast_message_prompt", type_text=type_text)
+    await smart_answer(event, text, reply_markup=cancel_only_keyboard(lang), delete_origin=True)
+    await state.set_state(BroadcastState.waiting_for_message)
 
 
 @router.message(BroadcastState.waiting_for_message)
@@ -13623,87 +14077,52 @@ async def process_broadcast_message(event: Message, state: FSMContext, **kwargs)
         await state.clear()
         return
     lang = await get_lang(event)
-    if not event.text or not isinstance(event.text, str):
-        await event.answer(translate(lang, "texts.broadcast_message_must_be_text"))
-        return
-    msg = event.text.strip()
-    if not msg:
-        await event.answer(translate(lang, "texts.broadcast_text_required"))
-        return
-    if is_cancel_text(msg, lang):
+
+    if is_cancel_text(event.text or "", lang):
         await state.clear()
         await cmd_start(event, state)
         return
-    await state.update_data(
-        message_text=msg,
-        file_id=None,
-        file_path=None,
-        file_bytes=None,
-        file_name=None,
-        caption=None,
-    )
-    await _show_broadcast_confirm(event, state, lang)
 
+    content_type = "text"
+    file_id = None
+    file_path = None
+    file_bytes = None
+    file_name = None
+    caption = None
+    message_text = None
 
-@router.message(BroadcastState.waiting_for_photo, F.photo)
-async def process_broadcast_photo(event: Message, state: FSMContext, **kwargs):
-    if not await ensure_admin_access(event, silent=True):
-        await state.clear()
-        return
-    lang = await get_lang(event)
-    photo = event.photo[-1]
-    await state.update_data(
-        message_text=None,
-        file_id=photo.file_id,
-        file_path=None,
-        file_bytes=None,
-        file_name=None,
-        caption=None,
-        content_type="photo",
-    )
-    text = translate(lang, "broadcast_caption_prompt")
-    await smart_answer(event, text, reply_markup=cancel_only_keyboard(lang), delete_origin=True)
-    await state.set_state(BroadcastState.waiting_for_caption)
-
-
-@router.message(BroadcastState.waiting_for_document, F.document)
-async def process_broadcast_document(event: Message, state: FSMContext, **kwargs):
-    if not await ensure_admin_access(event, silent=True):
-        await state.clear()
-        return
-    lang = await get_lang(event)
-    document = event.document
-    await state.update_data(
-        message_text=None,
-        file_id=document.file_id,
-        file_path=None,
-        file_bytes=None,
-        file_name=document.file_name,
-        caption=None,
-        content_type="document",
-    )
-    text = translate(lang, "broadcast_caption_prompt")
-    await smart_answer(event, text, reply_markup=cancel_only_keyboard(lang), delete_origin=True)
-    await state.set_state(BroadcastState.waiting_for_caption)
-
-
-@router.message(BroadcastState.waiting_for_caption)
-async def process_broadcast_caption(event: Message, state: FSMContext, **kwargs):
-    if not await ensure_admin_access(event, silent=True):
-        await state.clear()
-        return
-    lang = await get_lang(event)
-    if not event.text or not isinstance(event.text, str):
+    if event.text and isinstance(event.text, str):
+        message_text = event.text.strip()
+        if not message_text:
+            await event.answer(translate(lang, "texts.broadcast_text_required"))
+            return
+        content_type = "text"
+    elif event.photo:
+        photo = event.photo[-1]
+        file_id = photo.file_id
+        content_type = "photo"
+        if event.caption and isinstance(event.caption, str):
+            caption = event.caption.strip()
+    elif event.document:
+        document = event.document
+        file_id = document.file_id
+        file_name = document.file_name
+        content_type = "document"
+        if event.caption and isinstance(event.caption, str):
+            caption = event.caption.strip()
+    else:
         await event.answer(translate(lang, "texts.broadcast_message_must_be_text"))
         return
-    caption = event.text.strip()
-    if is_cancel_text(caption, lang):
-        await state.clear()
-        await cmd_start(event, state)
-        return
-    if caption.lower() in ("пропустить", "skip", "/skip"):
-        caption = None
-    await state.update_data(caption=caption)
+
+    await state.update_data(
+        message_text=message_text,
+        file_id=file_id,
+        file_path=file_path,
+        file_bytes=file_bytes,
+        file_name=file_name,
+        caption=caption,
+        content_type=content_type,
+    )
     await _show_broadcast_confirm(event, state, lang)
 
 
@@ -13727,27 +14146,26 @@ async def _show_broadcast_confirm(event: Message | CallbackQuery, state: FSMCont
 
     count = len(user_ids)
 
-    # Build preview
-    preview_parts = [f"{translate(lang, 'broadcast_preview')}\n"]
+    preview_parts = [f"{translate(lang, 'buttons.broadcast_preview')}\n"]
     preview_parts.append(
         f"<b>{translate(lang, 'texts.broadcast_target_all') if broadcast_type == 'broadcast_all' else translate(lang, 'texts.broadcast_target_active')}</b>\n"
     )
-    if content_type == "broadcast_content_text":
+    if content_type == "text":
         preview_parts.append(
-            f"<b>{translate(lang, 'broadcast_content_text')}</b>:\n{message_text or ''}\n"
+            f"<b>{translate(lang, 'buttons.broadcast_content_text')}</b>:\n{message_text or ''}\n"
         )
-    elif content_type == "broadcast_content_photo":
-        preview_parts.append(f"<b>{translate(lang, 'broadcast_content_photo')}</b>\n")
+    elif content_type == "photo":
+        preview_parts.append(f"<b>{translate(lang, 'buttons.broadcast_content_photo')}</b>\n")
         if caption:
-            preview_parts.append(f"Подпись: {caption}\n")
-    elif content_type == "broadcast_content_document":
-        preview_parts.append(f"<b>{translate(lang, 'broadcast_content_document')}</b>\n")
+            preview_parts.append(f"Caption: {caption}\n")
+    elif content_type == "document":
+        preview_parts.append(f"<b>{translate(lang, 'buttons.broadcast_content_document')}</b>\n")
         if file_name:
-            preview_parts.append(f"Файл: {file_name}\n")
+            preview_parts.append(f"File: {file_name}\n")
         if caption:
-            preview_parts.append(f"Подпись: {caption}\n")
+            preview_parts.append(f"Caption: {caption}\n")
 
-    preview_parts.append(f"\n{translate(lang, 'broadcast_confirm_prompt', count=count)}")
+    preview_parts.append(f"\n{translate(lang, 'buttons.broadcast_confirm_prompt', count=count)}")
 
     text = "".join(preview_parts)
 
@@ -13755,13 +14173,13 @@ async def _show_broadcast_confirm(event: Message | CallbackQuery, state: FSMCont
         [
             [
                 {
-                    "text": translate(lang, "broadcast_confirm"),
+                    "text": translate(lang, "buttons.broadcast_confirm"),
                     "callback_data": "broadcast_confirm_send",
                 }
             ],
             [
                 {
-                    "text": translate(lang, "broadcast_cancel"),
+                    "text": translate(lang, "buttons.broadcast_cancel"),
                     "callback_data": "cancel",
                 }
             ],
@@ -13800,22 +14218,21 @@ async def process_broadcast_confirm(event: CallbackQuery, state: FSMContext, **k
     await state.clear()
     sent = 0
     failed = 0
+    deleted = 0
 
     for tg_id in user_ids:
         try:
-            if content_type == "broadcast_content_text":
+            if content_type == "text":
                 ok = await safe_send_message(
                     event.bot,
                     tg_id,
                     message_text or "",
                 )
-            elif content_type in ("broadcast_content_photo", "broadcast_content_document"):
+            elif content_type in ("photo", "document"):
                 ok = await safe_send_content(
                     event.bot,
                     tg_id,
-                    content_type="photo"
-                    if content_type == "broadcast_content_photo"
-                    else "document",
+                    content_type=content_type,
                     file_id=file_id,
                     file_name=file_name,
                     caption=caption,
@@ -13830,6 +14247,15 @@ async def process_broadcast_confirm(event: CallbackQuery, state: FSMContext, **k
                 sent += 1
             else:
                 failed += 1
+                if Config.BROADCAST_DELETE_DEAD_USERS:
+                    user_row = await db.get_user_by_telegram_id(tg_id)
+                    if user_row and not user_row.get("has_subscription"):
+                        internal_uid = user_row.get("user_id")
+                        if internal_uid and await db.delete_user(internal_uid):
+                            deleted += 1
+                            logger.info(
+                                f"Рассылка: удалён мёртвый аккаунт tg_id={tg_id}, user_id={internal_uid} (без активной подписки)"
+                            )
         except Exception:  # noqa: BLE001
             failed += 1
         if (sent + failed) % 10 == 0:
@@ -13846,24 +14272,9 @@ async def process_broadcast_confirm(event: CallbackQuery, state: FSMContext, **k
         type_text=type_text,
         sent_count=sent,
         failed_count=failed,
+        deleted_count=deleted,
     )
     await smart_answer(event, text, reply_markup=main_menu_keyboard(lang), delete_origin=True)
-
-
-@router.message(BroadcastState.waiting_for_photo)
-async def process_broadcast_photo_wrong_type(event: Message, state: FSMContext, **kwargs):
-    if not await ensure_admin_access(event, silent=True):
-        await state.clear()
-        return
-    await event.answer("Пожалуйста, отправьте фото.")
-
-
-@router.message(BroadcastState.waiting_for_document)
-async def process_broadcast_document_wrong_type(event: Message, state: FSMContext, **kwargs):
-    if not await ensure_admin_access(event, silent=True):
-        await state.clear()
-        return
-    await event.answer("Пожалуйста, отправьте документ.")
 
 
 def _debug_back_rows(lang: str, target: str = "debug_menu") -> list[list[dict[str, str]]]:
@@ -14207,8 +14618,8 @@ def format_user_raw(u: dict[str, Any]) -> str:
         if key in keys_to_hide:
             continue
         if val is None:
-            continue
-        if isinstance(val, bool):
+            val = "NULL"
+        elif isinstance(val, bool):
             val = "TRUE" if val else "FALSE"
         elif isinstance(val, float):
             val = f"{val:.2f}" if val == int(val) else str(val)
@@ -14605,7 +15016,9 @@ async def cmd_debug_reset_trials(event: CallbackQuery, **kwargs):
     if not await ensure_admin_access(event):
         return
     lang = await get_lang(event)
-    success, errors = await db.reset_all_trials()
+    success, errors, notified_ids = await db.reset_all_trials()
+    for tg_id in notified_ids:
+        await _debug_notify_user(tg_id, "texts.reset_trial_notification")
     text = translate(
         lang,
         "texts.trials_reset_result",
@@ -15137,7 +15550,7 @@ async def confirm_remove_partner_handler(event: CallbackQuery, state: FSMContext
     uid = int(data.get("remove_partner_user_id", 0))
     await state.clear()
 
-    await _deactivate_partner(uid)
+    await _deactivate_partner(uid, "manual")
     user_data = await db.get_user_by_any_id(uid)
     tg_id = to_int(user_data.get("telegram_id", 0), 0) if user_data else 0
     tg_id_str = format_tg_suffix(tg_id)
@@ -16005,7 +16418,7 @@ async def cmd_debug_subtract_days_start(event: CallbackQuery, state: FSMContext,
     await state.set_state(SubtractDaysState.waiting_for_user_id)
     await smart_answer(
         event,
-        translate(lang, "texts.subtract_days_user_prompt"),
+        translate(lang, "texts.manual_issue_user_prompt"),
         reply_markup=cancel_only_keyboard(),
         delete_origin=True,
     )
@@ -16399,7 +16812,7 @@ async def cmd_debug_reset_partner_stats_start(event: CallbackQuery, state: FSMCo
     await state.set_state(ResetPartnerStatsState.waiting_for_user_id)
     await smart_answer(
         event,
-        translate(lang, "texts.reset_partner_stats_prompt"),
+        translate(lang, "texts.reset_partner_link_prompt"),
         reply_markup=cancel_only_keyboard(),
         delete_origin=True,
     )
@@ -18626,17 +19039,9 @@ class BOT_FastAPI:
         async def api_auth_me(
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
         ) -> JSONResponse:
-            if not credentials:
-                return JSONResponse(
-                    status_code=401,
-                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.unauthorized")},
-                )
-            user = await db.get_user_by_session_token(credentials.credentials)
-            if not user:
-                return JSONResponse(
-                    status_code=401,
-                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.invalid_session")},
-                )
+            user, error = await _require_auth_user(credentials)
+            if error:
+                return error
             logger.info(
                 f"API auth_me: пользователь запросил свой профиль user_id={user['user_id']}"
             )
@@ -18671,12 +19076,9 @@ class BOT_FastAPI:
         async def api_auth_logout(
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
         ) -> JSONResponse:
-            if not credentials:
-                return JSONResponse(
-                    status_code=401,
-                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.unauthorized")},
-                )
-            user = await db.get_user_by_session_token(credentials.credentials)
+            user, error = await _require_auth_user(credentials)
+            if error:
+                return error
             if user:
                 await db.update_web_auth(user["user_id"], session_token="", session_expires_at="")
                 logger.info(f"API auth_logout: пользователь вышел user_id={user['user_id']}")
@@ -18690,17 +19092,9 @@ class BOT_FastAPI:
             req: WebPasswordChangeRequest,
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
         ) -> JSONResponse:
-            if not credentials:
-                return JSONResponse(
-                    status_code=401,
-                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.unauthorized")},
-                )
-            user = await db.get_user_by_session_token(credentials.credentials)
-            if not user:
-                return JSONResponse(
-                    status_code=401,
-                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.invalid_session")},
-                )
+            user, error = await _require_auth_user(credentials)
+            if error:
+                return error
             if not verify_password(req.old_password, user.get("password_hash", "")):
                 return JSONResponse(
                     status_code=400,
@@ -18722,17 +19116,9 @@ class BOT_FastAPI:
             req: WebTelegramLinkRequest,
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
         ) -> JSONResponse:
-            if not credentials:
-                return JSONResponse(
-                    status_code=401,
-                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.unauthorized")},
-                )
-            user = await db.get_user_by_session_token(credentials.credentials)
-            if not user:
-                return JSONResponse(
-                    status_code=401,
-                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.invalid_session")},
-                )
+            user, error = await _require_auth_user(credentials)
+            if error:
+                return error
             if user.get("telegram_id", 0) and user["telegram_id"] != req.tg_id:
                 return JSONResponse(
                     status_code=403,
@@ -18752,13 +19138,10 @@ class BOT_FastAPI:
                         )
                     }
                 )
+            user, error = await _require_auth_user(credentials)
+            if error:
+                return error
             await db.reconcile_telegram_account(req.tg_id)
-            user = await db.get_user_by_session_token(credentials.credentials)
-            if not user:
-                return JSONResponse(
-                    status_code=401,
-                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.invalid_session")},
-                )
             if req.password and not verify_password(req.password, user.get("password_hash", "")):
                 return JSONResponse(
                     status_code=400,
@@ -18770,7 +19153,7 @@ class BOT_FastAPI:
             if existing and to_int(existing.get("user_id"), 0) != to_int(user.get("user_id"), 0):
                 if existing.get("web_id") and existing["web_id"] != user["web_id"]:
                     await db.merge_accounts(user["user_id"], existing["user_id"])
-                    merged_user = await db.get_user_by_session_token(credentials.credentials)
+                    merged_user = await db.get_user_by_any_id(user["user_id"])
                     if merged_user:
                         user = merged_user
                     await db.update_web_auth(user["user_id"], telegram_id=req.tg_id)
@@ -18834,14 +19217,9 @@ class BOT_FastAPI:
                         status_code=401,
                         content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.unauthorized")},
                     )
-                user = await db.get_user_by_session_token(credentials.credentials)
-                if not user:
-                    return JSONResponse(
-                        status_code=401,
-                        content={
-                            "error": translate(Config.DEFAULT_LANGUAGE, "texts.invalid_session")
-                        },
-                    )
+                _user, error = await _require_auth_user(credentials)
+                if error:
+                    return error
                 state = secrets.token_urlsafe(32)
                 success = await create_bot_auth_state(
                     state, "link", ttl=300, session_token=credentials.credentials
@@ -19183,17 +19561,9 @@ class BOT_FastAPI:
         async def api_get_profile(
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
         ) -> JSONResponse:
-            if not credentials:
-                return JSONResponse(
-                    status_code=401,
-                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.unauthorized")},
-                )
-            user = await db.get_user_by_session_token(credentials.credentials)
-            if not user:
-                return JSONResponse(
-                    status_code=401,
-                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.invalid_session")},
-                )
+            user, error = await _require_auth_user(credentials)
+            if error:
+                return error
             if bool(user.get("banned", False)):
                 return JSONResponse(
                     status_code=403,
@@ -19626,7 +19996,7 @@ class BOT_FastAPI:
                     content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.invalid_session")},
                 )
             user_id = session_user["user_id"]
-            telegram_id = to_int(session_user.get("telegram_id"), 0) or user_id
+            telegram_id = to_int(session_user.get("telegram_id", 0), 0) or user_id
             lang = await get_user_language(user_id)
             if not await is_admin_user(telegram_id):
                 return JSONResponse(
@@ -19685,42 +20055,41 @@ class BOT_FastAPI:
                         )
                     plan_name = str(plan.get("name", req.plan_id))
 
-                payment, store_err = await store_api_subscription_payment(
-                    session_user,
-                    plan_id=str(plan.get("id", req.plan_id)),
-                    plan_type="test",
-                    plan_name=plan_name,
-                    amount=0.0,
-                    original_amount=0.0,
-                    discount_percent=0.0,
-                    custom_plan=plan if req.plan_id == "custom" else None,
+                plan_suffix = translate(lang, "texts.test_plan_suffix")
+                sub_id = await create_subscription(
+                    telegram_id,
+                    plan,
+                    plan_suffix=plan_suffix,
+                    earn_trust=False,
+                    is_admin_test=True,
                 )
-                if not payment:
-                    logger.warning(
-                        f"api_test_subscription: заявка не создана для {telegram_id}: {store_err}"
-                    )
+                if not sub_id:
                     return JSONResponse(
-                        status_code=409,
+                        status_code=500,
                         content={
                             "error": translate(
-                                lang,
-                                "texts.payment_request_already_exists",
+                                Config.DEFAULT_LANGUAGE,
+                                "texts.failed_to_create_trial_subscription",
                             )
                         },
                     )
-                await notify_admins_pending_payment(payment)
+
+                vpn_url = build_subscription_url(sub_id)
+                json_vpn_url = build_json_subscription_url(sub_id)
                 return JSONResponse(
                     content={
                         "message": translate(
                             lang,
-                            "texts.test_subscription_requested",
+                            "texts.test_subscription_created_short",
                             plan_name=plan_name,
                         ),
                         "plan_name": plan_name,
-                        "payment_id": str(payment.get("payment_id", "")),
-                        "wait_admin": True,
+                        "payment_id": sub_id,
+                        "wait_admin": False,
+                        "url": vpn_url,
+                        "json_url": json_vpn_url,
                     },
-                    status_code=202,
+                    status_code=200,
                 )
             except Exception as e:  # noqa: BLE001
                 logger.error(f"api_test_subscription: {e}")
@@ -20582,6 +20951,289 @@ class BOT_FastAPI:
                     },
                 )
 
+        async def _require_auth_user(
+            credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
+        ):
+            if not credentials:
+                return None, JSONResponse(
+                    status_code=401,
+                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.unauthorized")},
+                )
+            session_user = await db.get_user_by_session_token(credentials.credentials)
+            if not session_user:
+                return None, JSONResponse(
+                    status_code=401,
+                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.invalid_session")},
+                )
+            return session_user, None
+
+        async def _require_partner_user(
+            credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
+        ):
+            if not credentials:
+                return None, JSONResponse(
+                    status_code=401,
+                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.unauthorized")},
+                )
+            session_user = await db.get_user_by_session_token(credentials.credentials)
+            if not session_user:
+                return None, JSONResponse(
+                    status_code=401,
+                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.invalid_session")},
+                )
+            tg_id = to_int(session_user.get("telegram_id"), 0)
+            if not tg_id:
+                return None, JSONResponse(
+                    status_code=403,
+                    content={
+                        "error": translate(
+                            Config.DEFAULT_LANGUAGE,
+                            "texts.link_telegram_for_partner_channels",
+                        )
+                    },
+                )
+            if not bool(session_user.get("is_mate")):
+                return None, JSONResponse(
+                    status_code=403,
+                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.not_a_partner")},
+                )
+            return session_user, None
+
+        @self.app.get("/api/v1/partner/channels")
+        async def api_partner_channels() -> JSONResponse:
+            session_user, error = await _require_partner_user()
+            if error:
+                return error
+            user_id = to_int(session_user.get("user_id"), 0)
+            try:
+                channels = await db.get_partner_channels(user_id)
+                return JSONResponse(
+                    content={
+                        "channels": channels,
+                        "count": len(channels),
+                    }
+                )
+            except Exception as e:  # noqa: BLE001
+                logger.error(f"api_partner_channels: {e}")
+                return JSONResponse(
+                    status_code=500,
+                    content={
+                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
+                    },
+                )
+
+        @self.app.post("/api/v1/partner/channels")
+        async def api_add_partner_channel(
+            req: dict[str, Any],
+        ) -> JSONResponse:
+            session_user, error = await _require_partner_user()
+            if error:
+                return error
+            user_id = to_int(session_user.get("user_id"), 0)
+            tg_id = to_int(session_user.get("telegram_id"), 0)
+            try:
+                channel_id = to_int(req.get("channel_id"), 0)
+                if channel_id <= 0:
+                    return JSONResponse(
+                        status_code=400,
+                        content={
+                            "error": translate(Config.DEFAULT_LANGUAGE, "texts.channel_id_required")
+                        },
+                    )
+                title = str(req.get("title", "")).strip()
+                username = str(req.get("username", "")).strip()
+                success = await db.add_partner_channel(channel_id, user_id, tg_id, title, username)
+                if not success:
+                    return JSONResponse(
+                        status_code=500,
+                        content={
+                            "error": translate(
+                                Config.DEFAULT_LANGUAGE,
+                                "texts.failed_to_add_channel",
+                            )
+                        },
+                    )
+                return JSONResponse(
+                    content={
+                        "message": translate(
+                            Config.DEFAULT_LANGUAGE,
+                            "texts.partner_channel_added",
+                            channel=str(channel_id),
+                        ),
+                        "channel_id": channel_id,
+                    },
+                    status_code=201,
+                )
+            except Exception as e:  # noqa: BLE001
+                logger.error(f"api_add_partner_channel: {e}")
+                return JSONResponse(
+                    status_code=500,
+                    content={
+                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
+                    },
+                )
+
+        @self.app.delete("/api/v1/partner/channels/{channel_id}")
+        async def api_remove_partner_channel(
+            channel_id: int,
+        ) -> JSONResponse:
+            session_user, error = await _require_partner_user()
+            if error:
+                return error
+            user_id = to_int(session_user.get("user_id"), 0)
+            tg_id = to_int(session_user.get("telegram_id"), 0)
+            if not tg_id:
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "error": translate(
+                            Config.DEFAULT_LANGUAGE,
+                            "texts.link_telegram_for_partner_channels",
+                        )
+                    },
+                )
+            if not bool(session_user.get("is_mate")):
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.not_a_partner"),
+                    },
+                )
+            try:
+                channels = await db.get_partner_channels(user_id)
+                if not any(to_int(ch.get("channel_id"), 0) == channel_id for ch in channels):
+                    return JSONResponse(
+                        status_code=404,
+                        content={
+                            "error": translate(Config.DEFAULT_LANGUAGE, "texts.channel_not_found")
+                        },
+                    )
+                success = await db.remove_partner_channel(channel_id)
+                if not success:
+                    return JSONResponse(
+                        status_code=500,
+                        content={
+                            "error": translate(
+                                Config.DEFAULT_LANGUAGE,
+                                "texts.failed_to_remove_channel",
+                            )
+                        },
+                    )
+                return JSONResponse(
+                    content={
+                        "message": translate(
+                            Config.DEFAULT_LANGUAGE,
+                            "texts.partner_channel_removed",
+                            channel=str(channel_id),
+                        ),
+                    }
+                )
+            except Exception as e:  # noqa: BLE001
+                logger.error(f"api_remove_partner_channel: {e}")
+                return JSONResponse(
+                    status_code=500,
+                    content={
+                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
+                    },
+                )
+
+        @self.app.post("/api/v1/partner/channels/verify")
+        async def api_verify_partner_channels() -> JSONResponse:
+            _session_user, error = await _require_partner_user()
+            if error:
+                return error
+            try:
+                channels = await db.get_all_active_partner_channels()
+                verified = 0
+                total = len(channels)
+                for ch in channels:
+                    ch_id = to_int(ch.get("channel_id"), 0)
+                    await db.update_partner_channel_status(
+                        ch_id,
+                        is_owner_verified=1,
+                        has_posting_rights=1,
+                        is_active=1,
+                        last_status="verified",
+                        last_error="",
+                    )
+                    verified += 1
+                return JSONResponse(
+                    content={
+                        "count": verified,
+                        "total": total,
+                    }
+                )
+            except Exception as e:  # noqa: BLE001
+                logger.error(f"api_verify_partner_channels: {e}")
+                return JSONResponse(
+                    status_code=500,
+                    content={
+                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
+                    },
+                )
+
+        @self.app.post("/api/v1/partner/autopost")
+        async def api_partner_autopost(
+            req: dict[str, Any],
+            credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
+        ) -> JSONResponse:
+            if not credentials:
+                return JSONResponse(
+                    status_code=401,
+                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.unauthorized")},
+                )
+            token = credentials.credentials
+            if not _is_admin_token(token):
+                return JSONResponse(
+                    status_code=403,
+                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.admin_required")},
+                )
+            if not Config.PARTNER_NEW_AUTO_MODE:
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "error": translate(
+                            Config.DEFAULT_LANGUAGE,
+                            "texts.partner_auto_mode_disabled",
+                        )
+                    },
+                )
+            try:
+                text = str(req.get("text", "")).strip()
+                if not text:
+                    return JSONResponse(
+                        status_code=400,
+                        content={
+                            "error": translate(Config.DEFAULT_LANGUAGE, "texts.text_required")
+                        },
+                    )
+                channels = await db.get_all_active_partner_channels()
+                sent = 0
+                failed = 0
+                for ch in channels:
+                    ch_id = to_int(ch.get("channel_id"), 0)
+                    try:
+                        await bot.send_message(ch_id, text)
+                        sent += 1
+                    except Exception as e:  # noqa: BLE001
+                        logger.error(f"Autopost to channel {ch_id}: {e}")
+                        failed += 1
+                return JSONResponse(
+                    content={
+                        "sent": sent,
+                        "failed": failed,
+                        "total": len(channels),
+                    }
+                )
+            except Exception as e:  # noqa: BLE001
+                logger.error(f"api_partner_autopost: {e}")
+                return JSONResponse(
+                    status_code=500,
+                    content={
+                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
+                    },
+                )
+
         @self.app.get("/api/v1/referrals/stats")
         async def api_referral_stats(
             credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
@@ -20715,13 +21367,21 @@ class BOT_FastAPI:
             admin: str = Depends(_require_admin),
             page: int = 1,
             limit: int = 50,
+            search: str | None = None,
         ) -> JSONResponse:
             try:
-                all_users = await db.get_all_users()
-                total = len(all_users)
-                start = max(0, (page - 1) * limit)
-                end = start + limit
-                paginated = all_users[start:end]
+                if search and search.strip():
+                    all_users = await db.search_users(search.strip())
+                    total = len(all_users)
+                    start = max(0, (page - 1) * limit)
+                    end = start + limit
+                    paginated = all_users[start:end]
+                else:
+                    all_users = await db.get_all_users()
+                    total = len(all_users)
+                    start = max(0, (page - 1) * limit)
+                    end = start + limit
+                    paginated = all_users[start:end]
 
                 users = []
                 for u in paginated:
@@ -20943,7 +21603,7 @@ class BOT_FastAPI:
                         content={
                             "error": translate(
                                 Config.DEFAULT_LANGUAGE,
-                                "texts.cannot_modify_admin_user",
+                                "texts.cannot_modify_admin",
                             )
                         },
                     )
@@ -21133,6 +21793,9 @@ async def main() -> None:
             background_tasks.append(asyncio.create_task(check_traffic_abuse()))
             background_tasks.append(asyncio.create_task(cleanup_old_payments()))
             background_tasks.append(asyncio.create_task(check_partner_expiry_notifications()))
+            if Features.partner_new_auto_mode_available():
+                background_tasks.append(asyncio.create_task(check_partner_channels_loop()))
+                logger.info("Фоновая проверка ТГК партнёров запущена (авто-партнёрка)")
             background_tasks.append(
                 asyncio.create_task(cleanup_admin_test_subscriptions_periodic())
             )

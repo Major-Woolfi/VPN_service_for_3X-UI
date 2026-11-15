@@ -21,7 +21,7 @@ export default function ScrollAnimations() {
     );
 
     elements.forEach((el) => {
-      el.style.animationPlayState = "paused";
+      el.style.animationPlayState = "ppaused";
       observer.observe(el);
     });
 
@@ -30,3 +30,5 @@ export default function ScrollAnimations() {
 
   return null;
 }
+
+

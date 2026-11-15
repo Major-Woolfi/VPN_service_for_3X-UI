@@ -12,15 +12,7 @@ import ru from "../../public/translations/ru.json";
 import zh from "../../public/translations/zh.json";
 
 // Все языки: ключ = имя файла без расширения
-export const LANGUAGES: Record<string, TranslationData> = {
-  be,
-  de,
-  en,
-  ja,
-  pl,
-  ru,
-  zh,
-};
-
-// Для SSR
+export const LANGUAGES: Record<string, TranslationData> = { be, de, en, ja, pl, ru, zh };
 export const SERVER_LANGUAGES: Record<string, TranslationData> = LANGUAGES;
+export const SERVER_languages: Record<string, TranslationData> = LANGUAGES;
+export const languages: Record<string, TranslationData> = LANGUAGES;

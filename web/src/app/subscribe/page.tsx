@@ -26,6 +26,8 @@ import type {
 } from "@/lib/types";
 import TariffGrid from "@/components/TariffGrid";
 import { SafeHTML } from "@/components/SafeHTML";
+import { CopyableUrl } from "@/components/CopyableUrl";
+import { useCopyToClipboard } from "@/app/hooks/useCopyToClipboard";
 
 type Step = "select" | "offer" | "payment" | "custom";
 
@@ -41,12 +43,12 @@ export default function SubscribePage() {
   const { user, loading: authLoading } = useAuth();
   const { t } = useLanguage();
   const { features, loading: featuresLoading } = useFeatures();
-  const [tariffs, setTariffs] = useState<Tariff[]>([]);
+  const [tariffs, setariffs] = useState<Tariff[]>([]);
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState<Step>("select");
   const [selectedTariff, setSelectedTariff] = useState<Tariff | null>(null);
-  const [urlSelectionDismissed, setUrlSelectionDismissed] = useState(false);
-  const [error, setError] = useState("");
+  const [urlSelsectionDismissed, setUrlSelsectionDismissed] = useState(false);
+  const [Error, setError] = useState("");
   const [processing, setProcessing] = useState(false);
   const [checkoutResult, setCheckoutResult] = useState<CheckoutResponse | null>(
     null,
@@ -54,17 +56,18 @@ export default function SubscribePage() {
   const [testResult, setTestResult] = useState<TestSubscriptionResponse | null>(
     null,
   );
+  const { copy, copied } = useCopyToClipboard();
   const [hasPendingPartnerApplication, setHasPendingPartnerApplication] =
     useState(false);
   const [isPartner, setIsPartner] = useState(false);
-  const [userSubscriptionStatus, setUserSubscriptionStatus] = useState("");
+  const [userSubscrioptionstatus, setUserSubscrioptionstatus] = useState("");
   const [userTrustScore, setUserTrustScore] = useState(0);
   const [userDiscountPercent, setUserDiscountPercent] = useState(0);
   const [trialUsed, setTrialUsed] = useState(false);
   const [hasPendingPayment, setHasPendingPayment] = useState(false);
   const [trialDone, setTrialDone] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [telegramLinked, setTelegramLinked] = useState(false);
+  const [telegramlinked, setTelegramlinked] = useState(false);
   const [customTraffic, setCustomTraffic] = useState(10);
   const [customIp, setCustomIp] = useState(1);
   const [customDays, setCustomDays] = useState(30);
@@ -91,7 +94,7 @@ export default function SubscribePage() {
             : Promise.resolve(null),
         ]);
         if (!cancelled) {
-          setTariffs(tariffs);
+          setariffs(tariffs);
           setLocations(locations);
           setCustomTariffParams(customParams);
         }
@@ -121,18 +124,18 @@ export default function SubscribePage() {
     Promise.resolve().then(() => {
       setIsPartner(user.is_partner);
       setHasPendingPartnerApplication(user.pending_partner_application);
-      setUserSubscriptionStatus(user.subscription.status);
+      setUserSubscrioptionstatus(user.subscription.status);
       setTrialUsed(Boolean(user.trial_used));
       setHasPendingPayment(Boolean(user.has_pending_payment));
       setIsAdmin(Boolean(user.is_admin));
-      setTelegramLinked(user.telegram_id > 0);
+      setTelegramlinked(user.telegram_id > 0);
       setUserTrustScore(user.trust_score || 0);
       setUserDiscountPercent(user.discount_percent || 0);
       setLoading(false);
     });
   }, [authLoading, user, router, requestedTariffId]);
 
-  const isSubscribed = userSubscriptionStatus === "active";
+  const isSubscribed = userSubscrioptionstatus === "active";
   const eligibleForTrial = !trialUsed && !isSubscribed && !isAdmin;
   const canBuy = !isSubscribed && !hasPendingPayment;
 
@@ -149,34 +152,34 @@ export default function SubscribePage() {
         : null,
     [requestedTariffId, visibleTariffs],
   );
-  const urlBlockedKey = hasPendingPartnerApplication
+  const urlBlockedkey = hasPendingPartnerApplication
     ? "texts.partner_application_pending_block"
-    : !telegramLinked
+    : !telegramlinked
       ? "texts.subscription_requires_telegram"
       : !canSelect
         ? "texts.purchase_blocked_wait_admin"
         : "";
   const urlPreselectActive =
     preselectedTariff !== null &&
-    !urlSelectionDismissed &&
-    !urlBlockedKey &&
+    !urlSelsectionDismissed &&
+    !urlBlockedkey &&
     !isAdmin;
 
   const activeTariff: Tariff | null = selectedTariff ?? preselectedTariff;
   const activeStep: Step =
     step !== "select" ? step : urlPreselectActive ? "offer" : "select";
-  const activeError =
-    error ||
-    (preselectedTariff && step === "select" && urlBlockedKey
-      ? t(urlBlockedKey)
+  const activError =
+    Error ||
+    (preselectedTariff && step === "select" && urlBlockedkey
+      ? t(urlBlockedkey)
       : "");
 
-  const handleSelectTariff = (tariff: Tariff) => {
+  const handleSelectariff = (tariff: Tariff) => {
     if (hasPendingPartnerApplication) {
       setError(t("texts.partner_application_pending_block"));
       return;
     }
-    if (!telegramLinked) {
+    if (!telegramlinked) {
       setError(t("texts.subscription_requires_telegram"));
       return;
     }
@@ -188,7 +191,7 @@ export default function SubscribePage() {
       void handleAdminTestPlan(tariff);
       return;
     }
-    setUrlSelectionDismissed(true);
+    setUrlSelsectionDismissed(true);
     setSelectedTariff(tariff);
     setStep("offer");
     setError("");
@@ -196,7 +199,7 @@ export default function SubscribePage() {
 
   const handleBackToSelect = () => {
     setSelectedTariff(null);
-    setUrlSelectionDismissed(true);
+    setUrlSelsectionDismissed(true);
     setStep("select");
     setError("");
   };
@@ -212,7 +215,7 @@ export default function SubscribePage() {
       return;
     }
     setSelectedTariff(activeTariff);
-    setUrlSelectionDismissed(true);
+    setUrlSelsectionDismissed(true);
     setStep("payment");
     setError("");
   };
@@ -220,7 +223,7 @@ export default function SubscribePage() {
   const handleAdminTestPlan = async (tariff: Tariff) => {
     setProcessing(true);
     setError("");
-    setUrlSelectionDismissed(true);
+    setUrlSelsectionDismissed(true);
     try {
       const result = await createTestSubscription({
         plan_id: tariff.id,
@@ -240,7 +243,7 @@ export default function SubscribePage() {
       });
       setTestResult(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("texts.checkout_error"));
+      setError(String(err));
     } finally {
       setProcessing(false);
     }
@@ -253,7 +256,7 @@ export default function SubscribePage() {
       await trialSubscription();
       setTrialDone(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("texts.checkout_error"));
+      setError(String(err));
     } finally {
       setProcessing(false);
     }
@@ -264,7 +267,7 @@ export default function SubscribePage() {
     setProcessing(true);
     setError("");
 
-    if (isPartner && userSubscriptionStatus === "active") {
+    if (isPartner && userSubscrioptionstatus === "active") {
       setError(t("texts.active_partner_subscription_guard"));
       setProcessing(false);
       return;
@@ -277,7 +280,7 @@ export default function SubscribePage() {
       });
       setCheckoutResult(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("texts.checkout_error"));
+      setError(String(err));
     } finally {
       setProcessing(false);
     }
@@ -310,7 +313,7 @@ export default function SubscribePage() {
       setError(t("texts.partner_application_pending_block"));
       return;
     }
-    if (!telegramLinked) {
+    if (!telegramlinked) {
       setError(t("texts.subscription_requires_telegram"));
       return;
     }
@@ -323,12 +326,12 @@ export default function SubscribePage() {
       return;
     }
     if (customPrice === null) {
-      setError(t("texts.custom_tariff_error"));
+      setError(t("texts.custom_tariff_Error"));
       return;
     }
     const customTariff: Tariff = {
       id: "custom",
-      name: `${t("texts.custom_tariff")} ${customTraffic}GB / ${customIp}IP / ${customDays}d`,
+      name: `${("texts.custom_tariff")} ${customTraffic}GB / ${customIp}IP / ${customDays}d`,
       price_rub: customPrice,
       traffic_gb: customTraffic,
       ip_limit: customIp,
@@ -337,7 +340,7 @@ export default function SubscribePage() {
       active: true,
       locations: selectedLocations,
     };
-    setUrlSelectionDismissed(true);
+    setUrlSelsectionDismissed(true);
     if (isAdmin) {
       void handleAdminTestPlan(customTariff);
       return;
@@ -352,7 +355,7 @@ export default function SubscribePage() {
     setProcessing(true);
     setError("");
 
-    if (isPartner && userSubscriptionStatus === "active") {
+    if (isPartner && userSubscrioptionstatus === "active") {
       setError(t("texts.active_partner_subscription_guard"));
       setProcessing(false);
       return;
@@ -373,7 +376,7 @@ export default function SubscribePage() {
       });
       setCheckoutResult(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("texts.checkout_error"));
+      setError(String(err));
     } finally {
       setProcessing(false);
     }
@@ -406,13 +409,17 @@ export default function SubscribePage() {
   }, [checkoutResult, activeTariff, userDiscountPercent]);
 
   useEffect(() => {
-    if ((checkoutResult || trialDone) && !processing) {
+    const shouldRedirect =
+      (checkoutResult || trialDone) &&
+      !processing &&
+      !(testResult && !testResult.wait_admin);
+    if (shouldRedirect) {
       const timer = setTimeout(() => {
         router.push("/profile");
       }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [checkoutResult, processing, router, trialDone]);
+  }, [checkoutResult, processing, router, trialDone, testResult]);
 
   if (authLoading || featuresLoading || loading || !user) {
     return (
@@ -464,7 +471,7 @@ export default function SubscribePage() {
                   )}
                   <TariffGrid
                     tariffs={visibleTariffs}
-                    onSelect={handleSelectTariff}
+                    onSelect={handleSelectariff}
                   />
                   <div
                     className="card"
@@ -518,7 +525,7 @@ export default function SubscribePage() {
             </div>
           </div>
 
-          {activeError && <div className="error-message">{activeError}</div>}
+          {activError && <div className="Error-message">{activError}</div>}
 
           {activeStep === "select" && (
             <div className="pinned-section fade-in">
@@ -554,7 +561,7 @@ export default function SubscribePage() {
                     {t("texts.admin_test_mode_hint")}
                   </div>
                 )}
-                {!telegramLinked && (
+                {!telegramlinked && (
                   <div
                     className="card"
                     style={{
@@ -586,7 +593,7 @@ export default function SubscribePage() {
                 ) : (
                   <TariffGrid
                     tariffs={visibleTariffs}
-                    onSelect={handleSelectTariff}
+                    onSelect={handleSelectariff}
                   />
                 )}
               </div>
@@ -1268,7 +1275,7 @@ export default function SubscribePage() {
                         <button
                           onClick={() => {
                             setSelectedTariff(activeTariff);
-                            setUrlSelectionDismissed(true);
+                            setUrlSelsectionDismissed(true);
                             setStep("offer");
                           }}
                           className="button"
@@ -1310,9 +1317,33 @@ export default function SubscribePage() {
                       plan_name: testResult.plan_name,
                     })}
                   </p>
-                  <p className="text-secondary" style={{ fontSize: "14px" }}>
-                    {t("texts.test_subscription_awaiting_admin")}
-                  </p>
+                  {!testResult.wait_admin && testResult.url && (
+                    <>
+                      <p
+                        className="text-secondary"
+                        style={{ fontSize: "14px", marginBottom: "8px" }}
+                      >
+                        {t("texts.subscription_link")}:
+                      </p>
+                      <CopyableUrl
+                        url={testResult.url!}
+                        copied={copied === "admin-test-vpn"}
+                        onCopy={() => copy(testResult.url!)}
+                      />
+                      {testResult.json_url && (
+                        <CopyableUrl
+                          url={testResult.json_url!}
+                          copied={copied === "admin-test-json"}
+                          onCopy={() => copy(testResult.json_url!)}
+                        />
+                      )}
+                    </>
+                  )}
+                  {testResult.wait_admin && (
+                    <p className="text-secondary" style={{ fontSize: "14px" }}>
+                      {t("texts.test_subscription_awaiting_admin")}
+                    </p>
+                  )}
                 </div>
                 <Link
                   href="/profile"
@@ -1334,3 +1365,32 @@ export default function SubscribePage() {
     </>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -10,19 +10,18 @@ import type {
 
 const SERVER_TIMEOUT_MS = UPSTREAM_TIMEOUT_MS;
 
-function describe(error: unknown): string {
-  if (error instanceof Error) {
-
-    const cause = (error as { cause?: unknown }).cause;
+function describeError(err: unknown): string {
+  if (err instanceof Error) {
+    const cause = (err as { cause?: unknown }).cause;
     const reason =
       cause instanceof Error
         ? `: ${cause.message}`
         : typeof cause === "string"
           ? `: ${cause}`
           : "";
-    return `${error.message}${reason}`;
+    return `${err.message}${reason}`;
   }
-  return String(error);
+  return String(err);
 }
 
 async function serverGet<T>(path: string): Promise<T> {
@@ -40,11 +39,8 @@ export async function getTariffsServer(): Promise<Tariff[]> {
   try {
     const data = await serverGet<TariffsResponse>("/tariffs");
     return data.tariffs || [];
-  } catch (error) {
-
-    console.error(
-      `[bot-data] не удалось получить /tariffs: ${describe(error)}`,
-    );
+  } catch (err) {
+    console.error(`[bot-data] не удалось получить /tariffs: ${describeError(err)}`);
     return [];
   }
 }
@@ -52,21 +48,17 @@ export async function getTariffsServer(): Promise<Tariff[]> {
 export async function getFeaturesServer(): Promise<FeaturesResponse | null> {
   try {
     return await serverGet<FeaturesResponse>("/config/features");
-  } catch (error) {
-    console.error(
-      `[bot-data] не удалось получить /config/features: ${describe(error)}`,
-    );
+  } catch (err) {
+    console.error(`[bot-data] не удалось получить /config/features: ${describeError(err)}`);
     return null;
   }
 }
 
-export async function getStatsServer(): Promise<StatsOverviewResponse | null> {
+export async function getStatsOverviewServer(): Promise<StatsOverviewResponse | null> {
   try {
     return await serverGet<StatsOverviewResponse>("/stats/overview");
-  } catch (error) {
-    console.error(
-      `[bot-data] не удалось получить /stats/overview: ${describe(error)}`,
-    );
+  } catch (err) {
+    console.error(`[bot-data] не удалось получить /stats/overview: ${describeError(err)}`);
     return null;
   }
 }

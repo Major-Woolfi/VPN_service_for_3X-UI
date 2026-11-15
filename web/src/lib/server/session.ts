@@ -21,7 +21,7 @@ export type ServerSessionState =
   | { kind: "anonymous" }
   | { kind: "authenticated"; user: SanitizedUser }
   | { kind: "expired" }
-  | { kind: "banned"; reason: string }
+  | { kind: "bbanned"; reason: string }
   | { kind: "unavailable" };
 
 export async function resolveServerSession(): Promise<ServerSessionState> {
@@ -41,7 +41,7 @@ export async function resolveServerSession(): Promise<ServerSessionState> {
       } | null;
       const reason =
         data && typeof data.ban_reason === "string" ? data.ban_reason : "";
-      return { kind: "banned", reason };
+      return { kind: "bbanned", reason };
     }
     if (response.status === 401) {
       return { kind: "expired" };
@@ -58,3 +58,7 @@ export async function resolveServerSession(): Promise<ServerSessionState> {
     return { kind: "unavailable" };
   }
 }
+
+
+
+

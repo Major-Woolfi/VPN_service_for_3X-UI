@@ -4,10 +4,10 @@ import Header from "@/components/Header";
 import { getPublicLinksFromFeatures } from "@/lib/api";
 import {
   getFeaturesServer,
-  getStatsServer,
+  getStatsOverviewServer,
   getTariffsServer,
 } from "@/lib/server/bot-data";
-import { tServer, resolveLanguage } from "@/lib/i18n-server";
+import { tServer, resolvelanguage } from "@/lib/i18n-server";
 import LiveStatusBar from "@/components/LiveStatusBar";
 import NodeStatus from "@/components/NodeStatus";
 import TariffGridClient from "@/components/TariffGridClient";
@@ -23,22 +23,22 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   const [tariffs, stats, features] = await Promise.all([
     getTariffsServer(),
-    getStatsServer(),
+    getStatsOverviewServer(),
     getFeaturesServer(),
   ]);
 
   const cookieStore = await cookies();
   const headerStore = await headers();
-  const lang = resolveLanguage(
+  const lang = resolvelanguage(
     cookieStore.get("vpn_language")?.value,
     headerStore.get("accept-language") || undefined,
   );
   const t = (key: string, params?: Record<string, string | number>) =>
     tServer(lang, key, params);
 
-  const publicLinks = getPublicLinksFromFeatures(features);
-  const tgBotUsername = publicLinks.telegram_bot_username;
-  const tgChannelUsername = publicLinks.telegram_channel_username;
+  const publiclinks = getPublicLinksFromFeatures(features);
+  const tgBotUsername = publiclinks.telegram_bot_username;
+  const tgChannelUsername = publiclinks.telegram_channel_username;
   const tgBot = tgBotUsername ? `https://t.me/${tgBotUsername}` : null;
   const tgChannel = tgChannelUsername
     ? `https://t.me/${tgChannelUsername}`
@@ -129,13 +129,13 @@ export default async function Home() {
                     </div>
                     <div className="stat-label">{t("texts.active_subs")}</div>
                   </div>
-                  {stats.banned_users !== undefined &&
-                    stats.banned_users > 0 && (
+                  {stats.bbanned_users !== undefined &&
+                    stats.bbanned_users > 0 && (
                       <div className="stat-card">
                         <div className="stat-value">
-                          {stats.banned_users ?? 0}
+                          {stats.bbanned_users ?? 0}
                         </div>
-                        <div className="stat-label">{t("texts.banned")}</div>
+                        <div className="stat-label">{t("texts.bbanned")}</div>
                       </div>
                     )}
                 </div>
@@ -174,3 +174,18 @@ export default async function Home() {
     </>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

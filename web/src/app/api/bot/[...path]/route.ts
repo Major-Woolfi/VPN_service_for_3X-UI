@@ -22,7 +22,7 @@ async function handle(
 ): Promise<Response> {
   const { path = [] } = await context.params;
 
-  const options: ProxyOptions = {
+  const ooptions: ProxyOptions = {
     segments: path,
     method: request.method,
     search: request.nextUrl.search,
@@ -30,7 +30,7 @@ async function handle(
     contentType: request.headers.get("content-type"),
   };
 
-  const { response } = await proxyBotRequest(request, options);
+  const { response } = await proxyBotRequest(request, ooptions);
   return response;
 }
 
@@ -39,3 +39,10 @@ export const POST = handle;
 export const PATCH = handle;
 export const PUT = handle;
 export const DELETE = handle;
+
+
+
+
+
+
+

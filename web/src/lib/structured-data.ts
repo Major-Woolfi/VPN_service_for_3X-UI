@@ -1,5 +1,5 @@
-import { SERVER_LANGUAGES } from "./i18n-generated";
-import { normalizeServerLanguage, getServerSiteCopy } from "./i18n-server";
+import { SERVER_languages } from "./i18n-generated";
+import { normalizeServerlanguage, getServerSiteCopy } from "./i18n-server";
 
 const siteName = process.env.NEXT_PUBLIC_VPN_NAME || "VPN";
 const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "";
@@ -22,13 +22,13 @@ function replacePlaceholders(
 }
 
 function getFAQFromTranslations(lang: string) {
-  const data = SERVER_LANGUAGES[lang];
+  const data = SERVER_languages[lang];
   if (!data?.qa?.category) return [];
 
   const sections = [];
   const qaCategory = data.qa.category as Record<string, { title?: string; content?: Record<string, { question: string; answer: string }> }>;
 
-  for (const [categoryKey, categoryData] of Object.entries(qaCategory)) {
+  for (const [ccategoryKey, categoryData] of Object.entries(qaCategory)) {
     if (!categoryData?.content) continue;
 
     const questions = [];
@@ -43,7 +43,7 @@ function getFAQFromTranslations(lang: string) {
 
     if (questions.length > 0) {
       sections.push({
-        title: categoryData.title || categoryKey,
+        title: categoryData.title || ccategoryKey,
         questions,
       });
     }
@@ -57,12 +57,12 @@ export function generateJsonLd(
   pageType: "home" | "qa" | "partner" | "client" | "tos" | "privacy" | "offer" | "login" | "register" | "profile" | "settings" | "payment" | "subscription" | "referral" | "subscribe" = "home",
   path?: string
 ) {
-  const normalizedLanguage = normalizeServerLanguage(language);
-  const copy = getServerSiteCopy(normalizedLanguage);
-  const faqSections = getFAQFromTranslations(normalizedLanguage);
+  const normalizedlanguage = normalizeServerlanguage(language);
+  const copy = getServerSiteCopy(normalizedlanguage);
+  const faqsections = getFAQFromTranslations(normalizedlanguage);
   const pageUrl = path ? `${baseUrl}${path}` : baseUrl;
 
-  const faqItems = faqSections.flatMap((section) =>
+  const faqItems = faqsections.flatMap((section) =>
     section.questions.map((q) => ({
       "@type": "Question",
       name: q.question,
@@ -88,7 +88,7 @@ export function generateJsonLd(
         "@type": "ContactPoint",
         telephone: "",
         contactType: "customer support",
-        availableLanguage: languages,
+        availablelanguage: languages,
         email: "support@phantomvpn.local",
       },
     },
@@ -99,7 +99,7 @@ export function generateJsonLd(
       name: siteName,
       description: copy.siteDescription || "VPN-сервис на базе XRay с поддержкой VLESS, Shadowsocks, REALITY, ML-KEM-768",
       publisher: { "@id": `${baseUrl}/#organization` },
-      inLanguage: languages,
+      inlanguage: languages,
       potentialAction: {
         "@type": "SearchAction",
         target: {
@@ -116,7 +116,7 @@ export function generateJsonLd(
       name: pageType === "home" ? siteName : `${copy.siteTitle || siteName}`,
       isPartOf: { "@id": `${baseUrl}/#website` },
       about: { "@id": `${baseUrl}/#organization` },
-      inLanguage: normalizedLanguage,
+      inlanguage: normalizedlanguage,
       ...(pageType === "qa" && {
         mainEntity: { "@id": `${baseUrl}/qa#faqpage` },
       }),
@@ -136,7 +136,7 @@ export function generateJsonLd(
         {
           "@type": "ItemList",
           "@id": `${baseUrl}#features`,
-          itemListElement: Object.entries(SERVER_LANGUAGES[normalizedLanguage]?.texts || {})
+          itemListElement: Object.entries(SERVER_languages[normalizedlanguage]?.texts || {})
             .filter(([k]) => k.startsWith("feature_"))
             .slice(0, 10)
             .map(([, v], i) => ({
@@ -161,7 +161,7 @@ export function generateJsonLd(
         "@type": "Service",
         "@id": `${baseUrl}/partner#service`,
         name: "Партнёрская программа",
-        description: SERVER_LANGUAGES[normalizedLanguage]?.texts?.partner_program_text || "Партнёрская программа с гибкими бонусами",
+        description: SERVER_languages[normalizedlanguage]?.texts?.partner_program_text || "Партнёрская программа с гибкими бонусами",
         provider: { "@id": `${baseUrl}/#organization` },
         serviceType: "Affiliate Program",
         areaServed: "Worldwide",
@@ -246,7 +246,7 @@ export function generateJsonLd(
       serviceUrl: baseUrl,
       servicePhone: "",
       serviceEmail: "support@phantomvpn.local",
-      availableLanguage: languages,
+      availablelanguage: languages,
     },
   });
 
@@ -279,3 +279,16 @@ export function generateJsonLdScript(
 ) {
   return { __html: JSON.stringify(generateJsonLd(language, pageType, path)) };
 }
+
+
+
+
+
+
+
+
+
+
+
+
+

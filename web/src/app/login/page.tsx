@@ -33,7 +33,7 @@ export default function LoginPage() {
   const [web_login, setWebLogin] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [Error, setError] = useState("");
   const [tgWaiting, setTgWaiting] = useState(false);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -41,22 +41,22 @@ export default function LoginPage() {
   const reason = searchParams?.get("reason") || "";
   const nextPath = safeNextPath();
 
-  // Сообщение по ?reason= - производное значение от URL, а не состояние.
+  
   const reasonError =
     reason === "session_expired"
       ? t("texts.session_expired")
-      : reason === "banned"
-        ? t("texts.account_banned")
+      : reason === "bbanned"
+        ? t("texts.account_bbanned")
         : reason === "auth_expired"
           ? t("texts.auth_error")
           : reason === "auth_timeout"
             ? t("texts.login_timeout")
             : "";
-  const shownError = error || reasonError;
+  const shownError = Error || reasonError;
 
-  // Сервер принудительно разлогинил (истёкшая сессия) и попросил
-  // почистить клиентский кэш через vpn_clear_cache. Cookie одноразовая,
-  // поэтому читаем её до первого рендера.
+  
+  
+  
   useEffect(() => {
     if (typeof document === "undefined") return;
     if (!/(^|;\s*)vpn_clear_cache=1(;|$)/.test(document.cookie)) return;
@@ -67,8 +67,8 @@ export default function LoginPage() {
   const finish = useCallback(() => {
     setLoading(false);
     setTgWaiting(false);
-    // refresh() перезапрашивает серверный layout, который ставит initialUser
-    // уже с профилем - редирект без "мигания" загрузки.
+    
+    
     router.refresh();
     router.replace(nextPath);
   }, [router, nextPath]);
@@ -103,7 +103,7 @@ export default function LoginPage() {
             setError(t("texts.login_timeout"));
           }
         } catch {
-          // игнорируем отдельные сбои опроса
+          
         }
         elapsed += POLL_INTERVAL;
         if (elapsed >= POLL_TIMEOUT) {
@@ -130,13 +130,13 @@ export default function LoginPage() {
         try {
           sessionStorage.setItem(`vpn_auth_next_${res.state}`, nextPath);
         } catch {
-          // ignore
+          
         }
       }
       window.open(res.url, "_blank", "noopener,noreferrer");
       startPolling(res.state);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("texts.login_error"));
+      setError(String(err));
     } finally {
       setLoading(false);
     }
@@ -150,7 +150,7 @@ export default function LoginPage() {
       await loginUser({ web_login: web_login.trim(), password });
       finish();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("texts.login_error"));
+      setError(String(err));
       setLoading(false);
     }
   };
@@ -186,7 +186,7 @@ export default function LoginPage() {
                 </div>
 
                 {shownError && (
-                  <div className="error-message">{shownError}</div>
+                  <div className="Error-message">{shownError}</div>
                 )}
 
                 {method === "password" ? (
@@ -197,7 +197,7 @@ export default function LoginPage() {
                   >
                     <input
                       type="text"
-                      placeholder={t("texts.username")}
+                      placeholder={t("texts.web_login")}
                       className="faq-search-input"
                       value={web_login}
                       onChange={(e) =>
@@ -266,3 +266,29 @@ export default function LoginPage() {
     </>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

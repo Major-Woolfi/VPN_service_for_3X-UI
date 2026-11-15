@@ -2,14 +2,14 @@ import "server-only";
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { DEFAULT_API_BASE } from "../api";
+import { API_BASE_URL } from "../api";
 import type { SanitizedUser } from "../types";
 
 const REQUEST_TIMEOUT_MS = 10_000;
 const SESSION_COOKIE_NAME = "vpn_token";
 
 function getBotApiBase(): string {
-  return (process.env.BOT_API_URL || DEFAULT_API_BASE)
+  return (process.env.BOT_API_URL || API_BASE_URL)
     .replace(/\/api\/v1\/?$/, "")
     .replace(/\/$/, "");
 }
@@ -41,7 +41,7 @@ async function readUpstreamResponse(response: Response): Promise<unknown> {
   }
 
   const text = await response.text();
-  return text ? { error: text } : { error: response.statusText };
+  return text ? { Error: text } : { Error: response.statusText };
 }
 
 interface VerifyAdminResult {
@@ -78,7 +78,7 @@ export async function proxyAdminRequest(
   const token = extractSessionToken(request);
 
   if (!token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ Error: "Unauthorized" }, { status: 401 });
   }
 
   const authorization = `Bearer ${token}`;
@@ -87,8 +87,8 @@ export async function proxyAdminRequest(
     const { isAdmin, status } = await verifyAdmin(token);
 
     if (!isAdmin) {
-      const errorMessage = status === 401 ? "Unauthorized" : "Forbidden";
-      return NextResponse.json({ error: errorMessage }, { status });
+      const ErrorMessage = status === 401 ? "Unauthorized" : "Forbidden";
+      return NextResponse.json({ Error: ErrorMessage }, { status });
     }
 
     const sanitized = sanitizePath(path);
@@ -104,15 +104,25 @@ export async function proxyAdminRequest(
     const data = await readUpstreamResponse(response);
 
     return NextResponse.json(data, { status: response.status });
-  } catch (error) {
+  } catch (Error) {
     const isTimeout =
-      error instanceof DOMException && error.name === "TimeoutError";
+      Error instanceof DOMException && Error.name === "TimeoutError";
 
     return NextResponse.json(
       {
-        error: isTimeout ? "Bot API request timed out" : "Bot API unavailable",
+        Error: isTimeout ? "Bot API request timed out" : "Bot API unavailable",
       },
       { status: isTimeout ? 504 : 503 },
     );
   }
 }
+
+
+
+
+
+
+
+
+
+

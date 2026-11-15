@@ -35,7 +35,6 @@ export function LanguageProvider({
   children: ReactNode;
   initialLang?: string;
 }) {
-
   const [lang, setLang] = useState(() => initialLang || getCurrentLang());
 
   useEffect(() => {

@@ -48,7 +48,10 @@
     "tiktok": "TikTok",
     "tos": "ToS",
     "withdraw": "出金",
-    "youtube": "YouTube"
+    "youtube": "YouTube",
+    "partner_channel_add": "テレグラムチャンネルを追加",
+    "partner_channel_verify_all": "すべてのチャンネルを確認",
+    "partner_channel_remove": "{channel} を削除"
   },
   "texts": {
     "3x_ui": "3X-UI",
@@ -69,7 +72,6 @@
     "admin_section": "管理者向け",
     "admin_test_mode_hint": "管理者向け - 支払いなしのテスト手続き。",
     "admin_user_trust": "信頼",
-    "admin_user_username": "ログインID",
     "admin_user_vpn_url": "VPN URL",
     "all_users": "総ユーザー数",
     "alt_client": "v2RayTun（旧式）",
@@ -138,11 +140,9 @@
     "guide_incy_step_6": "完了 - VPNが動作しています。",
     "guide_happ_step_1": "お使いのOS向けにHappをダウンロードしてください。",
     "guide_happ_step_2": "Happを開きます。",
-    "guide_happ_step_3": "ボットからサブスクリプションを貼り付けます。",
     "guide_happ_step_4": "ルーティングとアプリごとのプロキシを設定します。",
     "guide_v2raytun_step_1": "v2RayTunファイルをダウンロードします。",
     "guide_v2raytun_step_2": "v2RayTunを開きます。",
-    "guide_v2raytun_step_3": "ボットからサブスクリプションを貼り付けます。",
     "guide_v2raytun_step_4": "オプション: 設定 → アプリ設定 → 設定を復元。",
     "guide_v2raytun_step_5": "オプション: 設定 → ルーティングで、VPNで動作しないプロロシア系アプリを選択。",
     "have_account": "すでにアカウントをお持ちですか？",
@@ -338,8 +338,8 @@
     "uptime": "稼働時間",
     "uptime_hours": "{hours}時間",
     "user_id": "UID",
-    "username": "ログインID",
-    "username_too_short": "ユーザー名は3文字以上である必要があります",
+    "web_login": "ログインID",
+    "web_login_too_short": "ログインIDは3文字以上である必要があります",
     "users_count": "全ユーザー一覧",
     "users_list": "ユーザー",
     "vpn_service": "VPNサービス",
@@ -385,7 +385,15 @@
     "feature_17": "P2P および YooMoney 決済",
     "feature_18": "Telegram によるサポート",
     "feature_19": "オープンソース (MIT ライセンス)",
-    "feature_20": "Telegram による24時間サポート"
+    "feature_20": "Telegram による24時間サポート",
+    "partner_channel_invalid_id": "❌ チャンネルIDが無効です。",
+    "partner_channel_added": "✅ チャンネル <b>{channel}</b> をパートナープログラムに追加しました。",
+    "partner_channel_removed": "✅ チャンネルを削除しました。",
+    "partner_channel_removed_fail": "❌ チャンネル削除に失敗しました。",
+    "partner_channel_verified": "✅ 確認済み: {total}チャンネル中 {count}チャンネルがアクティブです。",
+    "partner_channel_verify_fail": "❌ チャンネル確認に失敗しました。",
+    "partner_autopost_result": "📤 投稿済み: {sent}/{total}, エラー: {failed}",
+    "partner_autopost_failed": "❌ 自動投稿エラー。"
   },
   "legal": {
     "offer": {

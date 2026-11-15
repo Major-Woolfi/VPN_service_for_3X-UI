@@ -34,7 +34,7 @@ export default function NodeStatus({ admin }: { admin?: boolean } = {}) {
 
   useEffect(() => {
     let mounted = true;
-    const aborter = new AbortController();
+    const abortController = new AbortController();
 
     const fetchData = async () => {
       if (typeof document !== "undefined" && document.hidden) return;
@@ -46,7 +46,7 @@ export default function NodeStatus({ admin }: { admin?: boolean } = {}) {
         } else {
           json = await fetchJson<NodeStatusData>(
             `${API_BASE_URL}/stats/panel-status`,
-            { signal: aborter.signal },
+            { signal: abortController.signal },
           );
         }
         if (mounted) {
@@ -74,7 +74,7 @@ export default function NodeStatus({ admin }: { admin?: boolean } = {}) {
 
     return () => {
       mounted = false;
-      aborter.abort();
+      abortController.abort();
       clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
@@ -113,7 +113,9 @@ export default function NodeStatus({ admin }: { admin?: boolean } = {}) {
   const mainServerCountry = process.env.NEXT_PUBLIC_MAIN_SERVER_COUNTRY || "";
 
   const mainNode: NodeData = {
-    name: `${mainServerCountry ? `${mainServerCountry} ` : ""}${t("texts.main_server")}`.trim(),
+    name: `${mainServerCountry ? `${mainServerCountry} ` : ""}${t(
+      "texts.main_server",
+    )}`.trim(),
     status: mainOnline ? "online" : "offline",
     panel_version: data.panel?.panel_version || "-",
     xray_version: data.panel?.xray_version || "-",
@@ -164,11 +166,6 @@ export default function NodeStatus({ admin }: { admin?: boolean } = {}) {
 
   return (
     <div ref={containerRef} style={{ marginTop: "16px" }}>
-      <div
-        style={{ fontWeight: "600", fontSize: "14px", marginBottom: "12px" }}
-      >
-        {t("texts.nodes")}
-      </div>
       <NodeGrid mainNode={mainNode} nodes={otherNodes} admin={admin} />
     </div>
   );

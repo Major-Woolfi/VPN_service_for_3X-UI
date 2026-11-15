@@ -1,29 +1,29 @@
-import { LANGUAGES } from "./i18n-generated";
+import { languages } from "./i18n-generated";
 import type { TranslationData } from "./i18n-types";
 
 export { TranslationData };
 
-function getDefaultLanguage(): string {
-  const configured = process.env.NEXT_PUBLIC_DEFAULT_LANGUAGE;
-  if (configured && LANGUAGES[configured]) return configured;
+function getDefaultlanguage(): string {
+  const configured = process.env.NEXT_PUBLIC_DEFAULT_language;
+  if (configured && languages[configured]) return configured;
 
-  const firstLanguage = Object.keys(LANGUAGES)[0];
-  if (!firstLanguage) throw new Error("No languages configured");
-  return firstLanguage;
+  const firstlanguage = Object.keys(languages)[0];
+  if (!firstlanguage) throw new Error("No languages configured");
+  return firstlanguage;
 }
 
-const FALLBACK_LANG = getDefaultLanguage();
+const FALLBACK_LANG = getDefaultlanguage();
 const VPN_NAME = process.env.NEXT_PUBLIC_VPN_NAME || "vpn";
 let currentLang = FALLBACK_LANG;
 
-const LANG_KEY = "vpn_language";
+const LANG_key = "vpn_language";
 
 function getCookieValue(key: string): string | null {
   if (typeof document === "undefined") return null;
   const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${key}=`);
-  if (parts.length === 2) {
-    return decodeURIComponent(parts.pop()!.split(";").shift()!);
+  const pstarts = value.split(`; ${key}=`);
+  if (pstarts.length === 2) {
+    return decodeURIComponent(pstarts.pop()!.split(";").shift()!);
   }
   return null;
 }
@@ -31,16 +31,16 @@ function getCookieValue(key: string): string | null {
 function initCurrentLang(): void {
   if (typeof window !== "undefined") {
     try {
-      const stored = localStorage.getItem(LANG_KEY);
-      if (stored && LANGUAGES[stored]) {
+      const stored = localStorage.getItem(LANG_key);
+      if (stored && languages[stored]) {
         currentLang = stored;
         return;
       }
     } catch {
 
     }
-    const cookieLang = getCookieValue(LANG_KEY);
-    if (cookieLang && LANGUAGES[cookieLang]) {
+    const cookieLang = getCookieValue(LANG_key);
+    if (cookieLang && languages[cookieLang]) {
       currentLang = cookieLang;
     }
   }
@@ -53,19 +53,19 @@ export function getCurrentLang(): string {
 }
 
 export function setCurrentLang(lang: string): boolean {
-  if (!LANGUAGES[lang]) return false;
+  if (!languages[lang]) return false;
 
   const changed = currentLang !== lang;
   currentLang = lang;
 
   if (typeof window !== "undefined") {
     try {
-      localStorage.setItem(LANG_KEY, lang);
+      localStorage.setItem(LANG_key, lang);
     } catch {
 
     }
     const secure = window.location.protocol === "https:" ? "; secure" : "";
-    document.cookie = `${LANG_KEY}=${encodeURIComponent(lang)}; path=/; max-age=31536000; samesite=lax${secure}`;
+    document.cookie = `${LANG_key}=${encodeURIComponent(lang)}; path=/; max-age=31536000; samesite=lax${secure}`;
 
     if (changed) {
       window.dispatchEvent(
@@ -85,9 +85,9 @@ function resolveNested(
   obj: Record<string, unknown>,
   path: string,
 ): string | undefined {
-  const parts = path.split(".");
+  const pstarts = path.split(".");
   let current: unknown = obj;
-  for (const part of parts) {
+  for (const part of pstarts) {
     if (current === undefined || current === null) return undefined;
     current = (current as Record<string, unknown>)[part];
   }
@@ -127,11 +127,11 @@ function resolveTranslation(
   if (key.startsWith("qa.")) {
     const qaData = data.qa;
     if (!qaData) return undefined;
-    const nestedKey = key.replace("qa.", "");
-    if (nestedKey === "category") {
+    const nestedkey = key.replace("qa.", "");
+    if (nestedkey === "category") {
       return qaData.category;
     }
-    return resolveNested(qaData, nestedKey);
+    return resolveNested(qaData, nestedkey);
   }
   return undefined;
 }
@@ -142,11 +142,14 @@ export function t(
   langOverride?: string,
 ): string {
   const lang =
-    langOverride && LANGUAGES[langOverride] ? langOverride : getCurrentLang();
+    langOverride && languages[langOverride] ? langOverride : getCurrentLang();
   const result =
-    resolveTranslation(LANGUAGES[lang], key) ||
-    resolveTranslation(LANGUAGES[FALLBACK_LANG], key) ||
-    key;
+    resolveTranslation(languages[lang], key) ||
+    resolveTranslation(languages[FALLBACK_LANG], key) ||
+    Object.values(languages).flatMap((l) => resolveTranslation(l, key)).find(
+      Boolean,
+    ) ||
+    fallbackText(key);
 
   if (typeof result === "string") {
     return replacePlaceholders(result, params);
@@ -154,15 +157,27 @@ export function t(
   return key;
 }
 
+function fallbackText(key: string): string {
+  const fallbackMap: Record<string, string> = {
+    "texts.no": "Нет",
+    "texts.yes": "Да",
+    "buttons.no": "Нет",
+    "buttons.yes": "Да",
+  };
+  return fallbackMap[key] ?? key;
+}
+
+export { fallbackText };
+
 export function tObject(
   key: string,
   langOverride?: string,
 ): unknown {
   const lang =
-    langOverride && LANGUAGES[langOverride] ? langOverride : getCurrentLang();
+    langOverride && languages[langOverride] ? langOverride : getCurrentLang();
   const result =
-    resolveTranslation(LANGUAGES[lang], key) ||
-    resolveTranslation(LANGUAGES[FALLBACK_LANG], key);
+    resolveTranslation(languages[lang], key) ||
+    resolveTranslation(languages[FALLBACK_LANG], key);
   return result;
 }
 
@@ -176,14 +191,27 @@ export function tHtml(
 }
 
 export function getLanguageDisplayName(code: string): string {
-  const data = LANGUAGES[code];
+  const data = languages[code];
   return data?.meta?.name || code;
 }
 
 export function getAvailableLanguages(): string[] {
-  return Object.keys(LANGUAGES);
+  return Object.keys(languages);
 }
 
 export async function initI18n(): Promise<void> {
   return;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,98 +1,60 @@
 "use client";
 
 import Header from "@/components/Header";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { getUsers } from "@/lib/api";
 import type { UserListResponse } from "@/lib/types";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAdminAuth } from "@/app/hooks/useAdminAuth";
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<UserListResponse["users"]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [Error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const { loading: authLoading, user: authUser } = useAuth();
+  const [searchTimeout, setSearchTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const { authLoading, authUser, isAuthed } = useAdminAuth("users");
   const router = useRouter();
   const { t } = useLanguage();
 
   const limit = 50;
+  const pageRef = useRef(page);
+  pageRef.current = page;
 
   const loadUsers = useCallback(async () => {
-    if (!authUser?.is_admin) return;
+    if (!isAuthed) return;
     setLoading(true);
     try {
-      const data = await getUsers(page, limit);
+      const data = await getUsers(pageRef.current, limit, searchTerm);
       setUsers(data.users);
       setTotal(data.total);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("texts.error"));
+      setError(String(err));
     } finally {
       setLoading(false);
     }
-  }, [authUser, page, t]);
+  }, [authUser, limit, searchTerm, t]);
 
   useEffect(() => {
-    if (authLoading) return;
-    if (!authUser) {
-      router.replace("/login?next=/admin/users");
-      return;
-    }
-    if (!authUser.is_admin) {
-      router.replace("/profile");
-      return;
-    }
-
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (authLoading || !isAuthed) return;
     void loadUsers();
-  }, [authLoading, router, loadUsers, authUser]);
+  }, [authLoading, router, loadUsers, authUser, isAuthed, page]);
 
-  const filteredUsers = searchTerm
-    ? users.filter(
-        (u) =>
-          u.user_id.toString().includes(searchTerm) ||
-          (u.username || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-          u.telegram_id.toString().includes(searchTerm),
-      )
-    : users;
-
-  if (loading) {
-    return (
-      <>
-        <Header currentPage="/admin/users" />
-        <main>
-          <div className="profile">
-            <div className="profile-header no-avatar">
-              <div className="profile-info">
-                <h1 className="profile-name">{t("texts.loading")}</h1>
-              </div>
-            </div>
-          </div>
-        </main>
-      </>
-    );
-  }
-
-  if (error) {
-    return (
-      <>
-        <Header currentPage="/admin/users" />
-        <main>
-          <div className="profile">
-            <div className="profile-header no-avatar">
-              <div className="profile-info">
-                <h1 className="profile-name">{t("texts.error")}</h1>
-                <p style={{ color: "var(--danger)" }}>{error}</p>
-              </div>
-            </div>
-          </div>
-        </main>
-      </>
-    );
-  }
+  useEffect(() => {
+    if (searchTimeout) clearTimeout(searchTimeout);
+    const id = setTimeout(() => {
+      setPage(1);
+      void loadUsers();
+    }, 300);
+    setSearchTimeout(id);
+    return () => {
+      if (searchTimeout) clearTimeout(searchTimeout);
+    };
+  }, [searchTerm, loadUsers]);
 
   const totalPages = Math.ceil(total / limit);
 
@@ -116,17 +78,22 @@ export default function AdminUsersPage() {
                 <input
                   type="text"
                   placeholder={t("texts.search_placeholder")}
-                  className="faq-search-input"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
+                  className="faq-search-input"
                 />
               </div>
+              {Error && (
+                <div style={{ marginBottom: "16px" }}>
+                  <p style={{ color: "var(--danger)", margin: 0 }}>{Error}</p>
+                </div>
+              )}
               <div className="data-table-wrap">
                 <table className="data-table">
                   <thead>
                     <tr>
                       <th>{t("texts.user_id")}</th>
-                      <th>{t("texts.admin_user_username")}</th>
+                      <th>{t("texts.telegram_username_label")}</th>
                       <th>{t("texts.telegram_id_label")}</th>
                       <th>{t("texts.subscription_status")}</th>
                       <th>{t("buttons.partner")}</th>
@@ -135,21 +102,15 @@ export default function AdminUsersPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredUsers.map((u) => (
+                    {users.map((u) => (
                       <tr key={u.user_id}>
-                        <td
-                          className="data-num"
-                          data-label={t("texts.user_id")}
-                        >
+                        <td className="data-num" data-label={t("texts.user_id")}>
                           {u.user_id}
                         </td>
-                        <td data-label={t("texts.admin_user_username")}>
+                        <td data-label={t("texts.telegram_username_label")}>
                           {u.username || "-"}
                         </td>
-                        <td
-                          className="data-num"
-                          data-label={t("texts.telegram_id_label")}
-                        >
+                        <td className="data-num" data-label={t("texts.telegram_id_label")}>
                           {u.telegram_id || "-"}
                         </td>
                         <td data-label={t("texts.subscription_status")}>
@@ -188,10 +149,7 @@ export default function AdminUsersPage() {
                             {u.is_mate ? t("texts.yes") : t("texts.no")}
                           </span>
                         </td>
-                        <td
-                          className="data-num"
-                          data-label={t("texts.trust_score")}
-                        >
+                        <td className="data-num" data-label={t("texts.trust_score")}>
                           {u.trust_score}
                         </td>
                         <td data-label={t("texts.abuse")}>
@@ -213,42 +171,70 @@ export default function AdminUsersPage() {
                         </td>
                       </tr>
                     ))}
+                    {users.length === 0 && (
+                      <tr>
+                        <td colSpan={7} style={{ textAlign: "center", color: "var(--text-secondary)", padding: "24px" }}>
+                          {searchTerm ? t("texts.search_no_results") : t("texts.no_data")}
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "center",
-                  gap: "8px",
-                  marginTop: "24px",
-                }}
-              >
-                <button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  className="button"
-                  style={{ opacity: page === 1 ? 0.5 : 1 }}
-                >
-                  {t("buttons.back")}
-                </button>
-                <span style={{ padding: "12px", fontSize: "14px" }}>
-                  {t("texts.page_of", { page, total: totalPages })}
-                </span>
-                <button
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                  className="button"
-                  style={{ opacity: page === totalPages ? 0.5 : 1 }}
-                >
-                  {t("buttons.forward")}
-                </button>
-              </div>
             </div>
           </div>
+
+          {totalPages > 1 && (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                gap: "8px",
+                marginTop: "24px",
+              }}
+            >
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1 || loading}
+                className="button"
+                style={{ opacity: page === 1 ? 0.5 : 1 }}
+              >
+                {t("buttons.back")}
+              </button>
+              <span style={{ padding: "12px", fontSize: "14px" }}>
+                {t("texts.page_of", { page, total: totalPages })}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages || loading}
+                className="button"
+                style={{ opacity: page === totalPages ? 0.5 : 1 }}
+              >
+                {t("buttons.forward")}
+              </button>
+            </div>
+          )}
         </div>
       </main>
     </>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { cookies, headers } from "next/headers";
-import { getServerSiteCopy, resolveLanguage } from "@/lib/i18n-server";
+import { getServerSiteCopy, resolvelanguage } from "@/lib/i18n-server";
 
 export async function GET() {
   const cookieStore = await cookies();
   const headerStore = await headers();
-  const lang = resolveLanguage(
+  const lang = resolvelanguage(
     cookieStore.get("vpn_language")?.value,
     headerStore.get("accept-language") || undefined,
   );
@@ -35,3 +35,14 @@ export async function GET() {
     },
   });
 }
+
+
+
+
+
+
+
+
+
+
+

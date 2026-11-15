@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
-import { resolveLanguage } from "@/lib/i18n-server";
+import { resolvelanguage } from "@/lib/i18n-server";
 
 export async function generateMetadata(): Promise<Metadata> {
   const cookieStore = await cookies();
   const headerStore = await headers();
-  const lang = resolveLanguage(
+  const lang = resolvelanguage(
     cookieStore.get("vpn_language")?.value,
     headerStore.get("accept-language") || undefined,
   );
@@ -53,3 +53,12 @@ export default async function ClientLayout({
 }) {
   return children;
 }
+
+
+
+
+
+
+
+
+

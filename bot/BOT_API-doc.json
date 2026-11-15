@@ -468,13 +468,150 @@
           "server_status",
           "nodes"
         ]
+      },
+      "PartnerChannel": {
+        "type": "object",
+        "description": "A Telegram channel bound to a partner.",
+        "properties": {
+          "channel_id": {
+            "type": "integer",
+            "description": "Telegram channel ID"
+          },
+          "title": {
+            "type": "string",
+            "description": "Channel title"
+          },
+          "username": {
+            "type": "string",
+            "description": "Channel username (without @)"
+          },
+          "is_owner_verified": {
+            "type": "integer",
+            "description": "1 if the channel ownership is verified"
+          },
+          "has_posting_rights": {
+            "type": "integer",
+            "description": "1 if the bot can post to the channel"
+          },
+          "is_active": {
+            "type": "integer",
+            "description": "1 if the channel is active"
+          },
+          "added_at": {
+            "type": "string",
+            "description": "ISO timestamp when the channel was added"
+          },
+          "last_checked_at": {
+            "type": "string",
+            "description": "ISO timestamp of the last rights check"
+          },
+          "last_status": {
+            "type": "string",
+            "description": "Last check status"
+          },
+          "last_error": {
+            "type": "string",
+            "description": "Last error message, if any"
+          }
+        },
+        "required": [
+          "channel_id"
+        ]
+      },
+      "PartnerChannelList": {
+        "type": "object",
+        "description": "List of partner TG channels.",
+        "properties": {
+          "channels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartnerChannel"
+            },
+            "description": "Bound channels"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of active channels"
+          }
+        },
+        "required": [
+          "channels",
+          "count"
+        ]
+      },
+      "PartnerChannelAddRequest": {
+        "type": "object",
+        "description": "Request to bind a TG channel.",
+        "properties": {
+          "channel_id": {
+            "type": "integer",
+            "description": "Telegram channel ID (e.g. -1001234567890)"
+          }
+        },
+        "required": [
+          "channel_id"
+        ]
+      },
+      "PartnerChannelVerifyResult": {
+        "type": "object",
+        "description": "Result of verifying all partner channels.",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "description": "Number of active channels after verification"
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of bound channels"
+          }
+        },
+        "required": [
+          "count",
+          "total"
+        ]
+      },
+      "AutopostRequest": {
+        "type": "object",
+        "description": "Request to broadcast text to partner channels.",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Text to broadcast. The partner bonus and referral link are appended automatically."
+          }
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "AutopostResult": {
+        "type": "object",
+        "description": "Result of autopost broadcast.",
+        "properties": {
+          "sent": {
+            "type": "integer",
+            "description": "Number of channels the message was sent to"
+          },
+          "failed": {
+            "type": "integer",
+            "description": "Number of channels that failed"
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of active channels"
+          }
+        },
+        "required": [
+          "sent",
+          "failed",
+          "total"
+        ]
       }
     }
   },
   "info": {
     "title": "PhantomVPN API",
-    "version": "1.0.0",
-    "description": "PhantomVPN API. Endpoints for authentication, subscriptions, payments, partners, and admin operations."
+    "version": "1.1.0",
+    "description": "PhantomVPN API. Endpoints for authentication, subscriptions, payments, partners (classic and auto TG-channel mode), and admin operations."
   },
   "openapi": "3.1.0",
   "paths": {
@@ -513,7 +650,7 @@
         "operationId": "ws_admin",
         "security": [
           {
-            "adminApiKey": [ ]
+            "adminApiKey": []
           }
         ],
         "parameters": [
@@ -670,7 +807,7 @@
         "operationId": "get_me",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "responses": {
@@ -696,7 +833,7 @@
         "operationId": "logout",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "responses": {
@@ -716,7 +853,7 @@
         "operationId": "change_password",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "requestBody": {
@@ -749,7 +886,7 @@
         "operationId": "link_telegram",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "requestBody": {
@@ -800,7 +937,7 @@
         "operationId": "create_telegram_link_state",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "responses": {
@@ -864,7 +1001,7 @@
         "operationId": "getAbuseUsers",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "responses": {
@@ -890,7 +1027,7 @@
         "operationId": "clearAbuse",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "parameters": [
@@ -940,7 +1077,7 @@
         "operationId": "create_checkout",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "requestBody": {
@@ -979,7 +1116,7 @@
         "operationId": "get_profile",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "responses": {
@@ -1005,7 +1142,7 @@
         "operationId": "change_language",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "requestBody": {
@@ -1050,7 +1187,7 @@
         "operationId": "create_subscription",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "requestBody": {
@@ -1095,7 +1232,7 @@
         "operationId": "renew_subscription",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "requestBody": {
@@ -1140,7 +1277,7 @@
         "operationId": "trial_subscription",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "responses": {
@@ -1172,7 +1309,7 @@
         "operationId": "test_subscription",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "requestBody": {
@@ -1217,7 +1354,7 @@
         "operationId": "get_subscription_link",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "responses": {
@@ -1243,7 +1380,7 @@
         "operationId": "add_extra_traffic",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "requestBody": {
@@ -1342,7 +1479,7 @@
         "operationId": "get_partner_profile",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "responses": {
@@ -1368,7 +1505,7 @@
         "operationId": "apply_partner",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "requestBody": {
@@ -1410,7 +1547,7 @@
         "operationId": "get_partner_pending_status",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "responses": {
@@ -1433,7 +1570,7 @@
         "operationId": "partner_renew",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "requestBody": {
@@ -1475,7 +1612,7 @@
         "operationId": "partner_withdraw",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "requestBody": {
@@ -1545,7 +1682,7 @@
         "operationId": "generate_custom_tariff",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "requestBody": {
@@ -1587,7 +1724,7 @@
         "operationId": "get_custom_tariff_params",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "responses": {
@@ -1613,7 +1750,7 @@
         "operationId": "get_admin_users",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "parameters": [
@@ -1672,7 +1809,7 @@
         "operationId": "get_partner_stats",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "responses": {
@@ -1698,7 +1835,7 @@
         "operationId": "get_referrals_stats",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "responses": {
@@ -1721,7 +1858,7 @@
         "operationId": "debug_cleanup",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "requestBody": {
@@ -1757,7 +1894,7 @@
         "operationId": "admin_debug_search",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "parameters": [
@@ -1797,7 +1934,7 @@
         "operationId": "get_admin_health",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "responses": {
@@ -1823,7 +1960,7 @@
         "operationId": "get_admin_panel_status",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "responses": {
@@ -1859,7 +1996,7 @@
         "operationId": "send_admin_message",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "parameters": [
@@ -1918,7 +2055,7 @@
         "operationId": "change_ip_limit",
         "security": [
           {
-            "BearerAuth": [ ]
+            "BearerAuth": []
           }
         ],
         "parameters": [
@@ -1963,14 +2100,185 @@
           }
         }
       }
+    },
+    "/api/v1/partner/channels": {
+      "post": {
+        "tags": [
+          "Partners"
+        ],
+        "summary": "Bind a TG channel to the partner",
+        "description": "Binds a Telegram channel where the bot is administrator with posting rights. Available when PARTNER_NEW_AUTO_MODE=true.",
+        "operationId": "add_partner_channel",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartnerChannelAddRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Channel bound"
+          },
+          "400": {
+            "description": "Bad request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/partner/channels/{channel_id}": {
+      "delete": {
+        "tags": [
+          "Partners"
+        ],
+        "summary": "Unbind a TG channel from the partner",
+        "description": "Removes a previously bound Telegram channel from the partner program.",
+        "operationId": "remove_partner_channel",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Telegram channel ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Channel unbound"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Channel not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/partner/channels/verify": {
+      "post": {
+        "tags": [
+          "Partners"
+        ],
+        "summary": "Verify all partner TG channels",
+        "description": "Re-checks administrator/posting rights of the bot on all bound channels.",
+        "operationId": "verify_partner_channels",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerChannelVerifyResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/partner/autopost": {
+      "post": {
+        "tags": [
+          "Partners",
+          "Admin"
+        ],
+        "summary": "Broadcast text to all partner TG channels (admin)",
+        "description": "Sends a text message to every active, verified partner Telegram channel, appending the partner bonus and each owner's referral link. Requires admin privileges. Available when PARTNER_NEW_AUTO_MODE=true.",
+        "operationId": "partner_autopost",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutopostRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutopostResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
     }
   },
   "security": [
     {
-      "bearerAuth": [ ]
+      "bearerAuth": []
     },
     {
-      "adminApiKey": [ ]
+      "adminApiKey": []
     }
   ],
   "servers": [

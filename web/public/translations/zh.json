@@ -48,7 +48,10 @@
     "tiktok": "TikTok",
     "tos": "ToS",
     "withdraw": "提现",
-    "youtube": "YouTube"
+    "youtube": "YouTube",
+    "partner_channel_add": "添加 TG 频道",
+    "partner_channel_verify_all": "验证所有频道",
+    "partner_channel_remove": "删除 {channel}"
   },
   "texts": {
     "3x_ui": "3X-UI",
@@ -69,7 +72,6 @@
     "admin_section": "管理",
     "admin_test_mode_hint": "仅限管理员——无需付款的测试下单。",
     "admin_user_trust": "信任",
-    "admin_user_username": "登录名",
     "admin_user_vpn_url": "VPN URL",
     "all_users": "用户总数",
     "alt_client": "v2RayTun（旧版）",
@@ -138,11 +140,9 @@
     "guide_incy_step_6": "完成 - VPN 已可用。",
     "guide_happ_step_1": "下载适用于您操作系统的 Happ。",
     "guide_happ_step_2": "打开 Happ。",
-    "guide_happ_step_3": "粘贴我们机器人中的订阅。",
     "guide_happ_step_4": "配置路由和应用代理。",
     "guide_v2raytun_step_1": "下载 v2RayTun 文件。",
     "guide_v2raytun_step_2": "打开 v2RayTun。",
-    "guide_v2raytun_step_3": "粘贴我们机器人中的订阅。",
     "guide_v2raytun_step_4": "可选：设置 → 应用设置 → 恢复设置。",
     "guide_v2raytun_step_5": "可选：设置 → 路由，选择无法与 VPN 一起使用的亲俄应用。",
     "have_account": "已有账户？",
@@ -338,8 +338,8 @@
     "uptime": "运行时间",
     "uptime_hours": "{hours} 小时",
     "user_id": "UID",
-    "username": "登录名",
-    "username_too_short": "用户名必须至少包含 3 个字符",
+    "web_login": "登录名",
+    "web_login_too_short": "登录名必须至少包含 3 个字符",
     "users_count": "所有用户列表",
     "users_list": "用户",
     "vpn_service": "VPN 服务",
@@ -385,7 +385,15 @@
     "feature_17": "P2P 和 YooMoney 支付",
     "feature_18": "通过 Telegram 支持",
     "feature_19": "开源 (MIT 许可证)",
-    "feature_20": "通过 Telegram 提供 24/7 支持"
+    "feature_20": "通过 Telegram 提供 24/7 支持",
+    "partner_channel_invalid_id": "❌ 频道 ID 无效。",
+    "partner_channel_added": "✅ 频道 <b>{channel}</b> 已添加到合作伙伴计划。",
+    "partner_channel_removed": "✅ 频道已删除。",
+    "partner_channel_removed_fail": "❌ 频道删除失败。",
+    "partner_channel_verified": "✅ 已检查: {total} 个频道中 {count} 个活跃。",
+    "partner_channel_verify_fail": "❌ 频道验证失败。",
+    "partner_autopost_result": "📤 已发布: {sent}/{total}, 错误: {failed}",
+    "partner_autopost_failed": "❌ 自动发布失败。"
   },
   "legal": {
     "offer": {

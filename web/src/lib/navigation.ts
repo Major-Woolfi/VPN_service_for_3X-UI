@@ -3,35 +3,34 @@ import { useFeatures } from "@/contexts/FeaturesContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { getPublicLinksFromFeatures } from "@/lib/api";
 
-interface NavLink {
+interface Navlink {
   href: string;
-  labelKey: string;
-  labelSection?: "buttons" | "texts";
+  labelkey: string;
+  labelsection?: "buttons" | "texts";
   condition?: () => boolean;
   external?: boolean;
 }
 
-const publicNavLinks: NavLink[] = [
-  { href: "/", labelKey: "main" },
-  { href: "/qa", labelKey: "qa" },
-  { href: "/tos", labelKey: "tos" },
-  { href: "/offer", labelKey: "offer" },
-  { href: "/privacy", labelKey: "privacy" },
-  { href: "/partner", labelKey: "partner" },
+const publicNavlinks: Navlink[] = [
+  { href: "/", labelkey: "main" },
+  { href: "/qa", labelkey: "qa" },
+  { href: "/tos", labelkey: "tos" },
+  { href: "/offer", labelkey: "offer" },
+  { href: "/privacy", labelkey: "privacy" },
+  { href: "/partner", labelkey: "partner" },
 ];
 
-const authorizedNavLinks: NavLink[] = [
-  { href: "/subscribe", labelKey: "buy" },
-  { href: "/profile", labelKey: "account", labelSection: "texts" },
-  { href: "/client", labelKey: "client" },
-  { href: "/referral", labelKey: "referral" },
-  { href: "/settings", labelKey: "settings" },
+const authorizedNavlinks: Navlink[] = [
+  { href: "/subscribe", labelkey: "buy" },
+  { href: "/profile", labelkey: "account", labelsection: "texts" },
+  { href: "/client", labelkey: "client" },
+  { href: "/referral", labelkey: "referral" },
+  { href: "/settings", labelkey: "settings" },
 ];
 
-const adminNavLinks: NavLink[] = [
-  { href: "/admin/health", labelKey: "admin_panel", labelSection: "texts" },
-  { href: "/admin/users", labelKey: "all_users", labelSection: "texts" },
-  { href: "/admin/debug", labelKey: "debug", labelSection: "texts" },
+const adminNavlinks: Navlink[] = [
+  { href: "/admin/health", labelkey: "admin_panel", labelsection: "texts" },
+  { href: "/admin/users", labelkey: "all_users", labelsection: "texts" },
 ];
 
 export function useNavigation() {
@@ -39,12 +38,12 @@ export function useNavigation() {
   const { features } = useFeatures();
   const { user } = useAuth();
 
-  const getLabel = (link: NavLink) => {
-    const section = link.labelSection || "buttons";
-    return t(`${section}.${link.labelKey}`);
+  const getLabel = (link: Navlink) => {
+    const section = link.labelsection || "buttons";
+    return t(`${section}.${link.labelkey}`);
   };
 
-  const publicLinks = publicNavLinks
+  const publiclinks = publicNavlinks
     .filter((link) => {
       if (link.href === "/partner") {
         return features?.features?.partner === true;
@@ -56,7 +55,7 @@ export function useNavigation() {
       label: getLabel(link),
     }));
 
-  const authorizedLinks = authorizedNavLinks
+  const authorizedlinks = authorizedNavlinks
     .filter((link) => {
 
       if (link.href === "/subscribe") {
@@ -84,15 +83,15 @@ export function useNavigation() {
       label: getLabel(link),
     }));
 
-  const adminLinks = user?.is_admin
-    ? adminNavLinks.map((link) => ({
+  const adminlinks = user?.is_admin
+    ? adminNavlinks.map((link) => ({
         href: link.href,
         label: getLabel(link),
       }))
     : [];
 
   const publicLinksEnv = getPublicLinksFromFeatures(features);
-  const contactLinks = [
+  const contactlinks = [
     { href: publicLinksEnv.support_url, label: t("buttons.contact_support") },
     {
       href: publicLinksEnv.telegram_bot_username
@@ -111,9 +110,17 @@ export function useNavigation() {
   );
 
   return {
-    publicLinks,
-    authorizedLinks,
-    adminLinks,
-    contactLinks,
+    publiclinks,
+    authorizedlinks,
+    adminlinks,
+    contactlinks,
   };
 }
+
+
+
+
+
+
+
+

@@ -1,12 +1,12 @@
 import { cookies, headers } from "next/headers";
 import Header from "@/components/Header";
 import FaqList from "@/components/FaqList";
-import { tServer, resolveLanguage } from "@/lib/i18n-server";
+import { tServer, resolvelanguage } from "@/lib/i18n-server";
 
 export async function generateMetadata() {
   const cookieStore = await cookies();
   const headerStore = await headers();
-  const lang = resolveLanguage(
+  const lang = resolvelanguage(
     cookieStore.get("vpn_language")?.value,
     headerStore.get("accept-language") || undefined,
   );
@@ -17,7 +17,7 @@ export async function generateMetadata() {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local";
 
   return {
-    title: `${t("texts.qa")} - ${siteName}`,
+    title: `${("texts.qa")} - ${siteName}`,
     description: t("texts.qa_subtitle"),
     keywords: [
       "faq vpn",
@@ -39,7 +39,7 @@ export async function generateMetadata() {
       locale: lang,
       url: `${siteUrl}/qa`,
       siteName,
-      title: `${t("texts.qa")} - ${siteName}`,
+      title: `${("texts.qa")} - ${siteName}`,
       description: t("texts.qa_subtitle"),
       images: [
         {
@@ -52,7 +52,7 @@ export async function generateMetadata() {
     },
     twitter: {
       card: "summary",
-      title: `${t("texts.qa")} - ${siteName}`,
+      title: `${("texts.qa")} - ${siteName}`,
       description: t("texts.qa_subtitle"),
       images: ["/icon.jpg"],
     },
@@ -66,7 +66,7 @@ export async function generateMetadata() {
 export default async function QaPage() {
   const cookieStore = await cookies();
   const headerStore = await headers();
-  const lang = resolveLanguage(
+  const lang = resolvelanguage(
     cookieStore.get("vpn_language")?.value,
     headerStore.get("accept-language") || undefined,
   );
@@ -96,3 +96,16 @@ export default async function QaPage() {
     </>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -23,9 +23,9 @@ export default function NotFound() {
               >
                 {t("texts.not_found_text")}
               </p>
-              <Link href="/" className="button">
-                {t("buttons.main")}
-              </Link>
+<Link href="/" className="button">
+              {t("buttons.main")}
+            </Link>
             </div>
           </div>
         </div>
@@ -33,3 +33,9 @@ export default function NotFound() {
     </>
   );
 }
+
+
+
+
+
+

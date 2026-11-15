@@ -1,11 +1,10 @@
 import type {
   UserSession,
-  WebRegisterRequest,
+  WebRegisterequest,
   WebLoginRequest,
   WebPasswordChangeRequest,
-  WebTelegramLinkRequest,
   SanitizedUser,
-  SubscriptionLinkResponse,
+  SubscriptionlinkResponse,
   Tariff,
   TariffsResponse,
   ReferralStatsResponse,
@@ -16,11 +15,15 @@ import type {
   PartnerApplyResponse,
   PartnerRenewRequest,
   PartnerRenewResponse,
+  PartnerChannel,
+  PartnerChannelList,
+  PartnerChannelAddRequest,
+  PartnerChannelVerifyResult,
+  AutopostRequest,
+  AutopostResult,
   Location,
   LocationsResponse,
   AdminHealthResponse,
-  DebugCleanupRequest,
-  DebugSearchResponse,
   UserListResponse,
   AbuseUsersResponse,
   ClearAbuseRequest,
@@ -37,7 +40,6 @@ import type {
 import { t } from "./i18n";
 
 export const API_BASE_URL = "/api/bot";
-export const DEFAULT_API_BASE = API_BASE_URL;
 export const SERVER_API_BASE = (
   process.env.BOT_API_URL || "http://localhost:2005/api/v1"
 ).replace(/\/$/, "");
@@ -47,7 +49,7 @@ export const PANEL_STATUS_POLL_INTERVAL_MS = 5_000;
 export const TELEGRAM_POLL_INTERVAL_MS = 1_500;
 export const TELEGRAM_POLL_TIMEOUT_MS = 120_000;
 
-export const SESSION_LOST_EVENT = "vpn:session-lost";
+export const SESSION_HOST_EVENT = "vpn:session-host";
 
 const RATE_LIMIT_STORAGE_KEY = "vpn_rate_limits";
 
@@ -66,9 +68,7 @@ function writeRateLimits(limits: Record<string, number>): void {
   if (typeof localStorage === "undefined") return;
   try {
     localStorage.setItem(RATE_LIMIT_STORAGE_KEY, JSON.stringify(limits));
-  } catch {
-
-  }
+  } catch {}
 }
 
 function rateLimit(key: string, minIntervalMs: number): boolean {
@@ -105,27 +105,21 @@ function setEndpointCooldown(path: string, ms: number): void {
       COOLDOWN_STORAGE_PREFIX + path,
       String(Date.now() + ms),
     );
-  } catch {
-
-  }
+  } catch {}
 }
 
 function clearEndpointCooldown(path: string): void {
   if (typeof localStorage === "undefined") return;
   try {
     localStorage.removeItem(COOLDOWN_STORAGE_PREFIX + path);
-  } catch {
-
-  }
+  } catch {}
 }
 
-function notifySessionLost(): void {
+function notifySessionHost(): void {
   if (typeof window === "undefined") return;
   try {
-    window.dispatchEvent(new CustomEvent(SESSION_LOST_EVENT));
-  } catch {
-
-  }
+    window.dispatchEvent(new CustomEvent(SESSION_HOST_EVENT));
+  } catch {}
 }
 
 function endpointPath(path: string): string {
@@ -150,7 +144,7 @@ function extractErrorMessage(
       ? [detail]
       : [];
   const raw =
-    (typeof payload.error === "string" && payload.error) ||
+    (typeof payload.Error === "string" && payload.Error) ||
     messages.join(", ") ||
     `HTTP ${status}`;
   return raw;
@@ -164,7 +158,7 @@ export class ApiError extends Error {
   constructor(
     message: string,
     status: number,
-    code = "error",
+    code = "Error",
     authExpired = false,
   ) {
     super(message);
@@ -180,7 +174,7 @@ export async function fetchJson<T>(
   options: RequestInit = {},
 ): Promise<T> {
   const url = path.startsWith("/") ? path : `${API_BASE_URL}/${path}`;
-  const target = url.startsWith("/api/") ? url : `${API_BASE_URL}${url}`;
+  const target = url.startsWith("/api/") ? url : `${API_BASE_URL}${path}`;
 
   const blockedUntil = readEndpointCooldown(endpointPath(target));
   if (blockedUntil > 0) {
@@ -202,10 +196,10 @@ export async function fetchJson<T>(
       headers,
       signal: options.signal || AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
-  } catch (error) {
+  } catch (err) {
     const aborted =
-      error instanceof DOMException &&
-      (error.name === "TimeoutError" || error.name === "AbortError");
+      err instanceof DOMException &&
+      (err.name === "TimeoutError" || err.name === "AbortError");
     if (!options.signal) {
       setEndpointCooldown(endpointPath(target), 5_000);
     }
@@ -225,11 +219,11 @@ export async function fetchJson<T>(
   if (!res.ok) {
     const authExpired = payload.auth_expired === true;
     const message = extractErrorMessage(payload, res.status);
-    const code = typeof payload.error === "string" ? payload.error : "error";
+    const code = typeof payload.Error === "string" ? payload.Error : "Error";
 
     if (authExpired) {
       clearStoredUser();
-      notifySessionLost();
+      notifySessionHost();
     }
     if (res.status === 429) {
       setEndpointCooldown(endpointPath(target), 15_000);
@@ -242,7 +236,6 @@ export async function fetchJson<T>(
       message,
       res.status,
       code,
-
       authExpired,
     );
   }
@@ -341,7 +334,7 @@ export async function getPanelStatus(): Promise<PanelStatusResponse> {
 }
 
 export async function registerUser(
-  req: WebRegisterRequest,
+  req: WebRegisterequest,
 ): Promise<UserSession> {
   return fetchJson<UserSession>(`${API_BASE_URL}/auth/register`, {
     method: "POST",
@@ -369,21 +362,12 @@ export async function getPartnerPendingStatus(): Promise<{
 export async function logoutUser(): Promise<void> {
   try {
     await fetchJson(`${API_BASE_URL}/auth/logout`, { method: "POST" });
-  } catch {
-
-  }
+  } catch {}
   clearStoredUser();
 }
 
 export async function changePassword(req: WebPasswordChangeRequest) {
   return fetchJson(`${API_BASE_URL}/auth/change-password`, {
-    method: "POST",
-    body: JSON.stringify(req),
-  });
-}
-
-export async function linkTelegram(req: WebTelegramLinkRequest) {
-  return fetchJson(`${API_BASE_URL}/auth/telegram/link`, {
     method: "POST",
     body: JSON.stringify(req),
   });
@@ -426,8 +410,8 @@ export async function trialSubscription() {
 
 export async function getSubscriptionLink(
   signal?: AbortSignal,
-): Promise<SubscriptionLinkResponse> {
-  return fetchJson<SubscriptionLinkResponse>(
+): Promise<SubscriptionlinkResponse> {
+  return fetchJson<SubscriptionlinkResponse>(
     `${API_BASE_URL}/subscription/link`,
     {
       signal,
@@ -524,6 +508,38 @@ export async function partnerWithdraw(req: {
   });
 }
 
+export async function getPartnerChannels(): Promise<PartnerChannelList> {
+  return fetchJson<PartnerChannelList>(`${API_BASE_URL}/partner/channels`);
+}
+
+export async function addPartnerChannel(req: PartnerChannelAddRequest) {
+  return fetchJson<PartnerChannelList>(`${API_BASE_URL}/partner/channels`, {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+}
+
+export async function removePartnerChannel(channel_id: number) {
+  return fetchJson(
+    `${API_BASE_URL}/partner/channels/${encodeURIComponent(String(channel_id))}`,
+    { method: "DELETE" },
+  );
+}
+
+export async function verifyPartnerChannels(): Promise<PartnerChannelVerifyResult> {
+  return fetchJson<PartnerChannelVerifyResult>(
+    `${API_BASE_URL}/partner/channels/verify`,
+    { method: "POST" },
+  );
+}
+
+export async function partnerAutopost(req: AutopostRequest) {
+  return fetchJson<AutopostResult>(`${API_BASE_URL}/partner/autopost`, {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+}
+
 export async function getAdminHealth(): Promise<AdminHealthResponse> {
   if (!rateLimit("admin-health", 2000)) {
     throw new ApiError(t("texts.rate_limited"), 429, "rate_limited");
@@ -541,10 +557,13 @@ export async function getAdminPanelStatus(): Promise<PanelStatusResponse> {
 export async function getUsers(
   page = 1,
   limit = 50,
+  search = "",
 ): Promise<UserListResponse> {
-  return fetchJson<UserListResponse>(
-    `/api/admin/users?page=${page}&limit=${limit}`,
-  );
+  let url = `/api/admin/users?page=${page}&limit=${limit}`;
+  if (search) {
+    url += `&search=${encodeURIComponent(search)}`;
+  }
+  return fetchJson<UserListResponse>(url);
 }
 
 export interface PublicLinks {
@@ -594,22 +613,6 @@ export function getPublicLinksFromFeatures(
   };
 }
 
-export async function debugCleanup(req: DebugCleanupRequest) {
-  return fetchJson(`/api/admin/debug`, {
-    method: "POST",
-    body: JSON.stringify(req),
-  });
-}
-
-export async function debugSearch(query: string): Promise<DebugSearchResponse> {
-  if (!rateLimit("debug-search", 2000)) {
-    throw new ApiError(t("texts.rate_limited"), 429, "rate_limited");
-  }
-  return fetchJson<DebugSearchResponse>(
-    `/api/admin/debug/search?q=${encodeURIComponent(query)}`,
-  );
-}
-
 export async function getAbuseUsers(): Promise<AbuseUsersResponse> {
   return fetchJson<AbuseUsersResponse>(`/api/admin/abuse-users`);
 }
@@ -637,9 +640,7 @@ export function writeStoredUser(value: unknown): void {
   if (typeof localStorage === "undefined") return;
   try {
     localStorage.setItem(USER_KEY, JSON.stringify(value));
-  } catch {
-
-  }
+  } catch {}
 }
 
 export function clearStoredUser(): void {
@@ -647,7 +648,7 @@ export function clearStoredUser(): void {
   try {
     localStorage.removeItem(USER_KEY);
     localStorage.removeItem(RATE_LIMIT_STORAGE_KEY);
-  } catch {
-
-  }
+  } catch {}
 }
+
+

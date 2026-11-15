@@ -1,4 +1,4 @@
-export interface LegalSection {
+export interface Legalsection {
   title: string;
   content: string;
 }
@@ -7,7 +7,7 @@ export interface LegalDocument {
   title: string;
   subtitle: string;
   effectiveDate: string;
-  sections: LegalSection[];
+  sections: Legalsection[];
 }
 
 export interface TranslationData {
@@ -28,3 +28,6 @@ export interface TranslationData {
     }>;
   };
 }
+
+
+

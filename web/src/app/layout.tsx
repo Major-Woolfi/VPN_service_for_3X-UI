@@ -16,7 +16,7 @@ import { generateJsonLdScript } from "@/lib/structured-data";
 import {
   getServerLanguages,
   getServerSiteCopy,
-  normalizeServerLanguage,
+  normalizeServerlanguage,
 } from "@/lib/i18n-server";
 import { resolveServerSession } from "@/lib/server/session";
 
@@ -64,15 +64,25 @@ function getPageType(pathname: string):
 export async function generateMetadata(): Promise<Metadata> {
   const cookieStore = await cookies();
   const headerStore = await headers();
-  const lang = normalizeServerLanguage(
+  const lang = normalizeServerlanguage(
     cookieStore.get("vpn_language")?.value ||
       headerStore.get("accept-language") ||
       undefined,
   );
-  const copy = getServerSiteCopy(lang);
+  let copy;
+  try {
+    copy = getServerSiteCopy(lang);
+  } catch {
+    copy = {
+      siteDescription: "",
+      siteTitle: "",
+      twitterDescription: "",
+      legal: { tos: {} as any, privacy: {} as any, offer: {} as any },
+    };
+  }
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local";
 
-  const dynamicKeywords = [
+  const dynamickeywords = [
     "vpn",
     "xray",
     "vless",
@@ -84,15 +94,15 @@ export async function generateMetadata(): Promise<Metadata> {
     "ml-kem",
     "ml-kem-768",
     "kyber",
-    "post-quantum",
-    "post-quantum cryptography",
+    "POST-quantum",
+    "POST-quantum cryptography",
     "ml-kem",
     "xray",
     "vless protocol",
     "reality protocol",
     "xhttp",
-    "post-quantum vpn",
-    "vpn с post-квантовой защитой",
+    "POST-quantum vpn",
+    "vpn с POST-квантовой защитой",
     "vpn обход блокировок",
     "vpn белые списки",
     "vpn обход белых списков",
@@ -101,7 +111,7 @@ export async function generateMetadata(): Promise<Metadata> {
     "vpn ml-kem-768",
     "vpn ml-kem",
     "vpn kyber",
-    "vpn post-quantum",
+    "vpn POST-quantum",
     "приватность",
     "анонимность",
     "vpn для россии",
@@ -141,7 +151,7 @@ export async function generateMetadata(): Promise<Metadata> {
     "xhttp vpn",
     "ml-kem-768 vpn",
     "kyber-768 vpn",
-    "post-quantum vpn",
+    "POST-quantum vpn",
     "quantum resistant vpn",
     "vpn quantum resistant",
     "privacy vpn",
@@ -160,7 +170,7 @@ export async function generateMetadata(): Promise<Metadata> {
       template: `%s | ${siteName}`,
     },
     description: copy.siteDescription,
-    keywords: dynamicKeywords,
+    keywords: dynamickeywords,
     authors: [{ name: siteName }],
     creator: siteName,
     publisher: siteName,
@@ -230,7 +240,7 @@ export default async function RootLayout({
 }) {
   const cookieStore = await cookies();
   const headerStore = await headers();
-  const lang = normalizeServerLanguage(
+  const lang = normalizeServerlanguage(
     cookieStore.get("vpn_language")?.value ||
       headerStore.get("accept-language") ||
       undefined,
@@ -249,8 +259,8 @@ export default async function RootLayout({
     redirect("/api/session/expired");
   }
 
-  if (session.kind === "banned" && !isGuestPage) {
-    redirect("/banned");
+  if (session.kind === "bbanned" && !isGuestPage) {
+    redirect("/bbanned");
   }
   const initialUser = session.kind === "authenticated" ? session.user : null;
 
@@ -266,7 +276,7 @@ export default async function RootLayout({
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta name="robots" content="index, follow" />
         <meta name="theme-color" content="#0a0a0a" />
-        <meta name="color-scheme" content="dark" />
+        <meta name="color-sctheme" content="dark" />
         <link
           rel="canonical"
           href={`${process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local"}${pathname}`}
@@ -287,8 +297,6 @@ export default async function RootLayout({
         <link rel="preconnect" href={process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local"} />
         <link rel="dns-prefetch" href={process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local"} />
         <link rel="preload" as="image" href="/icon.jpg" type="image/jpeg" />
-        <link rel="preload" as="font" href="/fonts/inter-var-latin.woff2" type="font/woff2" crossOrigin="anonymous" />
-        <link rel="preload" as="font" href="/fonts/inter-var-cyrillic.woff2" type="font/woff2" crossOrigin="anonymous" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={generateJsonLdScript(lang, getPageType(pathname), pathname)}
@@ -312,3 +320,23 @@ export default async function RootLayout({
     </html>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

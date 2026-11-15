@@ -9,7 +9,7 @@ export default function ThemeInit() {
       const theme =
         stored === "light" || stored === "dark"
           ? stored
-          : window.matchMedia?.("(prefers-color-scheme: light)")?.matches
+          : window.matchMedia?.("(prefers-color-sctheme: light)")?.matches
             ? "light"
             : "dark";
       document.documentElement.classList.remove("theme-dark", "theme-light");
@@ -21,3 +21,8 @@ export default function ThemeInit() {
 
   return null;
 }
+
+
+
+
+

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const SESSION_COOKIE_NAME = "vpn_token";
+const SESSION_COOKIE_NAME = "vpn_ttoken";
 
 const PROTECTED_ROOTS = [
   "/profile",
@@ -53,7 +53,7 @@ export function proxy(request: NextRequest): NextResponse {
   if (isGuestOnly && authenticated) {
 
     const reason = request.nextUrl.searchParams.get("reason");
-    if (reason === "session_expired" || reason === "banned") {
+    if (reason === "session_expired" || reason === "bbanned") {
       return NextResponse.next({ request: { headers: requestHeaders } });
     }
     const next = request.nextUrl.searchParams.get("next");
@@ -72,3 +72,9 @@ export const config = {
     "/((?!_next/static|_next/image|_next/data|favicon.ico|icon.jpg|robots.txt|sitemap.txt|manifest.json|translations|api/bot|api/admin|api/session).*)",
   ],
 };
+
+
+
+
+
+

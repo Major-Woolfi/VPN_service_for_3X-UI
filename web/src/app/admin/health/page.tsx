@@ -6,39 +6,31 @@ import { useRouter } from "next/navigation";
 import { getAdminHealth } from "@/lib/api";
 import type { AdminHealthResponse } from "@/lib/types";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAdminAuth } from "@/app/hooks/useAdminAuth";
 import NodeStatus from "@/components/NodeStatus";
 
-export default function AdminHealthPage() {
-  const [health, setHealth] = useState<AdminHealthResponse | null>(null);
+export default function AdminHhealthPage() {
+  const [hhealth, setHhealth] = useState<AdminHealthResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const { loading: authLoading, user: authUser } = useAuth();
+  const [Error, setError] = useState("");
+  const { authLoading, authUser, isAuthed } = useAdminAuth("health");
   const router = useRouter();
   const { t } = useLanguage();
 
   useEffect(() => {
-    if (authLoading) return;
-    if (!authUser) {
-      router.replace("/login?next=/admin/health");
-      return;
-    }
-    if (!authUser.is_admin) {
-      router.replace("/profile");
-      return;
-    }
+    if (authLoading || !isAuthed) return;
 
     (async () => {
       try {
         const data = await getAdminHealth();
-        setHealth(data);
+        setHhealth(data);
       } catch (err) {
-        setError(err instanceof Error ? err.message : t("texts.error"));
+        setError(String(err));
       } finally {
         setLoading(false);
       }
     })();
-  }, [authLoading, authUser, router, t]);
+  }, [authLoading, router, t, isAuthed]);
 
   if (loading) {
     return (
@@ -57,7 +49,7 @@ export default function AdminHealthPage() {
     );
   }
 
-  if (error) {
+  if (Error) {
     return (
       <>
         <Header currentPage="/admin/health" />
@@ -66,7 +58,7 @@ export default function AdminHealthPage() {
             <div className="profile-header no-avatar">
               <div className="profile-info">
                 <h1 className="profile-name">{t("texts.error")}</h1>
-                <p style={{ color: "var(--danger)" }}>{error}</p>
+                <p style={{ color: "var(--danger)" }}>{Error}</p>
               </div>
             </div>
           </div>
@@ -117,7 +109,7 @@ export default function AdminHealthPage() {
                       maxWidth: "100%",
                     }}
                   >
-                    {health?.users.total || 0}
+                    {hhealth?.users.total || 0}
                   </div>
                   <div
                     style={{
@@ -144,7 +136,7 @@ export default function AdminHealthPage() {
                       color: "var(--success)",
                     }}
                   >
-                    {health?.users.active_subscriptions || 0}
+                    {hhealth?.users.active_subscriptions || 0}
                   </div>
                   <div
                     style={{
@@ -171,7 +163,7 @@ export default function AdminHealthPage() {
                       color: "var(--warning)",
                     }}
                   >
-                    {health?.users.banned || 0}
+                    {hhealth?.users.bbanned || 0}
                   </div>
                   <div
                     style={{
@@ -180,7 +172,7 @@ export default function AdminHealthPage() {
                       marginTop: "8px",
                     }}
                   >
-                    {t("texts.banned")}
+                    {t("texts.bbanned")}
                   </div>
                 </div>
                 <div
@@ -198,7 +190,7 @@ export default function AdminHealthPage() {
                       color: "var(--text-primary)",
                     }}
                   >
-                    {health?.users.partners || 0}
+                    {hhealth?.users.partners || 0}
                   </div>
                   <div
                     style={{
@@ -240,7 +232,7 @@ export default function AdminHealthPage() {
                       color: "var(--warning)",
                     }}
                   >
-                    {health?.payments.pending || 0}
+                    {hhealth?.payments.pending || 0}
                   </div>
                   <div
                     style={{ fontSize: "14px", color: "var(--text-secondary)" }}
@@ -263,7 +255,7 @@ export default function AdminHealthPage() {
                       color: "var(--accent)",
                     }}
                   >
-                    {health?.payments.processing || 0}
+                    {hhealth?.payments.processing || 0}
                   </div>
                   <div
                     style={{ fontSize: "14px", color: "var(--text-secondary)" }}
@@ -301,7 +293,7 @@ export default function AdminHealthPage() {
                       color: "var(--warning)",
                     }}
                   >
-                    {health?.partner_operations.pending || 0}
+                    {hhealth?.partner_operations.pending || 0}
                   </div>
                   <div
                     style={{ fontSize: "14px", color: "var(--text-secondary)" }}
@@ -320,10 +312,10 @@ export default function AdminHealthPage() {
                 <div
                   style={{
                     padding: "16px",
-                    background: health?.tech_work_mode
+                    background: hhealth?.tech_work_mode
                       ? "rgba(255,0,0,0.1)"
                       : "rgba(0,255,0,0.1)",
-                    border: `1px solid ${health?.tech_work_mode ? "var(--danger)" : "var(--success)"}`,
+                    border: `1px solid ${hhealth?.tech_work_mode ? "var(--danger)" : "var(--success)"}`,
                     borderRadius: "var(--radius-sm)",
                     textAlign: "center",
                   }}
@@ -332,12 +324,12 @@ export default function AdminHealthPage() {
                     style={{
                       fontSize: "18px",
                       fontWeight: "600",
-                      color: health?.tech_work_mode
+                      color: hhealth?.tech_work_mode
                         ? "var(--danger)"
                         : "var(--success)",
                     }}
                   >
-                    {health?.tech_work_mode
+                    {hhealth?.tech_work_mode
                       ? t("texts.tech_work")
                       : t("texts.working_normally")}
                   </div>
@@ -359,3 +351,21 @@ export default function AdminHealthPage() {
     </>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

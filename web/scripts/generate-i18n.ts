@@ -1,9 +1,6 @@
-// Скрипт генерирует:
-// 1) src/lib/i18n-generated.ts - импорты всех языков
-// Запуск: npx tsx scripts/generate-i18n.ts
+
 import { readdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
-import { format } from "prettier";
 
 type TranslationFile = Record<string, unknown> & {
   legal?: Record<string, unknown>;
@@ -66,19 +63,15 @@ import type { TranslationData } from "./i18n-types";
       .join("\n") + "\n\n";
 
   i18nContent += `// Все языки: ключ = имя файла без расширения
-export const LANGUAGES: Record<string, TranslationData> = { ${files.join(", ")} };
-`;
-
-  i18nContent += `\n// Для SSR
+export const LANGUAGES: Record<string, TranslationData> = { ${files.join(
+    ", ",
+  )} };
 export const SERVER_LANGUAGES: Record<string, TranslationData> = LANGUAGES;
+export const SERVER_languages: Record<string, TranslationData> = LANGUAGES;
+export const languages: Record<string, TranslationData> = LANGUAGES;
 `;
 
-  const formatted = await format(i18nContent, {
-    parser: "typescript",
-    filepath: i18nOutputFile,
-  });
-
-  writeFileSync(i18nOutputFile, formatted, "utf-8");
+  writeFileSync(i18nOutputFile, i18nContent, "utf-8");
   console.log(
     `✅ Generated ${files.length} language imports: ${files.join(", ")}`,
   );

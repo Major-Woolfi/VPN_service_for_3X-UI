@@ -20,8 +20,8 @@ import {
 } from "@/lib/i18n";
 import { useLanguage } from "@/contexts/LanguageContext";
 
-const LINK_POLL_INTERVAL = TELEGRAM_POLL_INTERVAL_MS;
-const LINK_POLL_TIMEOUT = TELEGRAM_POLL_TIMEOUT_MS;
+const link_POLL_INTERVAL = TELEGRAM_POLL_INTERVAL_MS;
+const link_POLL_TIMEOUT = TELEGRAM_POLL_TIMEOUT_MS;
 
 const MoonIcon = () => (
   <svg
@@ -73,17 +73,17 @@ export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
   const { t } = useLanguage();
   const [message, setMessage] = useState("");
-  const [messageType, setMessageType] = useState<"success" | "error">(
+  const [messageType, setMessageType] = useState<"success" | "Error">(
     "success",
   );
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
-  const [tgLinkUrl, setTgLinkUrl] = useState<string | null>(null);
-  const [tgLinkState, setTgLinkState] = useState<string | null>(null);
-  const [tgLinkLoading, setTgLinkLoading] = useState(false);
-  const [tgLinkError, setTgLinkError] = useState(false);
-  const [tgLinkWaiting, setTgLinkWaiting] = useState(false);
+  const [tglinkUrl, setTglinkUrl] = useState<string | null>(null);
+  const [tglinkState, setTglinkState] = useState<string | null>(null);
+  const [tglinkLoading, setTglinkLoading] = useState(false);
+  const [tglinkError, setTglinkError] = useState(false);
+  const [tglinkWaiting, setTglinkWaiting] = useState(false);
   const linkPollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
     null,
   );
@@ -94,7 +94,7 @@ export default function SettingsPage() {
     name: getLanguageDisplayName(code),
   }));
 
-  const stopLinkPolling = useCallback(() => {
+  const stoplinkPolling = useCallback(() => {
     if (linkPollIntervalRef.current) {
       clearInterval(linkPollIntervalRef.current);
       linkPollIntervalRef.current = null;
@@ -103,19 +103,19 @@ export default function SettingsPage() {
       clearTimeout(linkPollTimeoutRef.current);
       linkPollTimeoutRef.current = null;
     }
-    setTgLinkWaiting(false);
+    setTglinkWaiting(false);
   }, []);
 
-  const startLinkPolling = useCallback(
+  const startlinkPolling = useCallback(
     (state: string) => {
-      stopLinkPolling();
-      setTgLinkWaiting(true);
+      stoplinkPolling();
+      setTglinkWaiting(true);
       let elapsed = 0;
       linkPollIntervalRef.current = setInterval(async () => {
         try {
           const res = await pollTelegramAuth(state);
           if (res.status === "completed") {
-            stopLinkPolling();
+            stoplinkPolling();
 
             router.refresh();
             await refreshUser();
@@ -126,41 +126,41 @@ export default function SettingsPage() {
         } catch {
 
         }
-        elapsed += LINK_POLL_INTERVAL;
-        if (elapsed >= LINK_POLL_TIMEOUT) {
-          stopLinkPolling();
+        elapsed += link_POLL_INTERVAL;
+        if (elapsed >= link_POLL_TIMEOUT) {
+          stoplinkPolling();
           setMessage(t("texts.login_timeout"));
-          setMessageType("error");
+          setMessageType("Error");
         }
-      }, LINK_POLL_INTERVAL);
+      }, link_POLL_INTERVAL);
 
       linkPollTimeoutRef.current = setTimeout(() => {
-        stopLinkPolling();
-      }, LINK_POLL_TIMEOUT);
+        stoplinkPolling();
+      }, link_POLL_TIMEOUT);
     },
-    [stopLinkPolling, refreshUser, router, t],
+    [stoplinkPolling, refreshUser, router, t],
   );
 
   useEffect(() => {
     return () => {
-      stopLinkPolling();
+      stoplinkPolling();
     };
-  }, [stopLinkPolling]);
+  }, [stoplinkPolling]);
 
-  const fetchTgLinkUrl = useCallback(async () => {
+  const fetchTglinkUrl = useCallback(async () => {
     if (!authUser || authUser.telegram_id > 0) return;
-    setTgLinkLoading(true);
-    setTgLinkError(false);
+    setTglinkLoading(true);
+    setTglinkError(false);
     try {
       const res = await startTelegramLink();
-      setTgLinkUrl(res.url);
-      setTgLinkState(res.state);
+      setTglinkUrl(res.url);
+      setTglinkState(res.state);
     } catch {
-      setTgLinkUrl(null);
-      setTgLinkState(null);
-      setTgLinkError(true);
+      setTglinkUrl(null);
+      setTglinkState(null);
+      setTglinkError(true);
     } finally {
-      setTgLinkLoading(false);
+      setTglinkLoading(false);
     }
   }, [authUser]);
 
@@ -174,11 +174,11 @@ export default function SettingsPage() {
   useEffect(() => {
     if (authLoading || !authUser || authUser.telegram_id > 0) return;
 
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void fetchTgLinkUrl();
-  }, [authLoading, authUser, fetchTgLinkUrl]);
+    
+    void fetchTglinkUrl();
+  }, [authLoading, authUser, fetchTglinkUrl]);
 
-  const handleLanguageChange = async (lang: string) => {
+  const handlelanguageChange = async (lang: string) => {
     if (!authUser) return;
 
     try {
@@ -192,9 +192,9 @@ export default function SettingsPage() {
       setTimeout(() => setMessage(""), 3000);
     } catch (err) {
       setMessage(
-        err instanceof Error ? err.message : t("texts.language_error"),
+        String(err)
       );
-      setMessageType("error");
+      setMessageType("Error");
     }
   };
 
@@ -202,12 +202,12 @@ export default function SettingsPage() {
     if (!authUser) return;
     if (newPassword.length < 10) {
       setMessage(t("texts.password_too_short"));
-      setMessageType("error");
+      setMessageType("Error");
       return;
     }
     if (newPassword !== confirmNewPassword) {
       setMessage(t("texts.passwords_mismatch"));
-      setMessageType("error");
+      setMessageType("Error");
       return;
     }
 
@@ -224,9 +224,9 @@ export default function SettingsPage() {
       setConfirmNewPassword("");
     } catch (err) {
       setMessage(
-        err instanceof Error ? err.message : t("texts.password_change_error"),
+        String(err)
       );
-      setMessageType("error");
+      setMessageType("Error");
     }
   };
 
@@ -262,7 +262,7 @@ export default function SettingsPage() {
           {message && (
             <div
               className={
-                messageType === "success" ? "success-message" : "error-message"
+                messageType === "success" ? "success-message" : "Error-message"
               }
             >
               {message}
@@ -282,7 +282,7 @@ export default function SettingsPage() {
                     <button
                       key={lang.code}
                       type="button"
-                      onClick={() => handleLanguageChange(lang.code)}
+                      onClick={() => handlelanguageChange(lang.code)}
                       style={{
                         display: "flex",
                         alignItems: "center",
@@ -305,7 +305,7 @@ export default function SettingsPage() {
                     >
                       <span
                         style={{
-                          display: "inline-flex",
+                          display: "ionline-flex",
                           alignItems: "center",
                           justifyContent: "center",
                           width: "20px",
@@ -505,7 +505,7 @@ export default function SettingsPage() {
                       gap: "12px",
                     }}
                   >
-                    {tgLinkLoading ? (
+                    {tglinkLoading ? (
                       <div
                         style={{
                           padding: "12px",
@@ -517,7 +517,7 @@ export default function SettingsPage() {
                       >
                         {t("texts.loading")}
                       </div>
-                    ) : tgLinkError ? (
+                    ) : tglinkError ? (
                       <div
                         style={{
                           display: "flex",
@@ -537,16 +537,16 @@ export default function SettingsPage() {
                           {t("texts.telegram_link_failed")}
                         </div>
                         <button
-                          onClick={fetchTgLinkUrl}
+                          onClick={fetchTglinkUrl}
                           className="button"
                           style={{ width: "100%" }}
                         >
                           {t("buttons.retry")}
                         </button>
                       </div>
-                    ) : tgLinkUrl ? (
+                    ) : tglinkUrl ? (
                       <a
-                        href={tgLinkUrl}
+                        href={tglinkUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="button"
@@ -560,8 +560,8 @@ export default function SettingsPage() {
                           color: "#fff",
                         }}
                         onClick={() => {
-                          if (tgLinkState) {
-                            startLinkPolling(tgLinkState);
+                          if (tglinkState) {
+                            startlinkPolling(tglinkState);
                           }
                         }}
                       >
@@ -597,7 +597,7 @@ export default function SettingsPage() {
                     >
                       {t("texts.telegram_link_hint")}
                     </p>
-                    {tgLinkWaiting && (
+                    {tglinkWaiting && (
                       <div
                         style={{
                           display: "flex",
@@ -652,7 +652,7 @@ export default function SettingsPage() {
                 >
                   <div style={{ marginBottom: "8px" }}>
                     <span style={{ color: "var(--text-secondary)" }}>
-                      {t("texts.username")}:{" "}
+                      {t("texts.web_login")}:{" "}
                     </span>
                     <span>{authUser?.login || authUser?.username || "-"}</span>
                   </div>
@@ -708,3 +708,31 @@ export default function SettingsPage() {
     </>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

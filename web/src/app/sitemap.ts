@@ -21,7 +21,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: "/profile", priority: 0.2, changefreq: "monthly" as const },
     { url: "/payment", priority: 0.2, changefreq: "monthly" as const },
     { url: "/subscription", priority: 0.2, changefreq: "monthly" as const },
-    { url: "/subscribe", priority: 0.9, changefreq: "weekly" as const },
   ];
 
   const sitemapEntries: MetadataRoute.Sitemap = [];
@@ -29,7 +28,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   for (const route of routes) {
     const url = `${baseUrl}${route.url}`;
 
-    // Default language entry (x-default)
+    
     sitemapEntries.push({
       url,
       lastModified,
@@ -42,7 +41,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       },
     });
 
-    // Language-specific entries
+    
     for (const lang of languages) {
       sitemapEntries.push({
         url: `${baseUrl}/${lang}${route.url}`,
@@ -53,7 +52,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     }
   }
 
-  // Add icon image
+  
   sitemapEntries.push({
     url: `${baseUrl}/icon.jpg`,
     lastModified,
@@ -63,3 +62,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   return sitemapEntries;
 }
+
+
+
+
+
+
+
+
