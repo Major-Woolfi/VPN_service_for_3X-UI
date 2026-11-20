@@ -410,11 +410,11 @@ cd VPN_service_for_3X-UI
 
 ## 📊 Статистика проекта
 
-| Метрика        | Значение                                                                                                                                                |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ⭐ Stars        | [![Stars](https://img.shields.io/github/stars/Major-Woolfi/VPN_service_for_3X-UI)](https://github.com/Major-Woolfi/VPN_service_for_3X-UI/stargazers)                        |
-| 🍴 Forks        | [![Forks](https://img.shields.io/github/forks/Major-Woolfi/VPN_service_for_3X-UI)](https://github.com/Major-Woolfi/VPN_service_for_3X-UI/network/members)                   |
-| 🐛 Issues       | [![Issues](https://img.shields.io/github/issues/Major-Woolfi/VPN_service_for_3X-UI)](https://github.com/Major-Woolfi/VPN_service_for_3X-UI/issues)                          |
+| Метрика | Значение |
+| --------- | ---------- |
+| ⭐ Stars | [![Stars](https://img.shields.io/github/stars/Major-Woolfi/VPN_service_for_3X-UI)](https://github.com/Major-Woolfi/VPN_service_for_3X-UI/stargazers) |
+| 🍴 Forks | [![Forks](https://img.shields.io/github/forks/Major-Woolfi/VPN_service_for_3X-UI)](https://github.com/Major-Woolfi/VPN_service_for_3X-UI/network/members) |
+| 🐛 Issues | [![Issues](https://img.shields.io/github/issues/Major-Woolfi/VPN_service_for_3X-UI)](https://github.com/Major-Woolfi/VPN_service_for_3X-UI/issues) |
 | 👥 Contributors | [![Contributors](https://img.shields.io/github/contributors/Major-Woolfi/VPN_service_for_3X-UI)](https://github.com/Major-Woolfi/VPN_service_for_3X-UI/graphs/contributors) |
 
 ---

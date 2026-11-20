@@ -15,16 +15,6 @@ export interface NodeData {
   base_path?: string;
 }
 
-function formatUptime(
-  seconds: number,
-  t: (key: string, params?: Record<string, string | number>) => string,
-): string {
-  const hours = Math.floor(seconds / 3600);
-  const days = Math.floor(hours / 24);
-  if (days > 0) return t("texts.duration_days", { days });
-  return t("texts.uptime_hours", { hours });
-}
-
 function buildNodeUrl(
   address?: string,
   port?: number,
@@ -46,112 +36,6 @@ function buildNodeUrl(
   const portPart = port ? `:${port}` : "";
   const basePathPart = base_path && base_path !== "/" ? base_path : "";
   return `${schemePart}//${host}${portPart}${basePathPart}`;
-}
-
-interface NodeCardProps {
-  node: NodeData;
-  admin?: boolean;
-}
-
-function NodeCard({ node, admin }: NodeCardProps) {
-  const { t } = useLanguage();
-  const online = node.status === "online";
-  const uptimeStr = node.uptime ? formatUptime(node.uptime, t) : "";
-  const url = admin
-    ? buildNodeUrl(
-        node.address,
-        node.port,
-        node.panel_base,
-        node.scheme,
-        node.base_path,
-      )
-    : undefined;
-
-  const cardContent = (
-    <div
-      style={{
-        padding: "20px",
-        background: "var(--bg-tertiary)",
-        borderRadius: "var(--radius-md)",
-        border: `1px solid ${online ? "var(--success)" : "var(--danger)"}`,
-        cursor: url ? "pointer" : "default",
-        transition: "transform 0.15s ease, box-shadow 0.15s ease",
-      }}
-      onMouseEnter={(e) => {
-        if (url) {
-          e.currentTarget.style.transform = "translateY(-2px)";
-          e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.25)";
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (url) {
-          e.currentTarget.style.transform = "translateY(0)";
-          e.currentTarget.style.boxShadow = "none";
-        }
-      }}
-    >
-      <div
-        style={{
-          fontWeight: "400",
-          marginBottom: "12px",
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-        }}
-      >
-        <span className={`activity-dot ${online ? "online" : "offline"}`} />
-        <span style={{ color: "inherit" }}>{node.name}</span>
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          fontSize: "13px",
-          color: "var(--text-secondary)",
-          marginBottom: "4px",
-        }}
-      >
-        <span>
-          {t("texts.3x_ui")}: {node.panel_version}
-        </span>
-        <span>
-          {t("texts.xray_label")}: {node.xray_version}
-        </span>
-      </div>
-      {uptimeStr && (
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            fontSize: "13px",
-            color: "var(--text-secondary)",
-            marginTop: "4px",
-          }}
-        >
-          <span></span>
-          <span>
-            {t("texts.uptime")}: {uptimeStr}
-          </span>
-        </div>
-      )}
-    </div>
-  );
-
-  if (url) {
-    return (
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{ textDecoration: "none", color: "inherit" }}
-      >
-        {cardContent}
-      </a>
-    );
-  }
-
-  return cardContent;
 }
 
 export interface NodeGridProps {
@@ -262,15 +146,15 @@ export function NodeGrid({ nodes, mainNode, admin }: NodeGridProps) {
   };
 
   // Динамическая сетка:
-  // - Если чётное количество узлов всего — все в одну сетку 2 в строку
-  // - Если не чётное — первый (основной) на всю ширину, остальные по чётному количеству
+  // - Если чётное количество узлов всего - все в одну сетку 2 в строку
+  // - Если не чётное - первый (основной) на всю ширину, остальные по чётному количеству
   const totalNodes = mainNode ? nodes.length + 1 : nodes.length;
   const isEven = totalNodes % 2 === 0;
 
   return (
     <div style={{ marginBottom: "16px" }}>
       {mainNode && !isEven ? (
-        // Не чётное общее количество — основной на всю ширину, остальные в сетке
+        // Не чётное общее количество - основной на всю ширину, остальные в сетке
         <>
           {renderNodeCard(mainNode, true)}
           {nodes.length > 0 && (
@@ -287,7 +171,7 @@ export function NodeGrid({ nodes, mainNode, admin }: NodeGridProps) {
           )}
         </>
       ) : (
-        // Чётное общее количество — все в одну сетку 2 в строку
+        // Чётное общее количество - все в одну сетку 2 в строку
         <div
           style={{
             display: "grid",

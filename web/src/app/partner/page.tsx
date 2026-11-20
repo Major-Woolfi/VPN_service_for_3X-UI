@@ -6,7 +6,6 @@ import { StatGrid } from "@/components/StatGrid";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useFeatures } from "@/contexts/FeaturesContext";
 import {
   getPartnerProfile,
   getPartnerStats,
@@ -23,7 +22,6 @@ import type {
 export default function PartnerPage() {
   const { user, loading: authLoading } = useAuth();
   const { t } = useLanguage();
-  const { features } = useFeatures();
   const router = useRouter();
 
   const [profile, setProfile] = useState<PartnerProfileResponse | null>(null);
@@ -81,7 +79,7 @@ export default function PartnerPage() {
         bonus_type: bonusType,
         bonus_value: parseInt(bonusValue, 10) || 0,
       });
-      setMessage(t("texts.partner_applied"));
+      setMessage(t("texts.partner_apply_success"));
       setIsError(false);
     } catch (err) {
       setMessage(String(err));
@@ -93,8 +91,9 @@ export default function PartnerPage() {
 
   const handleRenew = async () => {
     try {
-      await partnerRenew({ months: parseInt(periodMonths, 10) || 1 });
-      setMessage(t("texts.partner_renewed"));
+      const months = parseInt(periodMonths, 10) || 1;
+      await partnerRenew({ months });
+      setMessage(t("texts.partner_renew_success", { months }));
       setIsError(false);
     } catch (err) {
       setMessage(String(err));

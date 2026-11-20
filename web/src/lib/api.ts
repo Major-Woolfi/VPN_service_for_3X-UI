@@ -15,7 +15,6 @@ import type {
   PartnerApplyResponse,
   PartnerRenewRequest,
   PartnerRenewResponse,
-  PartnerChannel,
   PartnerChannelList,
   PartnerChannelAddRequest,
   PartnerChannelVerifyResult,
@@ -143,11 +142,14 @@ function extractErrorMessage(
     : typeof detail === "string"
       ? [detail]
       : [];
-  const raw =
-    (typeof payload.Error === "string" && payload.Error) ||
-    messages.join(", ") ||
-    `HTTP ${status}`;
-  return raw;
+  const technical = typeof payload.Error === "string" ? payload.Error : "";
+  const localizedTechnical =
+    technical === "bot_api_timeout"
+      ? t("texts.api_timeout")
+      : technical === "bot_api_unavailable" || technical === "bot_response_too_large"
+        ? t("texts.api_unavailable")
+        : "";
+  return messages.join(", ") || localizedTechnical || technical || `HTTP ${status}`;
 }
 
 export class ApiError extends Error {
@@ -187,6 +189,11 @@ export async function fetchJson<T>(
     ...(options.headers as Record<string, string> | undefined),
   };
 
+  const timeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  const signal = options.signal
+    ? AbortSignal.any([options.signal, timeoutSignal])
+    : timeoutSignal;
+
   let res: Response;
   try {
     res = await fetch(target, {
@@ -194,7 +201,7 @@ export async function fetchJson<T>(
       cache: "no-store",
       credentials: "same-origin",
       headers,
-      signal: options.signal || AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal,
     });
   } catch (err) {
     const aborted =

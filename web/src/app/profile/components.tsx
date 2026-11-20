@@ -1,21 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useAuth } from "@/contexts/AuthContext";
-import { useLanguage } from "@/contexts/LanguageContext";
 import type {
   SanitizedUser,
-  SubscriptionlinkResponse,
   SubscriptionPaymentRequest,
 } from "@/lib/types";
 
 interface ProfileHeaderProps {
   user: SanitizedUser | null;
   t: (key: string, params?: Record<string, string | number>) => string;
-  lang: string;
 }
 
-export function ProfileHeader({ user, t, lang }: ProfileHeaderProps) {
+export function ProfileHeader({ user, t }: ProfileHeaderProps) {
   const initials = (user?.login || user?.username)?.charAt(0).toUpperCase() || "?";
   const hasTid = Boolean(user?.telegram_id);
 
@@ -85,7 +81,6 @@ export function ProfileStats({
 }) {
   const trafficUsed = sub?.used_gb || 0;
   const trafficTotal = sub?.traffic_gb || 0;
-  const trafficPercent = trafficTotal > 0 ? Math.round((trafficUsed / trafficTotal) * 100) : 0;
   const expiryDate = sub?.expiry_sub_datatime || "";
   const formattedExpiry = expiryDate ? new Date(expiryDate).toLocaleDateString(lang) : "-";
   const hasAdminSub = Boolean(user?.is_admin && user?.admin_subscription?.url);
@@ -132,7 +127,6 @@ export function ProfileStats({
 
 export function ProfileRenewForm({
   user,
-  sub,
   renewLoading,
   renewResult,
   renewError,
@@ -140,28 +134,18 @@ export function ProfileRenewForm({
   t,
 }: {
   user: SanitizedUser | null;
-  sub: {
-    status?: string;
-    used_gb?: number;
-    traffic_gb?: number;
-    ip_limit?: number;
-    expiry_sub_datatime?: string;
-    plan_text?: string;
-  } | null | undefined;
   renewLoading: boolean;
   renewResult: SubscriptionPaymentRequest | null;
   renewError: string;
   handleRenew: () => void;
   t: (key: string, params?: Record<string, string | number>) => string;
 }) {
-  const isSubscribed = sub?.status === "active";
-
   return (
     <div className="pinned-section fade-in">
       <div className="pinned-content">
         <div style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px solid var(--border-color)" }}>
           {renewError && (
-            <div className="Error-message" style={{ marginBottom: "12px" }}>
+            <div className="error-message" style={{ marginBottom: "12px" }}>
               {renewError}
             </div>
           )}
@@ -219,7 +203,7 @@ export function ProfileActions({
       <h2>{t("texts.actions")}</h2>
       <div className="pinned-content">
         <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "16px" }}>
-          {(isSubscribed || user?.admin_subscription?.url || user?.partner_subscription?.url) && (
+          {(isSubscribed || hasAdminSub || user?.partner_subscription?.url) && (
             <Link href="/client" className="button" style={{ display: "block", textAlign: "center", textDecoration: "none" }}>
               {t("texts.setup_client")}
             </Link>

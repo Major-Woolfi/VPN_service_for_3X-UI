@@ -17,7 +17,7 @@ export async function generateMetadata() {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local";
 
   return {
-    title: `${("texts.qa")} - ${siteName}`,
+    title: `${t("texts.qa")} - ${siteName}`,
     description: t("texts.qa_subtitle"),
     keywords: [
       "faq vpn",
@@ -39,7 +39,7 @@ export async function generateMetadata() {
       locale: lang,
       url: `${siteUrl}/qa`,
       siteName,
-      title: `${("texts.qa")} - ${siteName}`,
+      title: `${t("texts.qa")} - ${siteName}`,
       description: t("texts.qa_subtitle"),
       images: [
         {
@@ -52,7 +52,7 @@ export async function generateMetadata() {
     },
     twitter: {
       card: "summary",
-      title: `${("texts.qa")} - ${siteName}`,
+      title: `${t("texts.qa")} - ${siteName}`,
       description: t("texts.qa_subtitle"),
       images: ["/icon.jpg"],
     },

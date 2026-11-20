@@ -1,7 +1,7 @@
 import { MetadataRoute } from "next";
 
 export default function robots(): MetadataRoute.Robots {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "";
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local";
 
   return {
     rules: [
@@ -17,6 +17,7 @@ export default function robots(): MetadataRoute.Robots {
           "/settings",
           "/profile",
           "/payment",
+          "/banned",
         ],
         crawlDelay: 1,
       },

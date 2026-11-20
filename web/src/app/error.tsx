@@ -4,10 +4,9 @@ import Header from "@/components/Header";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function Error({
-  Error,
   reset,
 }: {
-  Error: Error & { digest?: string };
+  error: Error & { digest?: string };
   reset: () => void;
 }) {
   const { t } = useLanguage();
@@ -26,7 +25,7 @@ export default function Error({
               <p
                 style={{ color: "var(--text-secondary)", marginBottom: "16px" }}
               >
-                {Error?.message || t("texts.checkout_Error")}
+                {t("texts.checkout_error")}
               </p>
               <button onClick={reset} className="button">
                 {t("buttons.continue")}

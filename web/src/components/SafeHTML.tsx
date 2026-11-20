@@ -1,6 +1,6 @@
 "use client";
 
-import { createElement, type ReactNode } from "react";
+import React, { createElement, type ReactNode } from "react";
 
 interface SafeHTMLProps {
   html: string;

@@ -14,20 +14,20 @@ export default function BbannedPage() {
 
   return (
     <>
-      <Header currentPage="/bbanned" />
+      <Header currentPage="/banned" />
       <main>
         <div className="profile">
           <div className="profile-header no-avatar">
             <div className="profile-info">
               <h1 className="profile-name">
-                {t("texts.account_bbanned_title")}
+                {t("texts.account_banned_title")}
               </h1>
             </div>
           </div>
           <div className="pinned-section fade-in">
             <div className="pinned-content">
               <p style={{ marginTop: "16px", color: "var(--text-secondary)" }}>
-                {t("texts.account_bbanned_message")}
+                {t("texts.account_banned_message")}
               </p>
               <div style={{ marginTop: "24px", textAlign: "center" }}>
                 {supportHref ? (

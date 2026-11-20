@@ -4,8 +4,10 @@ import type { TranslationData } from "./i18n-types";
 export { TranslationData };
 
 function getDefaultlanguage(): string {
-  const configured = process.env.NEXT_PUBLIC_DEFAULT_language;
+  const configured = process.env.NEXT_PUBLIC_DEFAULT_LANGUAGE;
   if (configured && languages[configured]) return configured;
+
+  if (languages.ru) return "ru";
 
   const firstlanguage = Object.keys(languages)[0];
   if (!firstlanguage) throw new Error("No languages configured");

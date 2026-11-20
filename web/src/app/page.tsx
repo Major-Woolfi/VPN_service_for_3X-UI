@@ -135,7 +135,7 @@ export default async function Home() {
                         <div className="stat-value">
                           {stats.bbanned_users ?? 0}
                         </div>
-                        <div className="stat-label">{t("texts.bbanned")}</div>
+                        <div className="stat-label">{t("texts.banned")}</div>
                       </div>
                     )}
                 </div>

@@ -4,8 +4,7 @@ import { cookies } from "next/headers";
 
 import {
   SESSION_COOKIE_NAME,
-  UPSTREAM_TIMEOUT_MS,
-  getBotApiBase,
+  fetchServerProfileResult,
 } from "./bot-proxy";
 import type { SanitizedUser } from "../types";
 
@@ -21,7 +20,7 @@ export type ServerSessionState =
   | { kind: "anonymous" }
   | { kind: "authenticated"; user: SanitizedUser }
   | { kind: "expired" }
-  | { kind: "bbanned"; reason: string }
+  | { kind: "banned"; reason: string }
   | { kind: "unavailable" };
 
 export async function resolveServerSession(): Promise<ServerSessionState> {
@@ -29,31 +28,16 @@ export async function resolveServerSession(): Promise<ServerSessionState> {
   if (!token) return { kind: "anonymous" };
 
   try {
-    const response = await fetch(`${getBotApiBase()}/api/v1/profile`, {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-    });
+    const result = await fetchServerProfileResult(token);
 
-    if (response.status === 403) {
-      const data = (await response.json().catch(() => null)) as {
-        ban_reason?: unknown;
-      } | null;
-      const reason =
-        data && typeof data.ban_reason === "string" ? data.ban_reason : "";
-      return { kind: "bbanned", reason };
+    if (result.status === 403) {
+      return { kind: "banned", reason: result.banReason };
     }
-    if (response.status === 401) {
+    if (result.status === 401) {
       return { kind: "expired" };
     }
-    if (!response.ok) return { kind: "unavailable" };
-    const data = (await response
-      .json()
-      .catch(() => null)) as SanitizedUser | null;
-    if (data && typeof data === "object") {
-      return { kind: "authenticated", user: data };
-    }
-    return { kind: "unavailable" };
+    if (result.status !== 200 || !result.user) return { kind: "unavailable" };
+    return { kind: "authenticated", user: result.user };
   } catch {
     return { kind: "unavailable" };
   }

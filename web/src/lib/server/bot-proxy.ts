@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import type { SanitizedUser } from "../types";
@@ -7,6 +8,10 @@ import type { SanitizedUser } from "../types";
 export const SESSION_COOKIE_NAME = "vpn_token";
 export const UPSTREAM_TIMEOUT_MS = 12_000;
 export const DEFAULT_SESSION_MAX_AGE = 30 * 24 * 60 * 60;
+export const MAX_REQUEST_BODY_BYTES = 2 * 1024 * 1024;
+const MAX_UPSTREAM_RESPONSE_BYTES = 5 * 1024 * 1024;
+const PROFILE_CACHE_TTL_MS = 3_000;
+const PROFILE_CACHE_MAX_ENTRIES = 1_000;
 
 export function getBotApiBase(): string {
   return (process.env.BOT_API_URL || "http://localhost:2005/api/v1")
@@ -17,7 +22,13 @@ export function getBotApiBase(): string {
 export function sanitizeApiPath(segments: string[]): string {
   const starts: string[] = [];
   for (const raw of segments) {
-    const segment = decodeURIComponent(raw)
+    let decoded: string;
+    try {
+      decoded = decodeURIComponent(raw);
+    } catch {
+      continue;
+    }
+    const segment = decoded
       .replace(/[^A-Za-z0-9_.\-~]/g, "")
       .replace(/\.{2,}/g, ".");
     if (segment && segment !== "." && segment !== "..") {
@@ -71,15 +82,45 @@ function extractUpstreamSession(
   ).exec(setCookie);
   if (!match) return null;
 
-  const value = decodeURIComponent(match[1] || "").trim();
+  let value: string;
+  try {
+    value = decodeURIComponent(match[1] || "").trim();
+  } catch {
+    return { clear: true };
+  }
   if (!value) return { clear: true };
 
   const maxAgeMatch = /(?:^|[;,]\s*)Max-Age=(-?\d+)/i.exec(setCookie);
-  const maxAge = maxAgeMatch
-    ? Math.abs(Number(maxAgeMatch[1]))
+  const rawMaxAge = maxAgeMatch
+    ? Number(maxAgeMatch[1])
     : DEFAULT_SESSION_MAX_AGE;
+  if (rawMaxAge <= 0) return { clear: true };
 
-  return { token: value, maxAge: maxAge || DEFAULT_SESSION_MAX_AGE };
+  return { token: value, maxAge: rawMaxAge || DEFAULT_SESSION_MAX_AGE };
+}
+
+export async function readCappedResponseText(
+  response: Response,
+): Promise<string | null> {
+  const declared = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > MAX_UPSTREAM_RESPONSE_BYTES) {
+    return null;
+  }
+  const body = response.body;
+  if (!body) return "";
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    text += decoder.decode(value, { stream: true });
+    if (text.length > MAX_UPSTREAM_RESPONSE_BYTES) {
+      await reader.cancel();
+      return null;
+    }
+  }
+  return text + decoder.decode();
 }
 
 async function readUpstreamBody(response: Response): Promise<{
@@ -87,11 +128,19 @@ async function readUpstreamBody(response: Response): Promise<{
   isJson: boolean;
 }> {
   const contentType = response.headers.get("content-type") || "";
+  const text = await readCappedResponseText(response);
+  if (text === null) {
+    return { data: { Error: "bot_response_too_large" }, isJson: true };
+  }
   if (contentType.includes("application/json")) {
-    const data = await response.json().catch(() => null);
+    let data: unknown = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = null;
+    }
     return { data, isJson: true };
   }
-  const text = await response.text();
   return {
     data: text ? { Error: text } : { Error: response.statusText },
     isJson: false,
@@ -122,6 +171,10 @@ export async function proxyBotRequest(
   const headers: Record<string, string> = { Accept: "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
   if (options.contentType) headers["Content-Type"] = options.contentType;
+  const forwardedFor =
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    request.headers.get("x-real-ip")?.trim();
+  if (forwardedFor) headers["X-Forwarded-For"] = forwardedFor;
 
   let upstream: Response;
   try {
@@ -184,23 +237,61 @@ export async function proxyBotRequest(
   return { response, sessionHost, sessionRefreshed: false };
 }
 
-export async function fetchServerProfile(
+export interface ServerProfileResult {
+  user: SanitizedUser | null;
+  status: number;
+  banReason: string;
+}
+
+const profileCache = new Map<string, { expires: number; result: ServerProfileResult }>();
+
+function parseBanReason(payload: unknown): string {
+  if (!payload || typeof payload !== "object") return "";
+  const reason = (payload as { ban_reason?: unknown }).ban_reason;
+  return typeof reason === "string" ? reason : "";
+}
+
+export async function fetchServerProfileResult(
   token: string,
-): Promise<SanitizedUser | null> {
+): Promise<ServerProfileResult> {
+  const key = createHash("sha256").update(token).digest("hex");
+  const cached = profileCache.get(key);
+  if (cached && cached.expires > Date.now()) return cached.result;
+
+  const unavailable: ServerProfileResult = { user: null, status: 503, banReason: "" };
   try {
     const response = await fetch(`${getBotApiBase()}/api/v1/profile`, {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
-    if (!response.ok) return null;
-    const data = (await response
-      .json()
-      .catch(() => null)) as SanitizedUser | null;
-    return data && typeof data === "object" ? data : null;
+    const payload = (await response.json().catch(() => null)) as unknown;
+    const user =
+      response.ok && payload && typeof payload === "object"
+        ? (payload as SanitizedUser)
+        : null;
+    const result: ServerProfileResult = {
+      user,
+      status: response.status,
+      banReason: response.status === 403 ? parseBanReason(payload) : "",
+    };
+    if (profileCache.size >= PROFILE_CACHE_MAX_ENTRIES) {
+      const now = Date.now();
+      for (const [cacheKey, entry] of profileCache) {
+        if (entry.expires <= now) profileCache.delete(cacheKey);
+      }
+    }
+    profileCache.set(key, { expires: Date.now() + PROFILE_CACHE_TTL_MS, result });
+    return result;
   } catch {
-    return null;
+    return unavailable;
   }
+}
+
+export async function fetchServerProfile(
+  token: string,
+): Promise<SanitizedUser | null> {
+  return (await fetchServerProfileResult(token)).user;
 }
 
 

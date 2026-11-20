@@ -2,17 +2,14 @@ import "server-only";
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { API_BASE_URL } from "../api";
-import type { SanitizedUser } from "../types";
+import {
+  fetchServerProfileResult,
+  getBotApiBase,
+  readCappedResponseText,
+} from "./bot-proxy";
 
 const REQUEST_TIMEOUT_MS = 10_000;
 const SESSION_COOKIE_NAME = "vpn_token";
-
-function getBotApiBase(): string {
-  return (process.env.BOT_API_URL || API_BASE_URL)
-    .replace(/\/api\/v1\/?$/, "")
-    .replace(/\/$/, "");
-}
 
 function sanitizePath(path: string): string {
   const cleaned = path
@@ -35,12 +32,15 @@ function extractSessionToken(request: NextRequest): string | null {
 
 async function readUpstreamResponse(response: Response): Promise<unknown> {
   const contentType = response.headers.get("content-type") || "";
-
+  const text = await readCappedResponseText(response);
+  if (text === null) return { Error: "bot_response_too_large" };
   if (contentType.includes("application/json")) {
-    return response.json();
+    try {
+      return text ? JSON.parse(text) : null;
+    } catch {
+      return null;
+    }
   }
-
-  const text = await response.text();
   return text ? { Error: text } : { Error: response.statusText };
 }
 
@@ -51,20 +51,12 @@ interface VerifyAdminResult {
 
 async function verifyAdmin(token: string): Promise<VerifyAdminResult> {
   try {
-    const response = await fetch(`${getBotApiBase()}/api/v1/profile`, {
-      cache: "no-store",
-      headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
-    if (!response.ok) {
-      return { isAdmin: false, status: response.status };
-    }
-    const data = (await response.json().catch(() => null)) as
-      | (SanitizedUser & {
-          is_admin?: boolean;
-        })
-      | null;
-    return { isAdmin: !!data && !!data.is_admin, status: 200 };
+    const result = await fetchServerProfileResult(token);
+    const user = result.user as { is_admin?: boolean } | null;
+    return {
+      isAdmin: result.status === 200 && !!user && !!user.is_admin,
+      status: result.status,
+    };
   } catch {
     return { isAdmin: false, status: 503 };
   }
@@ -92,13 +84,17 @@ export async function proxyAdminRequest(
     }
 
     const sanitized = sanitizePath(path);
+    const headers = new Headers(init.headers);
+    headers.set("Authorization", authorization);
+    const forwardedFor =
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      request.headers.get("x-real-ip")?.trim();
+    if (forwardedFor) headers.set("X-Forwarded-For", forwardedFor);
+
     const response = await fetch(`${getBotApiBase()}${sanitized}`, {
       ...init,
       cache: "no-store",
-      headers: {
-        Authorization: authorization,
-        ...init.headers,
-      },
+      headers,
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     const data = await readUpstreamResponse(response);

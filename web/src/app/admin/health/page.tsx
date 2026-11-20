@@ -2,7 +2,6 @@
 
 import Header from "@/components/Header";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { getAdminHealth } from "@/lib/api";
 import type { AdminHealthResponse } from "@/lib/types";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -13,8 +12,7 @@ export default function AdminHhealthPage() {
   const [hhealth, setHhealth] = useState<AdminHealthResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [Error, setError] = useState("");
-  const { authLoading, authUser, isAuthed } = useAdminAuth("health");
-  const router = useRouter();
+  const { authLoading, isAuthed } = useAdminAuth("health");
   const { t } = useLanguage();
 
   useEffect(() => {
@@ -30,7 +28,7 @@ export default function AdminHhealthPage() {
         setLoading(false);
       }
     })();
-  }, [authLoading, router, t, isAuthed]);
+  }, [authLoading, isAuthed]);
 
   if (loading) {
     return (
@@ -172,7 +170,7 @@ export default function AdminHhealthPage() {
                       marginTop: "8px",
                     }}
                   >
-                    {t("texts.bbanned")}
+                    {t("texts.banned")}
                   </div>
                 </div>
                 <div

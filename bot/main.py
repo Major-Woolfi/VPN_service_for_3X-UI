@@ -117,6 +117,13 @@ def _generate_missing_secrets() -> None:
     if not missing:
         return
 
+    if not ENV_FILE.is_file():
+        raise RuntimeError(
+            "Отсутствуют обязательные секреты: "
+            f"{', '.join(missing)}. Создайте .env на основе .env.example "
+            "и задайте уникальные значения."
+        )
+
     try:
         for name in missing:
             value = secrets.token_urlsafe(48)
@@ -125,8 +132,11 @@ def _generate_missing_secrets() -> None:
         with suppress(PermissionError, OSError):
             os.chmod(ENV_FILE, 0o600)
         logger.info(f"Сгенерированы отсутствующие секреты: {', '.join(missing)}")
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f"Не удалось сгенерировать секреты: {e}")
+    except Exception as e:
+        raise RuntimeError(
+            f"Не удалось сохранить секреты в {ENV_FILE}: {e}. "
+            "Задайте секреты вручную и перезапустите сервис."
+        ) from e
 
 
 _generate_missing_secrets()
@@ -2655,7 +2665,31 @@ class Database:
                         admin_test_expiry TEXT DEFAULT ''
                     )
                 """)
+                await self.conn.execute("""
+                    CREATE TABLE IF NOT EXISTS partner_tg_channels (
+                        channel_id INTEGER PRIMARY KEY,
+                        title TEXT DEFAULT '',
+                        username TEXT DEFAULT '',
+                        owner_user_id INTEGER DEFAULT 0,
+                        owner_telegram_id INTEGER DEFAULT 0,
+                        added_at TEXT DEFAULT '',
+                        last_checked_at TEXT DEFAULT '',
+                        last_status TEXT DEFAULT '',
+                        last_error TEXT DEFAULT '',
+                        is_owner_verified INTEGER DEFAULT 0,
+                        has_posting_rights INTEGER DEFAULT 0,
+                        is_active INTEGER DEFAULT 1
+                    )
+                """)
                 logger.info("init_db: CREATE TABLE выполнен, индексы создаются")
+                await self.conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_partner_channels_owner "
+                    "ON partner_tg_channels(owner_user_id)"
+                )
+                await self.conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_partner_channels_active "
+                    "ON partner_tg_channels(is_active)"
+                )
                 try:
                     await self.conn.execute("""
                         CREATE UNIQUE INDEX IF NOT EXISTS idx_users_ref_code
@@ -20728,9 +20762,26 @@ class BOT_FastAPI:
 
         @self.app.websocket("/ws/notifications/{user_id}")
         async def ws_notifications(websocket: WebSocket, user_id: str) -> None:
-            logger.info(f"WS connect: notifications user_id={user_id}")
+            token = websocket.query_params.get("token", "").strip()
+            auth_header = websocket.headers.get("authorization", "")
+            if auth_header.startswith(BEARER_PREFIX):
+                token = token or auth_header[len(BEARER_PREFIX) :].strip()
+            session_user = await db.get_user_by_session_token(token) if token else None
+            if not session_user:
+                logger.warning("WS notifications: неавторизованное подключение")
+                await websocket.close(code=4001)
+                return
+
+            internal_uid = to_int(session_user.get("user_id"), 0)
+            telegram_uid = to_int(session_user.get("telegram_id"), 0)
+            if not internal_uid or user_id not in {str(internal_uid), str(telegram_uid)}:
+                logger.warning("WS notifications: попытка подключения к чужому user_id")
+                await websocket.close(code=4003)
+                return
+
+            key = f"notif_{internal_uid}"
+            logger.info(f"WS connect: notifications uid={internal_uid}")
             await websocket.accept()
-            key = f"notif_{user_id}"
             if key not in _active_connections:
                 _active_connections[key] = []
             _active_connections[key].append(websocket)
@@ -20738,7 +20789,7 @@ class BOT_FastAPI:
                 while True:
                     await websocket.receive_text()
             except WebSocketDisconnect:
-                logger.info(f"WS disconnect: notifications user_id={user_id}")
+                logger.info(f"WS disconnect: notifications uid={internal_uid}")
                 _active_connections.get(key, []).remove(websocket)
                 if key in _active_connections and not _active_connections[key]:
                     del _active_connections[key]

@@ -45,8 +45,8 @@ export default function LoginPage() {
   const reasonError =
     reason === "session_expired"
       ? t("texts.session_expired")
-      : reason === "bbanned"
-        ? t("texts.account_bbanned")
+      : reason === "banned"
+        ? t("texts.account_banned")
         : reason === "auth_expired"
           ? t("texts.auth_error")
           : reason === "auth_timeout"
@@ -186,7 +186,7 @@ export default function LoginPage() {
                 </div>
 
                 {shownError && (
-                  <div className="Error-message">{shownError}</div>
+                  <div className="error-message">{shownError}</div>
                 )}
 
                 {method === "password" ? (

@@ -128,8 +128,8 @@ export default function ClientPage() {
       <Header currentPage="/client" />
       <main>
         {subscriptionlinkError && (
-          <div className="Error-message" role="alert">
-            {t("texts.subscription_link_Error")}
+          <div className="error-message" role="alert">
+            {t("texts.subscription_link_error")}
           </div>
         )}
         <div className="profile">
@@ -185,7 +185,7 @@ export default function ClientPage() {
                   rel="noopener noreferrer"
                   className="button"
                   style={{
-                    display: "ionline-block",
+                    display: "inline-block",
                     marginTop: "8px",
                     textDecoration: "none",
                   }}

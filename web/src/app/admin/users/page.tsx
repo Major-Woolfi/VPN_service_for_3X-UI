@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { getUsers } from "@/lib/api";
 import type { UserListResponse } from "@/lib/types";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useAuth } from "@/contexts/AuthContext";
 import { useAdminAuth } from "@/app/hooks/useAdminAuth";
 
 export default function AdminUsersPage() {
@@ -16,7 +15,7 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [Error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [searchTimeout, setSearchTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { authLoading, authUser, isAuthed } = useAdminAuth("users");
   const router = useRouter();
   const { t } = useLanguage();
@@ -37,7 +36,7 @@ export default function AdminUsersPage() {
     } finally {
       setLoading(false);
     }
-  }, [authUser, limit, searchTerm, t]);
+  }, [isAuthed, limit, searchTerm]);
 
   useEffect(() => {
     if (authLoading || !isAuthed) return;
@@ -45,15 +44,13 @@ export default function AdminUsersPage() {
   }, [authLoading, router, loadUsers, authUser, isAuthed, page]);
 
   useEffect(() => {
-    if (searchTimeout) clearTimeout(searchTimeout);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     const id = setTimeout(() => {
       setPage(1);
       void loadUsers();
     }, 300);
-    setSearchTimeout(id);
-    return () => {
-      if (searchTimeout) clearTimeout(searchTimeout);
-    };
+    searchTimeoutRef.current = id;
+    return () => clearTimeout(id);
   }, [searchTerm, loadUsers]);
 
   const totalPages = Math.ceil(total / limit);

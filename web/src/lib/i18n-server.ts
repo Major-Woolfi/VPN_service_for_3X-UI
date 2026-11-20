@@ -16,8 +16,10 @@ export interface SiteCopy {
 }
 
 function getDefaultlanguage(): string {
-  const configured = process.env.NEXT_PUBLIC_DEFAULT_language;
+  const configured = process.env.NEXT_PUBLIC_DEFAULT_LANGUAGE;
   if (configured && SERVER_languages[configured]) return configured;
+
+  if (SERVER_languages.ru) return "ru";
 
   const firstlanguage = Object.keys(SERVER_languages)[0];
   if (firstlanguage) return firstlanguage;

@@ -70,7 +70,7 @@ export default function SettingsPage() {
     user: authUser,
     setUser,
   } = useAuth();
-  const { theme, toggleTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
   const { t } = useLanguage();
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "Error">(
@@ -262,7 +262,7 @@ export default function SettingsPage() {
           {message && (
             <div
               className={
-                messageType === "success" ? "success-message" : "Error-message"
+                messageType === "success" ? "success-message" : "error-message"
               }
             >
               {message}
@@ -305,7 +305,7 @@ export default function SettingsPage() {
                     >
                       <span
                         style={{
-                          display: "ionline-flex",
+                          display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
                           width: "20px",
@@ -358,7 +358,7 @@ export default function SettingsPage() {
                 }}
               >
                 <button
-                  onClick={toggleTheme}
+                  onClick={() => setTheme("dark")}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -389,7 +389,7 @@ export default function SettingsPage() {
                   </span>
                 </button>
                 <button
-                  onClick={toggleTheme}
+                  onClick={() => setTheme("light")}
                   style={{
                     display: "flex",
                     alignItems: "center",

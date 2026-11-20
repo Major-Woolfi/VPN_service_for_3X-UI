@@ -326,12 +326,12 @@ export default function SubscribePage() {
       return;
     }
     if (customPrice === null) {
-      setError(t("texts.custom_tariff_Error"));
+      setError(t("texts.custom_tariff_error"));
       return;
     }
     const customTariff: Tariff = {
       id: "custom",
-      name: `${("texts.custom_tariff")} ${customTraffic}GB / ${customIp}IP / ${customDays}d`,
+      name: `${t("texts.custom_tariff")} ${customTraffic}GB / ${customIp}IP / ${customDays}d`,
       price_rub: customPrice,
       traffic_gb: customTraffic,
       ip_limit: customIp,
@@ -407,19 +407,6 @@ export default function SubscribePage() {
       : original;
     return { original, discounted, percent };
   }, [checkoutResult, activeTariff, userDiscountPercent]);
-
-  useEffect(() => {
-    const shouldRedirect =
-      (checkoutResult || trialDone) &&
-      !processing &&
-      !(testResult && !testResult.wait_admin);
-    if (shouldRedirect) {
-      const timer = setTimeout(() => {
-        router.push("/profile");
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [checkoutResult, processing, router, trialDone, testResult]);
 
   if (authLoading || featuresLoading || loading || !user) {
     return (
@@ -525,7 +512,7 @@ export default function SubscribePage() {
             </div>
           </div>
 
-          {activError && <div className="Error-message">{activError}</div>}
+          {activError && <div className="error-message">{activError}</div>}
 
           {activeStep === "select" && (
             <div className="pinned-section fade-in">

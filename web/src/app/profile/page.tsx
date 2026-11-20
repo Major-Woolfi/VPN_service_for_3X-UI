@@ -15,7 +15,6 @@ import type {
 } from "@/lib/types";
 import {
   ProfileHeader,
-  ProfileStatusBadge,
   ProfileStats,
   ProfileRenewForm,
   ProfileActions,
@@ -55,7 +54,7 @@ export default function ProfilePage() {
     } finally {
       setRenewLoading(false);
     }
-  }, [user, refreshUser, t]);
+  }, [user, refreshUser]);
 
   useEffect(() => {
     if (!user) {
@@ -88,9 +87,6 @@ export default function ProfilePage() {
       ? t("texts.unlimited")
       : t("texts.traffic_gb", { value: trafficTotal });
   const displayIps = isAdminSub ? t("texts.unlimited") : sub?.ip_limit || 0;
-
-  const initials = (user?.login || user?.username)?.charAt(0).toUpperCase() || "?";
-  const hasTid = Boolean(user?.telegram_id);
 
 const hasSublink = Boolean(
       fetchedSublink?.link?.vpn_url ||
@@ -126,7 +122,7 @@ const hasSublink = Boolean(
       <Header currentPage="/profile" />
       <main>
         <div className="profile">
-          <ProfileHeader user={user} t={t} lang={lang} />
+          <ProfileHeader user={user} t={t} />
 
           <div className="pinned-section fade-in">
             <h2>{t("texts.subscription_status")}</h2>
@@ -204,7 +200,7 @@ const hasSublink = Boolean(
             <>
               <ProfileStats user={user} sub={sub} t={t} lang={lang} />
 
-              <ProfileRenewForm user={user} sub={sub} renewLoading={renewLoading} renewResult={renewResult} renewError={renewError} handleRenew={handleRenew} t={t} />
+              <ProfileRenewForm user={user} renewLoading={renewLoading} renewResult={renewResult} renewError={renewError} handleRenew={handleRenew} t={t} />
 
               <div className="pinned-section fade-in delay-1">
                 <h2>{t("texts.traffic_progress")}</h2>

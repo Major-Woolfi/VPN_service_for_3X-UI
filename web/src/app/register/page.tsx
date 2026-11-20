@@ -32,8 +32,8 @@ export default function RegisterPage() {
     e.preventDefault();
     setError("");
 
-    const ssanitizedWebLogin = web_login.replace(/[<>"'&]/g, "").trim();
-    if (ssanitizedWebLogin.length < 3) {
+    const sanitizedWebLogin = web_login.replace(/[<>"'&]/g, "").trim();
+    if (sanitizedWebLogin.length < 3) {
       setError(t("texts.web_login_too_short"));
       return;
     }
@@ -49,7 +49,7 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       await registerUser({
-        web_login: ssanitizedWebLogin,
+        web_login: sanitizedWebLogin,
         password,
         ref_code: refCode || undefined,
       });
@@ -76,7 +76,7 @@ export default function RegisterPage() {
           <div className="pinned-section fade-in">
             <div className="pinned-content">
               <div className="flex flex-col gap-4 mt-5">
-                {Error && <div className="Error-message">{Error}</div>}
+                {Error && <div className="error-message">{Error}</div>}
 
                 <form
                   onSubmit={handlePasswordRegister}

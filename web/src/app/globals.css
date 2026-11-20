@@ -1902,3 +1902,63 @@ select.form-input {
 .text-center.text-secondary.text-sm {
   text-align: center;
 }
+
+/* === MISSING UTILITIES (used in JSX, previously undefined) === */
+.flex {
+  display: flex;
+}
+
+.grid {
+  display: grid;
+}
+
+.antialiased {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.font-sans {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+}
+
+.h-full {
+  height: 100%;
+}
+
+.min-h-full {
+  min-height: 100%;
+}
+
+.mt-5 {
+  margin-top: 1.25rem;
+}
+
+.gap-2 {
+  gap: 0.5rem;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.delay-3 {
+  animation-delay: 0.45s;
+}
+
+.delay-4 {
+  animation-delay: 0.6s;
+}
+
+.faq-section {
+  width: 100%;
+}

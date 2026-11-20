@@ -14,9 +14,9 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { generateJsonLdScript } from "@/lib/structured-data";
 import {
-  getServerLanguages,
   getServerSiteCopy,
   normalizeServerlanguage,
+  type SiteCopy,
 } from "@/lib/i18n-server";
 import { resolveServerSession } from "@/lib/server/session";
 
@@ -69,7 +69,13 @@ export async function generateMetadata(): Promise<Metadata> {
       headerStore.get("accept-language") ||
       undefined,
   );
-  let copy;
+  const emptyLegal = () => ({
+    title: "",
+    subtitle: "",
+    effectiveDate: "",
+    sections: [],
+  });
+  let copy: SiteCopy;
   try {
     copy = getServerSiteCopy(lang);
   } catch {
@@ -77,7 +83,11 @@ export async function generateMetadata(): Promise<Metadata> {
       siteDescription: "",
       siteTitle: "",
       twitterDescription: "",
-      legal: { tos: {} as any, privacy: {} as any, offer: {} as any },
+      legal: {
+        tos: emptyLegal(),
+        privacy: emptyLegal(),
+        offer: emptyLegal(),
+      },
     };
   }
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local";
@@ -121,7 +131,7 @@ export async function generateMetadata(): Promise<Metadata> {
     "vpn vless",
     "vpn shadowsocks",
     "vpn reality",
-    "deшевый vpn",
+    "дешевый vpn",
     "cheap vpn",
     "бесплатный vpn",
     "free vpn",
@@ -202,15 +212,7 @@ export async function generateMetadata(): Promise<Metadata> {
       ],
     },
     alternates: {
-      languages: {
-        ...Object.fromEntries(
-          getServerLanguages().map((language) => [
-            language,
-            `${siteUrl}/${language}`,
-          ]),
-        ),
-        "x-default": siteUrl,
-      },
+      canonical: siteUrl,
     },
     twitter: {
       card: "summary_large_image",
@@ -252,15 +254,16 @@ export default async function RootLayout({
     pathname === "/register" ||
     pathname.startsWith("/login/") ||
     pathname.startsWith("/register/");
+  const isBannedPage = pathname === "/banned";
 
   const session = await resolveServerSession();
-  if (session.kind === "expired" && !isGuestPage) {
+  if (session.kind === "expired" && !isGuestPage && !isBannedPage) {
 
     redirect("/api/session/expired");
   }
 
-  if (session.kind === "bbanned" && !isGuestPage) {
-    redirect("/bbanned");
+  if (session.kind === "banned" && !isGuestPage && !isBannedPage) {
+    redirect("/banned");
   }
   const initialUser = session.kind === "authenticated" ? session.user : null;
 
@@ -276,22 +279,9 @@ export default async function RootLayout({
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta name="robots" content="index, follow" />
         <meta name="theme-color" content="#0a0a0a" />
-        <meta name="color-sctheme" content="dark" />
+        <meta name="color-scheme" content="dark" />
         <link
           rel="canonical"
-          href={`${process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local"}${pathname}`}
-        />
-        {getServerLanguages().map((language) => (
-          <link
-            key={language}
-            rel="alternate"
-            hrefLang={language}
-            href={`${process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local"}/${language}${pathname}`}
-          />
-        ))}
-        <link
-          rel="alternate"
-          hrefLang="x-default"
           href={`${process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local"}${pathname}`}
         />
         <link rel="preconnect" href={process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local"} />

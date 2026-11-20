@@ -3,9 +3,9 @@
 import { useEffect, useState, useRef } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import {
-  API_BASE_URL,
+  ApiError,
   HEALTH_POLL_INTERVAL_MS,
-  REQUEST_TIMEOUT_MS,
+  getHealth,
 } from "@/lib/api";
 
 type Health = { status: string; version: string } | null;
@@ -19,37 +19,22 @@ export default function LiveStatusBar() {
 
   useEffect(() => {
     let cancelled = false;
-    let abortController = new AbortController();
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
     const check = async () => {
       if (typeof document !== "undefined" && document.hidden) return;
 
-      if (timeoutId) clearTimeout(timeoutId);
-      abortController = new AbortController();
-      timeoutId = setTimeout(() => abortController.abort(), REQUEST_TIMEOUT_MS);
-
       try {
-        const res = await fetch(`${API_BASE_URL}/health`, {
-          cache: "no-store",
-          signal: abortController.signal,
-        });
-        if (!res.ok) throw new Error(t("texts.api_offline"));
-        const data = (await res.json()) as Health;
+        const data = await getHealth();
         if (!cancelled) {
           setHealth(data);
           setOnline(true);
           setLastUpdate(new Date());
         }
       } catch (err) {
-        if (!cancelled) {
-          setOnline(false);
-        }
-        if (abortController.signal.aborted) {
-          console.error("[LiveStatusBar] health check timeout");
-        } else {
-          console.error("[LiveStatusBar] health check Error:", err);
-        }
+        if (cancelled) return;
+        if (err instanceof ApiError && err.status === 429) return;
+        setOnline(false);
+        console.error("[LiveStatusBar] health check Error:", err);
       }
     };
 
@@ -65,12 +50,10 @@ export default function LiveStatusBar() {
 
     return () => {
       cancelled = true;
-      abortController.abort();
-      if (timeoutId) clearTimeout(timeoutId);
       clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [t]);
+  }, []);
 
   if (online === null) return null;
 
