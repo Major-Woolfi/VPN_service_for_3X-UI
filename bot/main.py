@@ -16675,7 +16675,6 @@ async def _csv_regen_sub_id(uid: int, values: dict[str, Any], user: dict[str, An
     if not inbound_ids:
         logger.error(f"CSV regen: нет доступных inbound для UID {uid}")
         return None
-    candidate = f"csv_{uid}_{secrets.token_hex(5)}"
     client = await panel.create_client(
         email=email,
         limit_ip=max(0, to_int(values.get("ip_limit"), 0)),
@@ -16683,9 +16682,8 @@ async def _csv_regen_sub_id(uid: int, values: dict[str, Any], user: dict[str, An
         days=_csv_days_from_expiry(values.get("expiry_sub_datatime"), plan),
         servers=servers,
         inbound_ids=inbound_ids,
-        sub_id=candidate,
     )
-    sub_id = normalize_sub_id(client.get("subId") if client else "") or None
+    sub_id = normalize_sub_id(client.get("subId") if client else "") or f"user_{uid}"
     if sub_id:
         logger.info(f"CSV regen: создан sub_id {sub_id} для UID {uid}")
     return sub_id
@@ -16948,8 +16946,13 @@ async def process_csv_editor_file(event: Message, state: FSMContext, **kwargs: A
         for column in CSV_COLUMNS:
             if column == "user_id" or column not in present_columns:
                 continue
+            raw_value = str(raw_row[column] or "")
+            if column == "vpn_url" and not raw_value.strip():
+                if "has_subscription" in values and not to_int(values["has_subscription"], 0):
+                    values[column] = ""
+                continue
             try:
-                values[column] = _csv_parse_value(column, str(raw_row[column] or ""))
+                values[column] = _csv_parse_value(column, raw_value)
             except (TypeError, ValueError):
                 add_error(
                     line_no,
@@ -16963,7 +16966,13 @@ async def process_csv_editor_file(event: Message, state: FSMContext, **kwargs: A
             continue
 
         vpn_raw = str(raw_row.get("vpn_url") or "").strip()
-        regen = vpn_raw.lower() in CSV_REGEN_MARKERS
+        existing_vpn = str((existing or {}).get("vpn_url") or "").strip()
+        has_subscription = to_int(
+            values.get("has_subscription", (existing or {}).get("has_subscription", 0)), 0
+        )
+        regen = vpn_raw.lower() in CSV_REGEN_MARKERS or (
+            not vpn_raw and has_subscription > 0 and not existing_vpn
+        )
         try:
             _csv_normalize_values(values, regen=regen)
         except (TypeError, ValueError) as exc:
@@ -17016,7 +17025,7 @@ async def process_csv_editor_file(event: Message, state: FSMContext, **kwargs: A
             add_error(line_no, "texts.csv_error_subscription_extra")
             continue
         if to_int(effective.get("has_subscription"), 0) and not (
-            subscription_id and effective_vpn and expiry
+            subscription_id and (regen or effective_vpn) and expiry
         ):
             add_error(line_no, "texts.csv_error_subscription_missing")
             continue

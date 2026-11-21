@@ -30,6 +30,10 @@ function escapeCsv(value: CoOwnerUser[CoOwnerField]): string {
   return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
+function hasCsvValue(value: CoOwnerUser[CoOwnerField]): boolean {
+  return value !== null && value !== undefined && String(value).trim() !== "";
+}
+
 export default function CoOwnersPage() {
   const { user, loading: authLoading } = useAuth();
   const { t } = useLanguage();
@@ -90,8 +94,12 @@ export default function CoOwnersPage() {
   };
 
   const handleDownload = () => {
-    const fields = USER_FIELDS.filter((field) => selectedFields.has(field.key));
-    if (!fields.length || !users) return;
+    if (!users) return;
+    const fields = USER_FIELDS.filter(
+      (field) =>
+        selectedFields.has(field.key) && users.users.some((item) => hasCsvValue(item[field.key])),
+    );
+    if (!fields.length) return;
     const rows = [
       fields.map((field) => escapeCsv(field.key)).join(","),
       ...users.users.map((item) => fields.map((field) => escapeCsv(item[field.key])).join(",")),
