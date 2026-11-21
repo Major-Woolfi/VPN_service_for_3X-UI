@@ -8,9 +8,7 @@ export default function ScrollAnimations() {
   useEffect(() => {
     if (typeof IntersectionObserver === "undefined") return;
 
-    const elements = Array.from(
-      document.querySelectorAll<HTMLElement>(".fade-in"),
-    );
+    const elements = Array.from(document.querySelectorAll<HTMLElement>(".fade-in"));
 
     const resume = (el: HTMLElement) => {
       el.style.animationPlayState = "running";

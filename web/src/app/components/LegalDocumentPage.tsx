@@ -1,9 +1,5 @@
 import Header from "@/components/Header";
-import {
-  tServer,
-  resolvelanguage,
-  getServerLegalDocument,
-} from "@/lib/i18n-server";
+import { tServer, resolvelanguage, getServerLegalDocument } from "@/lib/i18n-server";
 import { SafeHTML } from "@/components/SafeHTML";
 import { cookies, headers } from "next/headers";
 
@@ -14,18 +10,14 @@ interface LegalDocumentPageProps {
   page: string;
 }
 
-export default async function LegalDocumentPage({
-  docType,
-  page,
-}: LegalDocumentPageProps) {
+export default async function LegalDocumentPage({ docType, page }: LegalDocumentPageProps) {
   const cookieStore = await cookies();
   const headerStore = await headers();
   const lang = resolvelanguage(
     cookieStore.get("vpn_language")?.value,
     headerStore.get("accept-language") || undefined,
   );
-  const t = (key: string, params?: Record<string, string | number>) =>
-    tServer(lang, key, params);
+  const t = (key: string, params?: Record<string, string | number>) => tServer(lang, key, params);
   const copy = getServerLegalDocument(lang, docType);
 
   return (
@@ -57,12 +49,10 @@ export default async function LegalDocumentPage({
                 </p>
                 {copy.sections.map((section, idx) => (
                   <div key={idx}>
-                    <h2 style={{ marginTop: idx === 0 ? "0" : "24px" }}>
-                      {section.title}
-                    </h2>
-                    <p style={{ color: "var(--text-secondary)" }}>
+                    <h2 style={{ marginTop: idx === 0 ? "0" : "24px" }}>{section.title}</h2>
+                    <div style={{ color: "var(--text-secondary)" }}>
                       <SafeHTML html={section.content} />
-                    </p>
+                    </div>
                   </div>
                 ))}
               </div>

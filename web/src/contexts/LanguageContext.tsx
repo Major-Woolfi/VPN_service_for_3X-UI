@@ -4,6 +4,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useMemo,
   useState,
   useCallback,
   type ReactNode,
@@ -24,9 +25,7 @@ interface LanguageContextType {
   tObject: (key: string, langOverride?: string) => unknown;
 }
 
-const LanguageContext = createContext<LanguageContextType | undefined>(
-  undefined,
-);
+const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export function LanguageProvider({
   children,
@@ -75,13 +74,12 @@ export function LanguageProvider({
     [lang],
   );
 
-  return (
-    <LanguageContext.Provider
-      value={{ lang, setLang: setLangWrapper, t, tHtml, tObject }}
-    >
-      {children}
-    </LanguageContext.Provider>
+  const value = useMemo(
+    () => ({ lang, setLang: setLangWrapper, t, tHtml, tObject }),
+    [lang, setLangWrapper, t, tHtml, tObject],
   );
+
+  return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 }
 
 export function useLanguage() {

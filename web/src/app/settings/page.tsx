@@ -13,12 +13,9 @@ import {
   TELEGRAM_POLL_INTERVAL_MS,
   TELEGRAM_POLL_TIMEOUT_MS,
 } from "@/lib/api";
-import {
-  setCurrentLang,
-  getAvailableLanguages,
-  getLanguageDisplayName,
-} from "@/lib/i18n";
+import { setCurrentLang, getAvailableLanguages, getLanguageDisplayName } from "@/lib/i18n";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { getErrorMessage } from "@/lib/error";
 
 const link_POLL_INTERVAL = TELEGRAM_POLL_INTERVAL_MS;
 const link_POLL_TIMEOUT = TELEGRAM_POLL_TIMEOUT_MS;
@@ -63,19 +60,11 @@ const SunIcon = () => (
 
 export default function SettingsPage() {
   const router = useRouter();
-  const {
-    loading: authLoading,
-    logout,
-    refreshUser,
-    user: authUser,
-    setUser,
-  } = useAuth();
+  const { loading: authLoading, logout, refreshUser, user: authUser, setUser } = useAuth();
   const { theme, setTheme } = useTheme();
   const { t } = useLanguage();
   const [message, setMessage] = useState("");
-  const [messageType, setMessageType] = useState<"success" | "Error">(
-    "success",
-  );
+  const [messageType, setMessageType] = useState<"success" | "Error">("success");
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
@@ -84,9 +73,7 @@ export default function SettingsPage() {
   const [tglinkLoading, setTglinkLoading] = useState(false);
   const [tglinkError, setTglinkError] = useState(false);
   const [tglinkWaiting, setTglinkWaiting] = useState(false);
-  const linkPollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
-    null,
-  );
+  const linkPollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const linkPollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const languages = getAvailableLanguages().map((code) => ({
@@ -123,9 +110,7 @@ export default function SettingsPage() {
             setMessageType("success");
             setTimeout(() => setMessage(""), 3000);
           }
-        } catch {
-
-        }
+        } catch {}
         elapsed += link_POLL_INTERVAL;
         if (elapsed >= link_POLL_TIMEOUT) {
           stoplinkPolling();
@@ -174,7 +159,6 @@ export default function SettingsPage() {
   useEffect(() => {
     if (authLoading || !authUser || authUser.telegram_id > 0) return;
 
-    
     void fetchTglinkUrl();
   }, [authLoading, authUser, fetchTglinkUrl]);
 
@@ -185,15 +169,11 @@ export default function SettingsPage() {
       await changeLanguage(lang);
       setCurrentLang(lang);
       setUser((prev) => (prev ? { ...prev, language: lang } : prev));
-      setMessage(
-        t("texts.language_changed", { name: getLanguageDisplayName(lang) }),
-      );
+      setMessage(t("texts.language_changed", { name: getLanguageDisplayName(lang) }));
       setMessageType("success");
       setTimeout(() => setMessage(""), 3000);
     } catch (err) {
-      setMessage(
-        String(err)
-      );
+      setMessage(getErrorMessage(err));
       setMessageType("Error");
     }
   };
@@ -223,9 +203,7 @@ export default function SettingsPage() {
       setNewPassword("");
       setConfirmNewPassword("");
     } catch (err) {
-      setMessage(
-        String(err)
-      );
+      setMessage(getErrorMessage(err));
       setMessageType("Error");
     }
   };
@@ -260,11 +238,7 @@ export default function SettingsPage() {
           </div>
 
           {message && (
-            <div
-              className={
-                messageType === "success" ? "success-message" : "error-message"
-              }
-            >
+            <div className={messageType === "success" ? "success-message" : "error-message"}>
               {message}
             </div>
           )}
@@ -272,10 +246,7 @@ export default function SettingsPage() {
           <div className="pinned-section fade-in">
             <h2>{t("texts.language")}</h2>
             <div className="pinned-content">
-              <div
-                className="flex-center mt-4"
-                style={{ flexDirection: "column", gap: "8px" }}
-              >
+              <div className="flex-center mt-4" style={{ flexDirection: "column", gap: "8px" }}>
                 {languages.map((lang) => {
                   const isActive = authUser?.language === lang.code;
                   return (
@@ -293,9 +264,7 @@ export default function SettingsPage() {
                         border: isActive
                           ? "1px solid var(--accent)"
                           : "1px solid var(--border-color)",
-                        background: isActive
-                          ? "var(--accent-glow)"
-                          : "var(--bg-tertiary)",
+                        background: isActive ? "var(--accent-glow)" : "var(--bg-tertiary)",
                         color: "var(--text-primary)",
                         borderRadius: "var(--radius-sm)",
                         fontSize: "14px",
@@ -314,9 +283,7 @@ export default function SettingsPage() {
                           border: isActive
                             ? "2px solid var(--accent)"
                             : "2px solid var(--border-color)",
-                          background: isActive
-                            ? "var(--accent)"
-                            : "transparent",
+                          background: isActive ? "var(--accent)" : "transparent",
                           flexShrink: 0,
                         }}
                       >
@@ -364,14 +331,10 @@ export default function SettingsPage() {
                     alignItems: "center",
                     gap: "12px",
                     padding: "12px 16px",
-                    background:
-                      theme === "dark" ? "var(--accent-glow)" : "transparent",
+                    background: theme === "dark" ? "var(--accent-glow)" : "transparent",
                     borderRadius: "var(--radius-sm)",
                     cursor: "pointer",
-                    border:
-                      theme === "dark"
-                        ? "1px solid var(--accent)"
-                        : "1px solid transparent",
+                    border: theme === "dark" ? "1px solid var(--accent)" : "1px solid transparent",
                     color: "var(--text-primary)",
                     fontSize: "14px",
                     width: "100%",
@@ -395,14 +358,10 @@ export default function SettingsPage() {
                     alignItems: "center",
                     gap: "12px",
                     padding: "12px 16px",
-                    background:
-                      theme === "light" ? "var(--accent-glow)" : "transparent",
+                    background: theme === "light" ? "var(--accent-glow)" : "transparent",
                     borderRadius: "var(--radius-sm)",
                     cursor: "pointer",
-                    border:
-                      theme === "light"
-                        ? "1px solid var(--accent)"
-                        : "1px solid transparent",
+                    border: theme === "light" ? "1px solid var(--accent)" : "1px solid transparent",
                     color: "var(--text-primary)",
                     fontSize: "14px",
                     width: "100%",
@@ -436,6 +395,7 @@ export default function SettingsPage() {
               >
                 <input
                   type="password"
+                  aria-label={t("texts.old_password")}
                   placeholder={t("texts.old_password")}
                   className="faq-search-input"
                   style={{ marginBottom: "0" }}
@@ -444,6 +404,7 @@ export default function SettingsPage() {
                 />
                 <input
                   type="password"
+                  aria-label={t("texts.new_password")}
                   placeholder={t("texts.new_password")}
                   className="faq-search-input"
                   style={{ marginBottom: "0" }}
@@ -452,6 +413,7 @@ export default function SettingsPage() {
                 />
                 <input
                   type="password"
+                  aria-label={t("texts.confirm_new_password")}
                   placeholder={t("texts.confirm_new_password")}
                   className="faq-search-input"
                   style={{ marginBottom: "0" }}
@@ -459,6 +421,7 @@ export default function SettingsPage() {
                   onChange={(e) => setConfirmNewPassword(e.target.value)}
                 />
                 <button
+                  type="button"
                   onClick={handleChangePassword}
                   className="button"
                   style={{ width: "100%" }}
@@ -565,12 +528,7 @@ export default function SettingsPage() {
                           }
                         }}
                       >
-                        <svg
-                          width="20"
-                          height="20"
-                          viewBox="0 0 24 24"
-                          fill="currentColor"
-                        >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 0 0-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z" />
                         </svg>
                         {t("buttons.link_telegram")}
@@ -651,25 +609,19 @@ export default function SettingsPage() {
                   }}
                 >
                   <div style={{ marginBottom: "8px" }}>
-                    <span style={{ color: "var(--text-secondary)" }}>
-                      {t("texts.web_login")}:{" "}
-                    </span>
+                    <span style={{ color: "var(--text-secondary)" }}>{t("texts.web_login")}: </span>
                     <span>{authUser?.login || authUser?.username || "-"}</span>
                   </div>
-                  {authUser &&
-                    Number(authUser.telegram_id) > 0 &&
-                    authUser?.username && (
-                      <div style={{ marginBottom: "8px" }}>
-                        <span style={{ color: "var(--text-secondary)" }}>
-                          {t("texts.telegram_username_label")}:{" "}
-                        </span>
-                        <span>@{authUser.username}</span>
-                      </div>
-                    )}
+                  {authUser && Number(authUser.telegram_id) > 0 && authUser?.username && (
+                    <div style={{ marginBottom: "8px" }}>
+                      <span style={{ color: "var(--text-secondary)" }}>
+                        {t("texts.telegram_username_label")}:{" "}
+                      </span>
+                      <span>@{authUser.username}</span>
+                    </div>
+                  )}
                   <div style={{ marginBottom: "8px" }}>
-                    <span style={{ color: "var(--text-secondary)" }}>
-                      {t("texts.user_id")}:{" "}
-                    </span>
+                    <span style={{ color: "var(--text-secondary)" }}>{t("texts.user_id")}: </span>
                     <span>{authUser?.user_id}</span>
                   </div>
                   <div style={{ marginBottom: "8px" }}>
@@ -685,9 +637,7 @@ export default function SettingsPage() {
                     <span>{authUser?.trust_score}</span>
                   </div>
                   <div>
-                    <span style={{ color: "var(--text-secondary)" }}>
-                      {t("texts.discount")}:{" "}
-                    </span>
+                    <span style={{ color: "var(--text-secondary)" }}>{t("texts.discount")}: </span>
                     <span>{authUser?.discount_percent}%</span>
                   </div>
                 </div>
@@ -708,31 +658,3 @@ export default function SettingsPage() {
     </>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

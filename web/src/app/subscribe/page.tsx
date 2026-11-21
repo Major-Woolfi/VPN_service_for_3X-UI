@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useFeatures } from "@/contexts/FeaturesContext";
+import { formatTariffDuration, formatTariffTraffic } from "@/lib/i18n";
 import {
   getTariffs,
   createCheckout,
@@ -16,6 +17,7 @@ import {
   trialSubscription,
   getCustomTariffParams,
 } from "@/lib/api";
+import { getErrorMessage } from "@/lib/error";
 import type {
   Tariff,
   Location,
@@ -29,7 +31,7 @@ import { SafeHTML } from "@/components/SafeHTML";
 import { CopyableUrl } from "@/components/CopyableUrl";
 import { useCopyToClipboard } from "@/app/hooks/useCopyToClipboard";
 
-type Step = "select" | "offer" | "payment" | "custom";
+type Step = "select" | "offer" | "method" | "payment" | "custom";
 
 function roundHalfToEven(value: number): number {
   const rounded = Math.round(value);
@@ -41,24 +43,20 @@ export default function SubscribePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { features, loading: featuresLoading } = useFeatures();
   const [tariffs, setariffs] = useState<Tariff[]>([]);
+  const [tariffMode, setTariffMode] = useState<"old" | "new" | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState<Step>("select");
   const [selectedTariff, setSelectedTariff] = useState<Tariff | null>(null);
   const [urlSelsectionDismissed, setUrlSelsectionDismissed] = useState(false);
   const [Error, setError] = useState("");
   const [processing, setProcessing] = useState(false);
-  const [checkoutResult, setCheckoutResult] = useState<CheckoutResponse | null>(
-    null,
-  );
-  const [testResult, setTestResult] = useState<TestSubscriptionResponse | null>(
-    null,
-  );
+  const [checkoutResult, setCheckoutResult] = useState<CheckoutResponse | null>(null);
+  const [testResult, setTestResult] = useState<TestSubscriptionResponse | null>(null);
   const { copy, copied } = useCopyToClipboard();
-  const [hasPendingPartnerApplication, setHasPendingPartnerApplication] =
-    useState(false);
+  const [hasPendingPartnerApplication, setHasPendingPartnerApplication] = useState(false);
   const [isPartner, setIsPartner] = useState(false);
   const [userSubscrioptionstatus, setUserSubscrioptionstatus] = useState("");
   const [userTrustScore, setUserTrustScore] = useState(0);
@@ -76,17 +74,17 @@ export default function SubscribePage() {
   const [showCustomForm, setShowCustomForm] = useState(false);
   const [locations, setLocations] = useState<Location[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
-  const [customTariffParams, setCustomTariffParams] =
-    useState<CustomTariffParams | null>(null);
+  const [customTariffParams, setCustomTariffParams] = useState<CustomTariffParams | null>(null);
 
   const requestedTariffId = searchParams.get("tariff");
+  const availableMethods = features?.payment_methods || [];
 
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
       try {
-        const [tariffs, locations, customParams] = await Promise.all([
+        const [tariffData, locations, customParams] = await Promise.all([
           getTariffs(),
           getLocations(),
           features?.features?.custom_tariff && user
@@ -94,13 +92,14 @@ export default function SubscribePage() {
             : Promise.resolve(null),
         ]);
         if (!cancelled) {
-          setariffs(tariffs);
+          setariffs(tariffData.tariffs);
+          setTariffMode(tariffData.tariff_mode);
           setLocations(locations);
           setCustomTariffParams(customParams);
         }
       } catch (err) {
         if (!cancelled) {
-          console.error("Failed to load tariffs:", err);
+          setError(getErrorMessage(err));
         }
       }
     })();
@@ -113,7 +112,6 @@ export default function SubscribePage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) {
-
       const next = requestedTariffId
         ? `/subscribe?tariff=${encodeURIComponent(requestedTariffId)}`
         : "/subscribe";
@@ -147,40 +145,32 @@ export default function SubscribePage() {
 
   const preselectedTariff = useMemo(
     () =>
-      requestedTariffId
-        ? (visibleTariffs.find((t) => t.id === requestedTariffId) ?? null)
-        : null,
+      requestedTariffId ? (visibleTariffs.find((t) => t.id === requestedTariffId) ?? null) : null,
     [requestedTariffId, visibleTariffs],
   );
-  const urlBlockedkey = hasPendingPartnerApplication
+  const activeTariff: Tariff | null = selectedTariff ?? preselectedTariff;
+  const trialNeedsTelegram = Boolean(activeTariff?.is_trial) && !telegramlinked;
+  const blockedKey = hasPendingPartnerApplication
     ? "texts.partner_application_pending_block"
-    : !telegramlinked
-      ? "texts.subscription_requires_telegram"
-      : !canSelect
-        ? "texts.purchase_blocked_wait_admin"
+    : !canSelect
+      ? "texts.purchase_blocked_wait_admin"
+      : trialNeedsTelegram
+        ? "texts.trial_requires_telegram"
         : "";
   const urlPreselectActive =
-    preselectedTariff !== null &&
-    !urlSelsectionDismissed &&
-    !urlBlockedkey &&
-    !isAdmin;
+    preselectedTariff !== null && !urlSelsectionDismissed && !blockedKey && !isAdmin;
 
-  const activeTariff: Tariff | null = selectedTariff ?? preselectedTariff;
-  const activeStep: Step =
-    step !== "select" ? step : urlPreselectActive ? "offer" : "select";
-  const activError =
-    Error ||
-    (preselectedTariff && step === "select" && urlBlockedkey
-      ? t(urlBlockedkey)
-      : "");
+  const activeStep: Step = step !== "select" ? step : urlPreselectActive ? "offer" : "select";
+  const activError = Error || (step === "select" && blockedKey ? t(blockedKey) : "");
 
   const handleSelectariff = (tariff: Tariff) => {
+    if (processing) return;
     if (hasPendingPartnerApplication) {
       setError(t("texts.partner_application_pending_block"));
       return;
     }
-    if (!telegramlinked) {
-      setError(t("texts.subscription_requires_telegram"));
+    if (tariff.is_trial && !telegramlinked) {
+      setError(t("texts.trial_requires_telegram"));
       return;
     }
     if (!canSelect) {
@@ -211,16 +201,21 @@ export default function SubscribePage() {
       return;
     }
     if (activeTariff.is_trial) {
+      if (!telegramlinked) {
+        setError(t("texts.trial_requires_telegram"));
+        return;
+      }
       await handleTrial();
       return;
     }
     setSelectedTariff(activeTariff);
     setUrlSelsectionDismissed(true);
-    setStep("payment");
+    setStep("method");
     setError("");
   };
 
   const handleAdminTestPlan = async (tariff: Tariff) => {
+    if (processing) return;
     setProcessing(true);
     setError("");
     setUrlSelsectionDismissed(true);
@@ -243,7 +238,7 @@ export default function SubscribePage() {
       });
       setTestResult(result);
     } catch (err) {
-      setError(String(err));
+      setError(getErrorMessage(err));
     } finally {
       setProcessing(false);
     }
@@ -256,14 +251,14 @@ export default function SubscribePage() {
       await trialSubscription();
       setTrialDone(true);
     } catch (err) {
-      setError(String(err));
+      setError(getErrorMessage(err));
     } finally {
       setProcessing(false);
     }
   };
 
-  const handlePay = async () => {
-    if (!user || !activeTariff) return;
+  const createPaymentFor = async (method: PaymentMethod) => {
+    if (processing || !user || !activeTariff) return;
     setProcessing(true);
     setError("");
 
@@ -276,11 +271,24 @@ export default function SubscribePage() {
     try {
       const result = await createCheckout({
         plan_id: activeTariff.id,
-        method: selectedPaymentMethod,
+        method,
+        ...(activeTariff.id === "custom"
+          ? {
+              custom_plan: {
+                name: activeTariff.name,
+                price_rub: activeTariff.price_rub,
+                traffic_gb: activeTariff.traffic_gb,
+                ip_limit: activeTariff.ip_limit,
+                duration_days: activeTariff.duration_days,
+                servers: activeTariff.servers,
+              },
+            }
+          : {}),
       });
       setCheckoutResult(result);
+      setStep("payment");
     } catch (err) {
-      setError(String(err));
+      setError(getErrorMessage(err));
     } finally {
       setProcessing(false);
     }
@@ -311,10 +319,6 @@ export default function SubscribePage() {
   const handleSelectCustomTariff = () => {
     if (hasPendingPartnerApplication) {
       setError(t("texts.partner_application_pending_block"));
-      return;
-    }
-    if (!telegramlinked) {
-      setError(t("texts.subscription_requires_telegram"));
       return;
     }
     if (!canSelect) {
@@ -350,47 +354,6 @@ export default function SubscribePage() {
     setError("");
   };
 
-  const handlePayCustom = async () => {
-    if (!user || !activeTariff) return;
-    setProcessing(true);
-    setError("");
-
-    if (isPartner && userSubscrioptionstatus === "active") {
-      setError(t("texts.active_partner_subscription_guard"));
-      setProcessing(false);
-      return;
-    }
-
-    try {
-      const result = await createCheckout({
-        plan_id: "custom",
-        method: selectedPaymentMethod,
-        custom_plan: {
-          name: activeTariff.name,
-          price_rub: activeTariff.price_rub,
-          traffic_gb: activeTariff.traffic_gb,
-          ip_limit: activeTariff.ip_limit,
-          duration_days: activeTariff.duration_days,
-          servers: activeTariff.servers,
-        },
-      });
-      setCheckoutResult(result);
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  const availableMethods = features?.payment_methods || [];
-  const [requestedPaymentMethod, setRequestedPaymentMethod] =
-    useState<PaymentMethod>("card");
-  const selectedPaymentMethod: PaymentMethod = availableMethods.includes(
-    requestedPaymentMethod,
-  )
-    ? requestedPaymentMethod
-    : (availableMethods[0] as PaymentMethod | undefined) || "card";
-
   const amountInfo = useMemo(() => {
     if (!activeTariff) return null;
     if (checkoutResult) {
@@ -402,9 +365,7 @@ export default function SubscribePage() {
     }
     const original = activeTariff.price_rub;
     const percent = userDiscountPercent || 0;
-    const discounted = percent
-      ? roundHalfToEven(original * (1 - percent / 100))
-      : original;
+    const discounted = percent ? roundHalfToEven(original * (1 - percent / 100)) : original;
     return { original, discounted, percent };
   }, [checkoutResult, activeTariff, userDiscountPercent]);
 
@@ -458,7 +419,9 @@ export default function SubscribePage() {
                   )}
                   <TariffGrid
                     tariffs={visibleTariffs}
+                    tariffMode={tariffMode}
                     onSelect={handleSelectariff}
+                    disabled={processing}
                   />
                   <div
                     className="card"
@@ -518,21 +481,6 @@ export default function SubscribePage() {
             <div className="pinned-section fade-in">
               <h2>{t("texts.tariffs")}</h2>
               <div className="pinned-content">
-                {!canSelect && (
-                  <div
-                    className="card"
-                    style={{
-                      marginBottom: "16px",
-                      background: "var(--accent-glow)",
-                      border: "1px solid var(--accent)",
-                      color: "var(--text-primary)",
-                      fontSize: "14px",
-                      lineHeight: "1.5",
-                    }}
-                  >
-                    {t("texts.purchase_blocked_wait_admin")}
-                  </div>
-                )}
                 {isAdmin && (
                   <div
                     className="card"
@@ -548,31 +496,6 @@ export default function SubscribePage() {
                     {t("texts.admin_test_mode_hint")}
                   </div>
                 )}
-                {!telegramlinked && (
-                  <div
-                    className="card"
-                    style={{
-                      marginBottom: "16px",
-                      background: "var(--accent-glow)",
-                      border: "1px solid var(--accent)",
-                      color: "var(--text-primary)",
-                      fontSize: "14px",
-                      lineHeight: "1.5",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "12px",
-                    }}
-                  >
-                    <span>{t("texts.subscription_requires_telegram")}</span>
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      onClick={() => router.push("/settings")}
-                    >
-                      {t("buttons.link_telegram")}
-                    </button>
-                  </div>
-                )}
                 {visibleTariffs.length === 0 ? (
                   <p style={{ color: "var(--text-secondary)" }}>
                     {t("texts.no_tariffs_available")}
@@ -580,7 +503,9 @@ export default function SubscribePage() {
                 ) : (
                   <TariffGrid
                     tariffs={visibleTariffs}
+                    tariffMode={tariffMode}
                     onSelect={handleSelectariff}
+                    disabled={processing}
                   />
                 )}
               </div>
@@ -662,37 +587,27 @@ export default function SubscribePage() {
                           <SafeHTML html={t("texts.custom_tariff_param_ip")} />
                         </div>
                         <div>
-                          <SafeHTML
-                            html={t("texts.custom_tariff_param_days")}
-                          />
+                          <SafeHTML html={t("texts.custom_tariff_param_days")} />
                         </div>
                         <div style={{ marginTop: "4px" }}>
-                          <SafeHTML
-                            html={t("texts.custom_tariff_param_locations")}
-                          />
+                          <SafeHTML html={t("texts.custom_tariff_param_locations")} />
                         </div>
                         {customTariffParams.locations.length > 0 ? (
                           <div style={{ marginLeft: "12px", marginTop: "2px" }}>
                             {customTariffParams.locations.map((loc) => (
                               <div key={loc.code}>
                                 <SafeHTML
-                                  html={t(
-                                    "texts.custom_tariff_location_price_line",
-                                    {
-                                      label:
-                                        loc.label || loc.code.toUpperCase(),
-                                      price: loc.price_per_day_rub || 0,
-                                    },
-                                  )}
+                                  html={t("texts.custom_tariff_location_price_line", {
+                                    label: loc.label || loc.code.toUpperCase(),
+                                    price: loc.price_per_day_rub || 0,
+                                  })}
                                 />
                               </div>
                             ))}
                           </div>
                         ) : (
                           <div style={{ marginLeft: "12px", marginTop: "2px" }}>
-                            <SafeHTML
-                              html={t("texts.custom_tariff_no_locations")}
-                            />
+                            <SafeHTML html={t("texts.custom_tariff_no_locations")} />
                           </div>
                         )}
                       </div>
@@ -729,11 +644,10 @@ export default function SubscribePage() {
                       marginTop: "16px",
                     }}
                   >
-                    <div
-                      style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}
-                    >
-                      <div style={{ flex: 1, minWidth: "120px" }}>
+                    <div className="content-grid">
+                      <div>
                         <label
+                          htmlFor="custom-traffic"
                           style={{
                             fontSize: "12px",
                             color: "var(--text-secondary)",
@@ -749,10 +663,7 @@ export default function SubscribePage() {
                             className="number-btn"
                             onClick={() => {
                               setCustomTraffic(
-                                Math.max(
-                                  customTariffParams?.min_gb || 1,
-                                  customTraffic - 1,
-                                ),
+                                Math.max(customTariffParams?.min_gb || 1, customTraffic - 1),
                               );
                               setCustomPrice(null);
                             }}
@@ -760,6 +671,7 @@ export default function SubscribePage() {
                             -
                           </button>
                           <input
+                            id="custom-traffic"
                             type="number"
                             min={customTariffParams?.min_gb || 1}
                             max={customTariffParams?.max_gb || 1000}
@@ -774,10 +686,7 @@ export default function SubscribePage() {
                             className="number-btn"
                             onClick={() => {
                               setCustomTraffic(
-                                Math.min(
-                                  customTariffParams?.max_gb || 1000,
-                                  customTraffic + 1,
-                                ),
+                                Math.min(customTariffParams?.max_gb || 1000, customTraffic + 1),
                               );
                               setCustomPrice(null);
                             }}
@@ -786,8 +695,9 @@ export default function SubscribePage() {
                           </button>
                         </div>
                       </div>
-                      <div style={{ flex: 1, minWidth: "120px" }}>
+                      <div>
                         <label
+                          htmlFor="custom-ip"
                           style={{
                             fontSize: "12px",
                             color: "var(--text-secondary)",
@@ -802,18 +712,14 @@ export default function SubscribePage() {
                             type="button"
                             className="number-btn"
                             onClick={() => {
-                              setCustomIp(
-                                Math.max(
-                                  customTariffParams?.min_ip || 1,
-                                  customIp - 1,
-                                ),
-                              );
+                              setCustomIp(Math.max(customTariffParams?.min_ip || 1, customIp - 1));
                               setCustomPrice(null);
                             }}
                           >
                             -
                           </button>
                           <input
+                            id="custom-ip"
                             type="number"
                             min={customTariffParams?.min_ip || 1}
                             max={customTariffParams?.max_ip || 15}
@@ -827,12 +733,7 @@ export default function SubscribePage() {
                             type="button"
                             className="number-btn"
                             onClick={() => {
-                              setCustomIp(
-                                Math.min(
-                                  customTariffParams?.max_ip || 15,
-                                  customIp + 1,
-                                ),
-                              );
+                              setCustomIp(Math.min(customTariffParams?.max_ip || 15, customIp + 1));
                               setCustomPrice(null);
                             }}
                           >
@@ -840,8 +741,9 @@ export default function SubscribePage() {
                           </button>
                         </div>
                       </div>
-                      <div style={{ flex: 1, minWidth: "120px" }}>
+                      <div>
                         <label
+                          htmlFor="custom-days"
                           style={{
                             fontSize: "12px",
                             color: "var(--text-secondary)",
@@ -857,10 +759,7 @@ export default function SubscribePage() {
                             className="number-btn"
                             onClick={() => {
                               setCustomDays(
-                                Math.max(
-                                  customTariffParams?.min_days || 1,
-                                  customDays - 1,
-                                ),
+                                Math.max(customTariffParams?.min_days || 1, customDays - 1),
                               );
                               setCustomPrice(null);
                             }}
@@ -868,6 +767,7 @@ export default function SubscribePage() {
                             -
                           </button>
                           <input
+                            id="custom-days"
                             type="number"
                             min={customTariffParams?.min_days || 1}
                             max={customTariffParams?.max_days || 365}
@@ -882,10 +782,7 @@ export default function SubscribePage() {
                             className="number-btn"
                             onClick={() => {
                               setCustomDays(
-                                Math.min(
-                                  customTariffParams?.max_days || 365,
-                                  customDays + 1,
-                                ),
+                                Math.min(customTariffParams?.max_days || 365, customDays + 1),
                               );
                               setCustomPrice(null);
                             }}
@@ -908,6 +805,8 @@ export default function SubscribePage() {
                           {t("texts.locations")}
                         </label>
                         <div
+                          role="group"
+                          aria-label={t("texts.locations")}
                           style={{
                             display: "flex",
                             flexWrap: "wrap",
@@ -915,9 +814,7 @@ export default function SubscribePage() {
                           }}
                         >
                           {locations.map((loc) => {
-                            const isSelected = selectedLocations.includes(
-                              loc.code,
-                            );
+                            const isSelected = selectedLocations.includes(loc.code);
                             return (
                               <button
                                 key={loc.code}
@@ -935,12 +832,8 @@ export default function SubscribePage() {
                                   padding: "8px 12px",
                                   fontSize: "13px",
                                   cursor: "pointer",
-                                  background: isSelected
-                                    ? "var(--accent-glow)"
-                                    : undefined,
-                                  border: isSelected
-                                    ? "1px solid var(--accent)"
-                                    : undefined,
+                                  background: isSelected ? "var(--accent-glow)" : undefined,
+                                  border: isSelected ? "1px solid var(--accent)" : undefined,
                                   display: "flex",
                                   alignItems: "center",
                                   gap: "6px",
@@ -955,8 +848,7 @@ export default function SubscribePage() {
                                       color: "var(--text-secondary)",
                                     }}
                                   >
-                                    +{loc.price_per_day_rub}₽
-                                    {t("texts.per_day_short")}
+                                    +{loc.price_per_day_rub}₽{t("texts.per_day_short")}
                                   </span>
                                 )}
                               </button>
@@ -1002,9 +894,7 @@ export default function SubscribePage() {
                         style={{ flex: 1, background: "var(--bg-tertiary)" }}
                         disabled={customPriceLoading}
                       >
-                        {customPriceLoading
-                          ? t("texts.loading")
-                          : t("texts.calculate_price")}
+                        {customPriceLoading ? t("texts.loading") : t("texts.calculate_price")}
                       </button>
                       <button
                         onClick={handleSelectCustomTariff}
@@ -1028,29 +918,15 @@ export default function SubscribePage() {
                 <div className="mt-4">
                   <div className="card" style={{ marginBottom: "16px" }}>
                     <h3>{activeTariff.name}</h3>
-                    <p
-                      className="text-secondary"
-                      style={{ fontSize: "14px", marginTop: "8px" }}
-                    >
+                    <p className="text-secondary" style={{ fontSize: "14px", marginTop: "8px" }}>
                       {activeTariff.price_rub} ₽ ·{" "}
-                      {t("texts.duration_days", {
-                        days: activeTariff.duration_days,
-                      })}{" "}
-                      ·{" "}
-                      {activeTariff.traffic_gb === 0
-                        ? t("texts.unlimited")
-                        : t("texts.traffic_gb", {
-                            value: activeTariff.traffic_gb,
-                          })}{" "}
-                      · {activeTariff.ip_limit} {t("texts.ips")}
+                      {formatTariffDuration(activeTariff.duration_days, lang)} ·{" "}
+                      {formatTariffTraffic(activeTariff.traffic_gb, tariffMode === "new", lang)} ·{" "}
+                      {activeTariff.ip_limit} {t("texts.ips")}
                     </p>
                   </div>
-                  <p
-                    className="text-secondary"
-                    style={{ fontSize: "14px", lineHeight: "1.6" }}
-                  >
-                    {t("texts.offer_text_1")} {t("texts.offer_text_2")}{" "}
-                    {t("texts.offer_text_3")}
+                  <p className="text-secondary" style={{ fontSize: "14px", lineHeight: "1.6" }}>
+                    {t("texts.offer_text_1")} {t("texts.offer_text_2")} {t("texts.offer_text_3")}
                   </p>
                   <blockquote className="mt-4">
                     {t("texts.offer_section_2")}: {t("texts.offer_text_2")}
@@ -1063,11 +939,7 @@ export default function SubscribePage() {
                     >
                       {t("buttons.cancel")}
                     </button>
-                    <button
-                      onClick={handleAcceptOffer}
-                      className="button"
-                      style={{ flex: 1 }}
-                    >
+                    <button onClick={handleAcceptOffer} className="button" style={{ flex: 1 }}>
                       {t("buttons.continue")}
                     </button>
                   </div>
@@ -1076,229 +948,191 @@ export default function SubscribePage() {
             </div>
           )}
 
-          {activeStep === "payment" &&
-            activeTariff &&
-            availableMethods.length > 0 && (
-              <div className="pinned-section fade-in">
-                <h2>{t("texts.payment_title")}</h2>
-                <div className="pinned-content">
-                  <div className="mt-4">
-                    <div className="card" style={{ marginBottom: "24px" }}>
-                      <div className="mb-4">
-                        <span className="text-secondary">
-                          {t("texts.plan")}:{" "}
-                        </span>
-                        <span style={{ fontWeight: "600" }}>
-                          {activeTariff.name}
-                        </span>
-                      </div>
-                      <div className="mb-4">
-                        <span className="text-secondary">
-                          {t("texts.payment_methods")}:{" "}
-                        </span>
-                        <div
-                          className="flex-center gap-3"
-                          style={{ marginTop: "12px" }}
-                        >
-                          {availableMethods.includes("yoomoney") && (
-                            <button
-                              type="button"
-                              className="button"
-                              aria-pressed={
-                                selectedPaymentMethod === "yoomoney"
-                              }
-                              style={{
-                                flex: 1,
-                                background:
-                                  selectedPaymentMethod === "yoomoney"
-                                    ? undefined
-                                    : "var(--bg-tertiary)",
-                              }}
-                              onClick={() =>
-                                setRequestedPaymentMethod("yoomoney")
-                              }
-                            >
-                              {t("texts.yoomoney")}
-                            </button>
-                          )}
-                          {availableMethods.includes("card") && (
-                            <button
-                              type="button"
-                              className="button"
-                              aria-pressed={selectedPaymentMethod === "card"}
-                              style={{
-                                flex: 1,
-                                background:
-                                  selectedPaymentMethod === "card"
-                                    ? undefined
-                                    : "var(--bg-tertiary)",
-                              }}
-                              onClick={() => setRequestedPaymentMethod("card")}
-                            >
-                              {t("texts.p2p")}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      {userTrustScore > 0 && (
-                        <div className="mb-4">
-                          <span className="text-secondary">
-                            {t("texts.trust_score")}:{" "}
-                          </span>
-                          <span style={{ fontWeight: "600" }}>
-                            {userTrustScore}
-                          </span>
-                        </div>
-                      )}
-                      {amountInfo && amountInfo.percent > 0 && (
-                        <div className="mb-4">
-                          <span className="text-secondary">
-                            {t("texts.discount")}:{" "}
-                          </span>
-                          <span style={{ fontWeight: "600" }}>
-                            {amountInfo.percent}%
-                          </span>
-                        </div>
-                      )}
-                      <div className="mb-4">
-                        <span className="text-secondary">
-                          {t("texts.amount")}:{" "}
-                        </span>
-                        {amountInfo && amountInfo.percent > 0 ? (
-                          <span
-                            style={{
-                              fontWeight: "700",
-                              fontSize: "18px",
-                              color: "var(--accent)",
-                            }}
-                          >
-                            <s style={{ opacity: 0.5 }}>
-                              {amountInfo.original} ₽
-                            </s>{" "}
-                            → {amountInfo.discounted} ₽
-                          </span>
-                        ) : (
-                          <span
-                            style={{
-                              fontWeight: "700",
-                              fontSize: "18px",
-                              color: "var(--accent)",
-                            }}
-                          >
-                            {amountInfo?.discounted ?? activeTariff.price_rub} ₽
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {(checkoutResult || trialDone) && (
-                      <div
-                        className="success-message"
-                        style={{ marginBottom: "24px" }}
-                      >
-                        {trialDone ? (
-                          <p style={{ fontWeight: "600", marginBottom: "8px" }}>
-                            {t("texts.trial_activated")}
-                          </p>
-                        ) : (
-                          <p style={{ fontWeight: "600", marginBottom: "8px" }}>
-                            {t("texts.payment_request_received")}
-                          </p>
-                        )}
-                        {!trialDone && (
-                          <>
-                            <p
-                              className="text-secondary"
-                              style={{ fontSize: "14px" }}
-                            >
-                              {t("texts.payment_id_label")}:{" "}
-                              <code>{checkoutResult?.payment_id}</code>
-                            </p>
-                            {checkoutResult?.payment_method === "card" &&
-                              checkoutResult?.payment_details?.card_number && (
-                                <p
-                                  className="text-secondary"
-                                  style={{ fontSize: "14px", marginTop: "8px" }}
-                                >
-                                  {t("texts.p2p")}:{" "}
-                                  <code>
-                                    {
-                                      checkoutResult?.payment_details
-                                        ?.card_number
-                                    }
-                                  </code>
-                                </p>
-                              )}
-                          </>
-                        )}
-                        <p
-                          className="text-secondary"
-                          style={{ fontSize: "14px", marginTop: "8px" }}
-                        >
-                          {t("texts.redirecting_to_profile")}
-                        </p>
-                        {!trialDone && checkoutResult?.checkout_url && (
-                          <a
-                            href={checkoutResult.checkout_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="button"
-                            style={{
-                              width: "100%",
-                              display: "block",
-                              textAlign: "center",
-                              textDecoration: "none",
-                              marginTop: "12px",
-                            }}
-                          >
-                            {t("texts.pay_now")}
-                          </a>
-                        )}
-                      </div>
-                    )}
-
-                    {!checkoutResult && trialDone === false && (
-                      <div className="flex-center gap-3">
-                        <button
-                          onClick={() => {
-                            setSelectedTariff(activeTariff);
-                            setUrlSelsectionDismissed(true);
-                            setStep("offer");
-                          }}
-                          className="button"
-                          style={{ flex: 1, background: "var(--bg-tertiary)" }}
-                        >
-                          {t("buttons.cancel")}
-                        </button>
-                        <button
-                          onClick={
-                            activeTariff.id === "custom"
-                              ? handlePayCustom
-                              : handlePay
-                          }
-                          className="button"
-                          style={{ flex: 1 }}
-                          disabled={processing}
-                        >
-                          {processing
-                            ? t("texts.waiting")
-                            : t("buttons.confirm")}
-                        </button>
-                      </div>
-                    )}
-                  </div>
+          {activeStep === "method" && activeTariff && (
+            <div className="pinned-section fade-in">
+              <h2>{t("texts.payment_methods")}</h2>
+              <div className="pinned-content">
+                <p className="text-secondary" style={{ fontSize: "14px", marginTop: "16px" }}>
+                  {t("texts.payment_subtitle")}
+                </p>
+                {availableMethods.length === 0 && (
+                  <p style={{ color: "var(--danger)", marginTop: "16px" }}>
+                    {t("texts.no_payment_methods")}
+                  </p>
+                )}
+                <div className="flex-center gap-3" style={{ marginTop: "16px" }}>
+                  {availableMethods.includes("card") && (
+                    <button
+                      type="button"
+                      className="button"
+                      style={{ flex: 1 }}
+                      disabled={processing}
+                      onClick={() => createPaymentFor("card")}
+                    >
+                      {processing ? t("texts.waiting") : t("texts.p2p")}
+                    </button>
+                  )}
+                  {availableMethods.includes("yoomoney") && (
+                    <button
+                      type="button"
+                      className="button"
+                      style={{ flex: 1 }}
+                      disabled={processing}
+                      onClick={() => createPaymentFor("yoomoney")}
+                    >
+                      {processing ? t("texts.waiting") : t("texts.yoomoney")}
+                    </button>
+                  )}
+                </div>
+                <div className="flex-center gap-3" style={{ marginTop: "16px" }}>
+                  <button
+                    type="button"
+                    onClick={handleBackToSelect}
+                    className="button"
+                    style={{ flex: 1, background: "var(--bg-tertiary)" }}
+                  >
+                    {t("buttons.cancel")}
+                  </button>
                 </div>
               </div>
-            )}
+            </div>
+          )}
+
+          {activeStep === "payment" && activeTariff && checkoutResult && (
+            <div className="pinned-section fade-in">
+              <h2>{t("texts.payment_title")}</h2>
+              <div className="pinned-content">
+                <div className="mt-4">
+                  <div className="card" style={{ marginBottom: "24px" }}>
+                    <div className="mb-4">
+                      <span className="text-secondary">{t("texts.plan")}: </span>
+                      <span style={{ fontWeight: "600" }}>{activeTariff.name}</span>
+                    </div>
+                    <div className="mb-4">
+                      <span className="text-secondary">{t("texts.payment_methods")}: </span>
+                      <span style={{ fontWeight: "600" }}>
+                        {checkoutResult.payment_method === "card"
+                          ? t("texts.p2p")
+                          : t("texts.yoomoney")}
+                      </span>
+                    </div>
+                    {userTrustScore > 0 && (
+                      <div className="mb-4">
+                        <span className="text-secondary">{t("texts.trust_score")}: </span>
+                        <span style={{ fontWeight: "600" }}>{userTrustScore}</span>
+                      </div>
+                    )}
+                    {amountInfo && amountInfo.percent > 0 && (
+                      <div className="mb-4">
+                        <span className="text-secondary">{t("texts.discount")}: </span>
+                        <span style={{ fontWeight: "600" }}>{amountInfo.percent}%</span>
+                      </div>
+                    )}
+                    <div className="mb-4">
+                      <span className="text-secondary">{t("texts.amount")}: </span>
+                      {amountInfo && amountInfo.percent > 0 ? (
+                        <span
+                          style={{
+                            fontWeight: "700",
+                            fontSize: "18px",
+                            color: "var(--accent)",
+                          }}
+                        >
+                          <s style={{ opacity: 0.5 }}>{amountInfo.original} ₽</s> →{" "}
+                          {amountInfo.discounted} ₽
+                        </span>
+                      ) : (
+                        <span
+                          style={{
+                            fontWeight: "700",
+                            fontSize: "18px",
+                            color: "var(--accent)",
+                          }}
+                        >
+                          {amountInfo?.discounted ?? activeTariff.price_rub} ₽
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {(checkoutResult || trialDone) && (
+                    <div className="success-message" style={{ marginBottom: "24px" }}>
+                      {trialDone ? (
+                        <p style={{ fontWeight: "600", marginBottom: "8px" }}>
+                          {t("texts.trial_activated")}
+                        </p>
+                      ) : (
+                        <p style={{ fontWeight: "600", marginBottom: "8px" }}>
+                          {t("texts.payment_request_received")}
+                        </p>
+                      )}
+                      {!trialDone && (
+                        <>
+                          <p className="text-secondary" style={{ fontSize: "14px" }}>
+                            {t("texts.payment_id_label")}: <code>{checkoutResult?.payment_id}</code>
+                          </p>
+                          {checkoutResult?.payment_method === "card" &&
+                            checkoutResult?.payment_details?.card_number && (
+                              <div
+                                className="text-secondary"
+                                style={{
+                                  fontSize: "14px",
+                                  marginTop: "8px",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "8px",
+                                  flexWrap: "wrap",
+                                }}
+                              >
+                                <span>{t("texts.p2p")}:</span>
+                                <code>{checkoutResult.payment_details.card_number}</code>
+                                <button
+                                  type="button"
+                                  className="link-button"
+                                  onClick={() =>
+                                    copy(checkoutResult.payment_details?.card_number || "")
+                                  }
+                                >
+                                  {copied === checkoutResult.payment_details.card_number
+                                    ? t("buttons.copied")
+                                    : t("buttons.copy")}
+                                </button>
+                              </div>
+                            )}
+                        </>
+                      )}
+                      <p className="text-secondary" style={{ fontSize: "14px", marginTop: "8px" }}>
+                        {t("texts.redirecting_to_profile")}
+                      </p>
+                      {!trialDone && checkoutResult?.checkout_url && (
+                        <a
+                          href={checkoutResult.checkout_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="button"
+                          style={{
+                            width: "100%",
+                            display: "block",
+                            textAlign: "center",
+                            textDecoration: "none",
+                            marginTop: "12px",
+                          }}
+                        >
+                          {t("texts.pay_now")}
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {testResult && (
             <div className="pinned-section fade-in">
               <h2>{t("texts.subscription_link")}</h2>
               <div className="pinned-content">
-                <div
-                  className="success-message"
-                  style={{ marginBottom: "16px" }}
-                >
+                <div className="success-message" style={{ marginBottom: "16px" }}>
                   <p style={{ fontWeight: "600", marginBottom: "8px" }}>
                     {t("texts.test_subscription_created_short", {
                       plan_name: testResult.plan_name,
@@ -1352,32 +1186,3 @@ export default function SubscribePage() {
     </>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

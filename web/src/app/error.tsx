@@ -1,15 +1,22 @@
 "use client";
 
+import { useEffect } from "react";
 import Header from "@/components/Header";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function Error({
+  error,
   reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
   const { t } = useLanguage();
+
+  useEffect(() => {
+    console.error("Application error", error);
+  }, [error]);
+
   return (
     <>
       <Header currentPage="" />
@@ -22,12 +29,10 @@ export default function Error({
           </div>
           <div className="pinned-section fade-in">
             <div className="pinned-content">
-              <p
-                style={{ color: "var(--text-secondary)", marginBottom: "16px" }}
-              >
-                {t("texts.checkout_error")}
+              <p style={{ color: "var(--text-secondary)", marginBottom: "16px" }}>
+                {t("texts.unexpected_error")}
               </p>
-              <button onClick={reset} className="button">
+              <button type="button" onClick={reset} className="button">
                 {t("buttons.continue")}
               </button>
             </div>
@@ -37,9 +42,3 @@ export default function Error({
     </>
   );
 }
-
-
-
-
-
-

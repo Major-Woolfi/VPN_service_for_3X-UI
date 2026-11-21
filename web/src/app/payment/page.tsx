@@ -6,7 +6,7 @@ import { useFeatures } from "@/contexts/FeaturesContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function PaymentPage() {
-  const { features, loading } = useFeatures();
+  const { features, loading, error, reload } = useFeatures();
   const { t } = useLanguage();
 
   const paymentMethods = features?.payment_methods || [];
@@ -40,7 +40,24 @@ export default function PaymentPage() {
             </div>
           </div>
 
-          {paymentMethods.length === 0 ? (
+          {error ? (
+            <div className="pinned-section fade-in">
+              <div className="pinned-content">
+                <p
+                  style={{
+                    color: "var(--danger)",
+                    textAlign: "center",
+                    marginTop: "16px",
+                  }}
+                >
+                  {error}
+                </p>
+                <button type="button" className="button" onClick={reload}>
+                  {t("buttons.retry")}
+                </button>
+              </div>
+            </div>
+          ) : paymentMethods.length === 0 ? (
             <div className="pinned-section fade-in">
               <div className="pinned-content">
                 <p
@@ -58,37 +75,7 @@ export default function PaymentPage() {
             <div className="pinned-section fade-in">
               <h2>{t("texts.payment_methods")}</h2>
               <div className="pinned-content">
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-                    gap: "16px",
-                    marginTop: "16px",
-                  }}
-                >
-                  {paymentMethods.includes("yoomoney") && (
-                    <div
-                      style={{
-                        padding: "20px",
-                        background: "var(--bg-tertiary)",
-                        borderRadius: "var(--radius-md)",
-                        border: "1px solid var(--border-color)",
-                      }}
-                    >
-                      <h3 style={{ margin: "0 0 12px" }}>
-                        {t("texts.yoomoney")}
-                      </h3>
-                      <p
-                        style={{
-                          color: "var(--text-secondary)",
-                          fontSize: "14px",
-                        }}
-                      >
-                        {t("texts.yoomoney_text")}
-                      </p>
-                    </div>
-                  )}
-
+                <div className="grid-auto-fit grid-auto-fit--pay mt-4">
                   {paymentMethods.includes("card") && (
                     <div
                       style={{
@@ -106,6 +93,27 @@ export default function PaymentPage() {
                         }}
                       >
                         {t("texts.p2p_text")}
+                      </p>
+                    </div>
+                  )}
+
+                  {paymentMethods.includes("yoomoney") && (
+                    <div
+                      style={{
+                        padding: "20px",
+                        background: "var(--bg-tertiary)",
+                        borderRadius: "var(--radius-md)",
+                        border: "1px solid var(--border-color)",
+                      }}
+                    >
+                      <h3 style={{ margin: "0 0 12px" }}>{t("texts.yoomoney")}</h3>
+                      <p
+                        style={{
+                          color: "var(--text-secondary)",
+                          fontSize: "14px",
+                        }}
+                      >
+                        {t("texts.yoomoney_text")}
                       </p>
                     </div>
                   )}
@@ -152,9 +160,3 @@ export default function PaymentPage() {
     </>
   );
 }
-
-
-
-
-
-

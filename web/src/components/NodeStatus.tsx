@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import {
   fetchJson,
@@ -28,35 +28,36 @@ function isOnlineFromState(ss: Record<string, unknown>): boolean {
 export default function NodeStatus({ admin }: { admin?: boolean } = {}) {
   const [data, setData] = useState<NodeStatusData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(false);
   const { t } = useLanguage();
-  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let mounted = true;
     const abortController = new AbortController();
 
     const fetchData = async () => {
-      if (typeof document !== "undefined" && document.hidden) return;
+      if (typeof document !== "undefined" && document.hidden) {
+        if (mounted) setLoading(false);
+        return;
+      }
 
       try {
         let json: NodeStatusData;
         if (admin) {
           json = await getAdminPanelStatus();
         } else {
-          json = await fetchJson<NodeStatusData>(
-            `${API_BASE_URL}/stats/panel-status`,
-            { signal: abortController.signal },
-          );
+          json = await fetchJson<NodeStatusData>(`${API_BASE_URL}/stats/panel-status`, {
+            signal: abortController.signal,
+          });
         }
         if (mounted) {
           setData(json);
-          setError("");
+          setError(false);
           setLoading(false);
         }
       } catch {
         if (mounted) {
-          setError(t("texts.node_status_failed"));
+          setError(true);
           setLoading(false);
         }
       }
@@ -82,40 +83,30 @@ export default function NodeStatus({ admin }: { admin?: boolean } = {}) {
 
   if (loading) {
     return (
-      <p style={{ color: "var(--text-secondary)", fontSize: "14px" }}>
-        {t("texts.loading_nodes")}
-      </p>
+      <p style={{ color: "var(--text-secondary)", fontSize: "14px" }}>{t("texts.loading_nodes")}</p>
     );
   }
 
   if (error) {
     return (
-      <p style={{ color: "var(--danger)", fontSize: "14px" }}>
-        {t("texts.node_status_failed")}
-      </p>
+      <p style={{ color: "var(--danger)", fontSize: "14px" }}>{t("texts.node_status_failed")}</p>
     );
   }
 
   if (!data?.nodes?.length) {
     return (
-      <p style={{ color: "var(--text-secondary)", fontSize: "14px" }}>
-        {t("texts.nodes_empty")}
-      </p>
+      <p style={{ color: "var(--text-secondary)", fontSize: "14px" }}>{t("texts.nodes_empty")}</p>
     );
   }
 
-  const nodes: Record<string, unknown>[] = Array.isArray(data.nodes)
-    ? data.nodes
-    : [];
+  const nodes: Record<string, unknown>[] = Array.isArray(data.nodes) ? data.nodes : [];
   const ss = data.server_status as Record<string, unknown> | undefined;
   const mainOnline = ss ? isOnlineFromState(ss) : false;
 
   const mainServerCountry = process.env.NEXT_PUBLIC_MAIN_SERVER_COUNTRY || "";
 
   const mainNode: NodeData = {
-    name: `${mainServerCountry ? `${mainServerCountry} ` : ""}${t(
-      "texts.main_server",
-    )}`.trim(),
+    name: `${mainServerCountry ? `${mainServerCountry} ` : ""}${t("texts.main_server")}`.trim(),
     status: mainOnline ? "online" : "offline",
     panel_version: data.panel?.panel_version || "-",
     xray_version: data.panel?.xray_version || "-",
@@ -124,12 +115,9 @@ export default function NodeStatus({ admin }: { admin?: boolean } = {}) {
   };
 
   const otherNodes: NodeData[] = nodes.map((node, idx) => {
-    const name = String(
-      node.name || node.node_name || `${t("texts.node_fallback")} ${idx + 1}`,
-    );
+    const name = String(node.name || node.node_name || `${t("texts.node_fallback")} ${idx + 1}`);
     const statusRaw = String(node.status || "offline");
-    const status: "online" | "offline" =
-      statusRaw === "online" ? "online" : "offline";
+    const status: "online" | "offline" = statusRaw === "online" ? "online" : "offline";
     const uptime =
       typeof node.uptime === "number"
         ? node.uptime
@@ -140,9 +128,7 @@ export default function NodeStatus({ admin }: { admin?: boolean } = {}) {
     return {
       name,
       status,
-      panel_version: String(
-        node.panel_version || node.version || data.panel?.panel_version || "-",
-      ),
+      panel_version: String(node.panel_version || node.version || data.panel?.panel_version || "-"),
       xray_version: String(node.xray_version || "-"),
       uptime: Number.isFinite(uptime) ? uptime : undefined,
       address: typeof node.address === "string" ? node.address : undefined,
@@ -159,14 +145,13 @@ export default function NodeStatus({ admin }: { admin?: boolean } = {}) {
           : typeof node.base_path === "string"
             ? node.base_path
             : undefined,
-      panel_base:
-        typeof node.panel_base === "string" ? node.panel_base : undefined,
+      panel_base: typeof node.panel_base === "string" ? node.panel_base : undefined,
     };
   });
 
   return (
-    <div ref={containerRef} style={{ marginTop: "16px" }}>
-      <NodeGrid mainNode={mainNode} nodes={otherNodes} admin={admin} />
+    <div style={{ marginTop: "16px" }}>
+      <NodeGrid admin={admin} mainNode={mainNode} nodes={otherNodes} />
     </div>
   );
 }

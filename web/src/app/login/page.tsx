@@ -3,7 +3,7 @@
 import Header from "@/components/Header";
 import Link from "next/link";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import {
   loginUser,
   startTelegramAuth,
@@ -12,6 +12,7 @@ import {
   TELEGRAM_POLL_INTERVAL_MS,
   TELEGRAM_POLL_TIMEOUT_MS,
 } from "@/lib/api";
+import { getErrorMessage } from "@/lib/error";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 const POLL_INTERVAL = TELEGRAM_POLL_INTERVAL_MS;
@@ -20,13 +21,11 @@ const POLL_TIMEOUT = TELEGRAM_POLL_TIMEOUT_MS;
 function safeNextPath(): string {
   if (typeof window === "undefined") return "/profile";
   const next = new URLSearchParams(window.location.search).get("next");
-  if (!next || !next.startsWith("/") || next.startsWith("//"))
-    return "/profile";
+  if (!next || !next.startsWith("/") || next.startsWith("//")) return "/profile";
   return next;
 }
 
 export default function LoginPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { t } = useLanguage();
   const [method, setMethod] = useState<"password" | "telegram">("password");
@@ -41,7 +40,6 @@ export default function LoginPage() {
   const reason = searchParams?.get("reason") || "";
   const nextPath = safeNextPath();
 
-  
   const reasonError =
     reason === "session_expired"
       ? t("texts.session_expired")
@@ -54,9 +52,6 @@ export default function LoginPage() {
             : "";
   const shownError = Error || reasonError;
 
-  
-  
-  
   useEffect(() => {
     if (typeof document === "undefined") return;
     if (!/(^|;\s*)vpn_clear_cache=1(;|$)/.test(document.cookie)) return;
@@ -67,11 +62,9 @@ export default function LoginPage() {
   const finish = useCallback(() => {
     setLoading(false);
     setTgWaiting(false);
-    
-    
-    router.refresh();
-    router.replace(nextPath);
-  }, [router, nextPath]);
+
+    window.location.replace(nextPath);
+  }, [nextPath]);
 
   const stopPolling = useCallback(() => {
     if (pollIntervalRef.current) {
@@ -102,9 +95,7 @@ export default function LoginPage() {
             stopPolling();
             setError(t("texts.login_timeout"));
           }
-        } catch {
-          
-        }
+        } catch {}
         elapsed += POLL_INTERVAL;
         if (elapsed >= POLL_TIMEOUT) {
           stopPolling();
@@ -118,6 +109,7 @@ export default function LoginPage() {
   );
 
   const handleTelegramLogin = async () => {
+    if (loading || tgWaiting) return;
     setError("");
     setLoading(true);
     try {
@@ -129,14 +121,12 @@ export default function LoginPage() {
       if (nextPath !== "/profile") {
         try {
           sessionStorage.setItem(`vpn_auth_next_${res.state}`, nextPath);
-        } catch {
-          
-        }
+        } catch {}
       }
       window.open(res.url, "_blank", "noopener,noreferrer");
       startPolling(res.state);
     } catch (err) {
-      setError(String(err));
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -150,7 +140,7 @@ export default function LoginPage() {
       await loginUser({ web_login: web_login.trim(), password });
       finish();
     } catch (err) {
-      setError(String(err));
+      setError(getErrorMessage(err));
       setLoading(false);
     }
   };
@@ -185,29 +175,23 @@ export default function LoginPage() {
                   </button>
                 </div>
 
-                {shownError && (
-                  <div className="error-message">{shownError}</div>
-                )}
+                {shownError && <div className="error-message">{shownError}</div>}
 
                 {method === "password" ? (
-                  <form
-                    onSubmit={handlePasswordLogin}
-                    className="flex flex-col gap-3"
-                    noValidate
-                  >
+                  <form onSubmit={handlePasswordLogin} className="flex flex-col gap-3" noValidate>
                     <input
                       type="text"
+                      aria-label={t("texts.web_login")}
                       placeholder={t("texts.web_login")}
                       className="faq-search-input"
                       value={web_login}
-                      onChange={(e) =>
-                        setWebLogin(e.target.value.replace(/[<>"'&]/g, ""))
-                      }
+                      onChange={(e) => setWebLogin(e.target.value.replace(/[<>"'&]/g, ""))}
                       autoComplete="username"
                       required
                     />
                     <input
                       type="password"
+                      aria-label={t("texts.password")}
                       placeholder={t("texts.password")}
                       className="faq-search-input"
                       value={password}
@@ -215,27 +199,19 @@ export default function LoginPage() {
                       autoComplete="current-password"
                       required
                     />
-                    <button
-                      type="submit"
-                      className="button w-full"
-                      disabled={loading}
-                    >
+                    <button type="submit" className="button w-full" disabled={loading}>
                       {loading ? t("texts.waiting") : t("buttons.login")}
                     </button>
                   </form>
                 ) : (
                   <div className="flex flex-col gap-3">
                     <button
+                      type="button"
                       onClick={handleTelegramLogin}
                       className="btn-telegram w-full"
-                      disabled={loading}
+                      disabled={loading || tgWaiting}
                     >
-                      <svg
-                        width="20"
-                        height="20"
-                        fill="currentColor"
-                        viewBox="0 0 30 30"
-                      >
+                      <svg width="20" height="20" fill="currentColor" viewBox="0 0 30 30">
                         <path d="m20.665 3.717-17.73 6.837c-1.21.486-1.203 1.161-.222 1.462l4.552 1.42 10.532-6.645c.498-.303.953-.14.579.192l-8.533 7.701h-.002l.002.001-.314 4.692c.46 0.663-.211.921-.46l2.211-2.15 4.599 3.397c.848.467 1.457.227 1.668-.785l3.019-14.228c.309-1.239-.473-1.8-1.282-1.434z" />
                       </svg>
                       {t("buttons.telegram_login")}
@@ -266,29 +242,3 @@ export default function LoginPage() {
     </>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

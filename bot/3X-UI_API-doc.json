@@ -2018,7 +2018,7 @@
             "type": "string"
           },
           "xrayVersion": {
-            "example": "25.10.31",
+            "example": "26.11.9",
             "type": "string"
           }
         },
@@ -2130,7 +2130,7 @@
             "type": "string"
           },
           "xrayVersion": {
-            "example": "25.10.31",
+            "example": "26.11.9",
             "type": "string"
           }
         },
@@ -3304,7 +3304,7 @@
                     },
                     "xray": {
                       "state": "running",
-                      "version": "v25.10.31"
+                      "version": "v26.11.9"
                     },
                     "tcpCount": 42,
                     "load": {
@@ -3666,9 +3666,7 @@
                 "example": {
                   "success": true,
                   "obj": [
-                    "v25.10.31",
-                    "v25.9.15",
-                    "v25.8.1"
+                    "v26.11.9"
                   ]
                 }
               }
@@ -4207,7 +4205,7 @@
             "name": "version",
             "in": "path",
             "required": true,
-            "description": "Xray tag (e.g. v25.10.31) or \"latest\".",
+            "description": "Xray tag (e.g. v26.11.9) or \"latest\".",
             "schema": {
               "type": "string"
             }
@@ -7053,7 +7051,7 @@
                       "uptimeSecs": 86400,
                       "xrayError": "",
                       "xrayState": "",
-                      "xrayVersion": "25.10.31"
+                      "xrayVersion": "26.11.9"
                     }
                   ]
                 }
@@ -7510,7 +7508,7 @@
                     "uptimeSecs": 86400,
                     "xrayError": "",
                     "xrayState": "",
-                    "xrayVersion": "25.10.31"
+                    "xrayVersion": "26.11.9"
                   }
                 }
               }

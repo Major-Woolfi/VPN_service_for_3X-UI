@@ -1,4 +1,4 @@
-export interface WebRegisterequest {
+export interface WebRegisterRequest {
   web_login: string;
   password: string;
   tg_id?: number;
@@ -46,6 +46,8 @@ export interface SanitizedUser {
   has_pending_payment: boolean;
   web_auth_method?: string | null;
   is_mate?: boolean;
+  is_coowner?: boolean;
+  coowner_code?: string;
   mate_balance?: number;
   mate_commission_total?: number;
   mate_status?: string;
@@ -168,6 +170,7 @@ export interface Tariff {
 
 export interface TariffsResponse {
   tariffs: Tariff[];
+  tariff_mode?: "old" | "new";
 }
 
 export interface ReferralStatsResponse {
@@ -210,6 +213,70 @@ export interface PartnerApplyRequest {
   period_months: number;
   bonus_type: string;
   bonus_value: number;
+}
+
+export interface CoOwnerProfileResponse {
+  uid: number;
+  nickname: string;
+  telegram_id: number;
+  ref_code: string;
+  telegram_link: string;
+  web_link: string;
+  subscription_id: string;
+  vpn_url: string;
+  expiry: string;
+  commission_percent: number;
+}
+
+export interface CoOwnerLinkResponse {
+  ref_code: string;
+  telegram_link: string;
+  web_link: string;
+}
+
+export interface CoOwnerUser {
+  user_id: number;
+  telegram_id: number;
+  join_date: string;
+  username: string;
+  has_subscription: boolean;
+  subscription_id: string;
+  vpn_url: string;
+  expiry_sub_datatime: string;
+  ref_by: number;
+}
+
+export interface CoOwnerUsersResponse {
+  users: CoOwnerUser[];
+  total: number;
+}
+
+export interface CoOwnerPayment {
+  payment_id: string;
+  uid: number;
+  amount: number;
+  status: string;
+  method: string;
+  timestamp: string;
+  commission: number;
+}
+
+export interface CoOwnerPaymentsResponse {
+  payments: CoOwnerPayment[];
+  total: number;
+  commission: number;
+}
+
+export interface CoOwnerStatsResponse {
+  total_invited: number;
+  active_subscriptions: number;
+  paid_users: number;
+  revenue: number;
+  commission: number;
+  commission_percent: number;
+  max_depth: number;
+  traffic_gb: number;
+  newest_join_date: string;
 }
 
 export interface PartnerApplyResponse {
@@ -322,7 +389,7 @@ export interface BulkActionRequest {
 
 export interface BulkActionResult {
   processed: number;
-  Errors: number;
+  errors: number;
   results: unknown[];
 }
 
@@ -402,6 +469,13 @@ export interface UserListItem {
   telegram_id: number;
   username: string;
   join_date: string;
+  subscription_id: string;
+  vpn_url: string;
+  plan_text: string;
+  expiry_sub_datatime: string;
+  ref_by: number;
+  co_owner_ref_by: number;
+  is_coowner: number;
   has_subscription: number;
   is_mate: number;
   language: string;
@@ -420,7 +494,7 @@ export interface UserListResponse {
 export interface StatsOverviewResponse {
   total_users: number;
   active_subscriptions: number;
-  bbanned_users: number;
+  banned_users: number;
 }
 
 export interface PanelStatusResponse {
@@ -454,6 +528,7 @@ export interface FeaturesResponse {
     json: boolean;
   };
   features: {
+    tariff_mode?: "old" | "new";
     custom_tariff: boolean;
     partner: boolean;
     partner_new_auto_mode: boolean;
@@ -462,7 +537,7 @@ export interface FeaturesResponse {
     main_panel: boolean;
     json_panel: boolean;
     card_payment: boolean;
-    yoomonkey_payment: boolean;
+    yoomoney_payment: boolean;
   };
   public_links: Record<string, string>;
 }
@@ -472,12 +547,12 @@ export interface PartnerChannel {
   title: string;
   username: string;
   is_owner_verified: number;
-  has_POSTing_rights: number;
+  has_posting_rights: number;
   is_active: number;
   added_at: string;
   last_checked_at: string;
   last_status: string;
-  last_Error: string;
+  last_error: string;
 }
 
 export interface PartnerChannelList {
@@ -525,12 +600,3 @@ export interface ClearAbuseRequest {
   user_id: number;
   reason?: string;
 }
-
-
-
-
-
-
-
-
-

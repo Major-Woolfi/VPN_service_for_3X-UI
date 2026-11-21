@@ -1,4 +1,6 @@
 import asyncio
+import base64
+import csv
 import dataclasses
 import hashlib
 import hmac
@@ -18,8 +20,9 @@ from collections import OrderedDict
 from collections.abc import Callable
 from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime, timedelta
+from io import BytesIO, StringIO
 from pathlib import Path
-from typing import Any, ClassVar, Literal, Self, TypeVar
+from typing import Any, ClassVar, Literal
 from urllib.parse import quote, urlencode
 
 import aiofiles
@@ -63,7 +66,34 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel, Field
 
-FILE_LOCK_TIMEOUT_SEC = 10.0
+CLIENT_UPDATE_FIELDS = (
+    "id",
+    "email",
+    "enable",
+    "flow",
+    "limitIp",
+    "totalGB",
+    "expiryTime",
+    "subId",
+    "uuid",
+    "password",
+    "auth",
+    "method",
+    "security",
+    "alterId",
+    "reset",
+    "comment",
+    "group",
+    "reverse",
+    "inboundIds",
+)
+CLIENT_SECRET_FIELDS = ("uuid", "password", "auth")
+XRAY_VERSION = "26.11.9"
+
+
+def generate_client_auth() -> str:
+    return base64.b64encode(secrets.token_bytes(32)).decode("ascii")
+
 
 # --- Настройка окружения ---
 BASE_DIR: Path = Path(__file__).parent
@@ -108,11 +138,14 @@ _SECRET_ENV_KEYS: tuple[str, ...] = (
 _SECRET_PLACEHOLDERS: set[str] = {"", "...", "change-this-to-a-random-secret-string"}
 
 
+def _is_placeholder_secret(value: str) -> bool:
+    normalized = value.strip().lower()
+    return normalized in _SECRET_PLACEHOLDERS or normalized.startswith("change_me")
+
+
 def _generate_missing_secrets() -> None:
     missing = [
-        name
-        for name in _SECRET_ENV_KEYS
-        if str(os.getenv(name, "")).strip() in _SECRET_PLACEHOLDERS
+        name for name in _SECRET_ENV_KEYS if _is_placeholder_secret(str(os.getenv(name, "")))
     ]
     if not missing:
         return
@@ -142,7 +175,6 @@ def _generate_missing_secrets() -> None:
 _generate_missing_secrets()
 
 # --- Константы ---
-ADMIN_LEGACY_SUB_ID: str = "Admin"
 HTTP_STATUS_OK = 200
 MAX_LOG_TEXT_LENGTH = 500
 MIN_SECRET_LENGTH = 32
@@ -151,17 +183,16 @@ MAX_EMAIL_LENGTH = 254
 MAX_IN_MEMORY_TRACK_ENTRIES = 10000
 GB_PER_TB = 1024
 DAYS_PER_MONTH = 30
+MONTHS_PER_YEAR = 12
+DAYS_PER_YEAR = DAYS_PER_MONTH * MONTHS_PER_YEAR
 MAX_NICKNAME_LENGTH = 30
 MAX_COMPENSATION_DAYS = 365
 WEB_LOGIN_TIMEOUT_SECONDS = 120
 SEARCH_RESULTS_LIMIT = 5
+CO_OWNER_SEARCH_RESULTS_LIMIT = 20
+CSV_REGEN_MARKERS: frozenset[str] = frozenset({"regen", "generate", "auto"})
 COUNTRY_CODE_LENGTH = 2
 REGIONAL_INDICATOR_BASE = 0x1F1E6
-
-# --- Типы для строгой типизации ---
-T = TypeVar("T")
-JSONValue = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
-JsonValue = dict[str, JSONValue]
 
 
 # --- Кастомные исключения ---
@@ -252,6 +283,23 @@ def _mask_sensitive(data: Any) -> Any:
     return text
 
 
+def mask_url_secrets(url: str) -> str:
+    safe_url = re.sub(r"(Bearer\s+)[A-Za-z0-9_-]{10,}", r"\1***", str(url))
+    safe_url = re.sub(
+        r"([?&])(token|key|api_key|admin_key|password|secret|state)=[^&]*",
+        r"\1\2=***",
+        safe_url,
+        flags=re.IGNORECASE,
+    )
+    safe_url = re.sub(
+        r"(/api/v1/auth/telegram/status/|/ws/admin/)[^/?&#]+",
+        r"\1***",
+        safe_url,
+        flags=re.IGNORECASE,
+    )
+    return safe_url
+
+
 def log_request(
     method: str,
     url: str,
@@ -260,16 +308,10 @@ def log_request(
     duration_ms: float = 0.0,
     extra: str | None = None,
 ) -> None:
-    safe_url = re.sub(r"(Bearer\s+)[A-Za-z0-9_-]{10,}", r"\1***", str(url))
-    safe_url = re.sub(
-        r"[?&](token|key|password|secret)=[^&]*",
-        r"\1=***",
-        safe_url,
-        flags=re.IGNORECASE,
-    )
+    safe_url = mask_url_secrets(url)
     msg = f"{method} {safe_url} → {status} ({duration_ms:.0f}ms)"
     if extra:
-        msg += f" | {extra}"
+        msg += f" | {_mask_sensitive(extra)}"
     logger.info(msg)
 
 
@@ -278,7 +320,9 @@ def log_error(func: Callable) -> Callable:
         try:
             return await func(*args, **kwargs)
         except Exception:
-            logger.exception(f"Ошибка в {func.__name__}")
+            source = next((arg for arg in args if hasattr(arg, "update")), None)
+            context = _describe_error_event(source) if source is not None else "event=-"
+            logger.exception(f"Ошибка в {func.__name__}: {context}")
             raise
 
     return wrapper
@@ -286,14 +330,133 @@ def log_error(func: Callable) -> Callable:
 
 # --- Утилиты для работы с событиями ---
 _HTML_TAG_RE: re.Pattern = re.compile(r"<[^>]+>")
+_TG_HTML_TAG_RE: re.Pattern = re.compile(r"(</?[a-zA-Z][^>]*>)")
+_TG_VOID_TAGS: frozenset[str] = frozenset({"br", "img", "hr", "input"})
+TG_MAX_TEXT_LENGTH = 4096
+_TG_PART_HEADER_RESERVE = 24
+
+
+def utf16_length(text: str) -> int:
+    return sum(2 if ord(char) > 0xFFFF else 1 for char in text)
+
+
+def _tag_name(tag: str) -> str:
+    match = re.match(r"</?\s*([a-zA-Z0-9]+)", tag)
+    return match.group(1).lower() if match else ""
+
+
+def _close_html_tags(stack: list[str]) -> str:
+    return "".join(f"</{tag}>" for tag in reversed(stack))
+
+
+def split_long_text(text: str, limit: int = TG_MAX_TEXT_LENGTH) -> list[str]:
+    if not text:
+        return [""]
+    if utf16_length(text) <= limit:
+        return [text]
+
+    usable = max(1, limit - _TG_PART_HEADER_RESERVE)
+    tokens = _TG_HTML_TAG_RE.split(text)
+    parts: list[str] = []
+    current = ""
+    stack: list[str] = []
+
+    def flush() -> None:
+        nonlocal current
+        suffix = _close_html_tags(stack)
+        part = current + suffix
+        if part.strip("</>"):
+            parts.append(part)
+        current = "".join(f"<{tag}>" for tag in stack)
+
+    for token in tokens:
+        if not token:
+            continue
+        if _TG_HTML_TAG_RE.fullmatch(token):
+            name = _tag_name(token)
+            if token.startswith("</"):
+                for index in range(len(stack) - 1, -1, -1):
+                    if stack[index] == name:
+                        stack.pop(index)
+                        break
+                current += token
+                continue
+            if name in _TG_VOID_TAGS or token.endswith("/>"):
+                current += token
+                continue
+            if utf16_length(current) + utf16_length(token) > usable and current:
+                flush()
+            current += token
+            stack.append(name)
+            continue
+
+        for word in re.findall(r"\S+|\s+", token):
+            if utf16_length(current) + utf16_length(word) <= usable:
+                current += word
+                continue
+            if utf16_length(word) > usable:
+                for char in word:
+                    if utf16_length(current) + utf16_length(char) > usable and current:
+                        flush()
+                    current += char
+                continue
+            if current:
+                flush()
+                current += word.lstrip()
+            else:
+                current = word
+
+    if current:
+        suffix = _close_html_tags(stack)
+        part = current + suffix
+        if part.strip("</>"):
+            parts.append(part)
+
+    if len(parts) <= 1:
+        return parts or [text[:limit]]
+    total = len(parts)
+    marked: list[str] = []
+    for index, part in enumerate(parts, 1):
+        header = f" ({index}/{total})\n"
+        allowed = limit - utf16_length(header)
+        while utf16_length(part) > allowed and part:
+            part = part[:-1]
+        marked.append(header + part)
+    return marked
 
 
 def strip_html(text: str) -> str:
     return _HTML_TAG_RE.sub("", text or "").strip()
 
 
-def truncate(text: str, limit: int = 4096) -> str:
-    return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
+def truncate(text: str, limit: int = TG_MAX_TEXT_LENGTH) -> str:
+    if not text:
+        return ""
+    total = 0
+    chars: list[str] = []
+    truncated = False
+    for char in text:
+        width = 2 if ord(char) > 0xFFFF else 1
+        if total + width > max(0, limit - 1):
+            truncated = True
+            break
+        chars.append(char)
+        total += width
+    result = "".join(chars).rstrip()
+    return f"{result}…" if truncated else result
+
+
+def _is_telegram_block_error(error: TelegramBadRequest) -> bool:
+    message = str(error).lower()
+    return any(
+        marker in message
+        for marker in (
+            "blocked",
+            "chat not found",
+            "user is deactivated",
+            "user is blocked",
+        )
+    )
 
 
 async def safe_send_message(
@@ -335,17 +498,35 @@ async def safe_send_content(
     try:
         if content_type == "text":
             payload_text = text or ""
-            await bot.send_message(
-                user_id,
-                truncate(payload_text),
-                parse_mode=ParseMode.HTML,
-                reply_markup=reply_markup,
-            )
+            if not payload_text:
+                return False
+            chunks = split_long_text(payload_text)
+            for index, chunk in enumerate(chunks):
+                markup = reply_markup if index == len(chunks) - 1 else None
+                try:
+                    await bot.send_message(
+                        user_id,
+                        chunk,
+                        parse_mode=ParseMode.HTML,
+                        reply_markup=markup,
+                    )
+                except TelegramBadRequest as chunk_error:
+                    if _is_telegram_block_error(chunk_error):
+                        return False
+                    logger.warning(f"HTML-разметка не прошла, отправлен plain-текст: {chunk_error}")
+                    for plain_index in range(index, len(chunks)):
+                        plain_chunk = strip_html(chunks[plain_index])
+                        plain_markup = reply_markup if plain_index == len(chunks) - 1 else None
+                        await bot.send_message(user_id, plain_chunk, reply_markup=plain_markup)
+                    return True
             return True
 
         if content_type == "photo":
             photo = _build_input_file(
-                file_id=file_id, file_path=file_path, file_bytes=file_bytes, file_name=file_name
+                file_id=file_id,
+                file_path=file_path,
+                file_bytes=file_bytes,
+                file_name=file_name,
             )
             await bot.send_photo(
                 user_id,
@@ -358,7 +539,10 @@ async def safe_send_content(
 
         if content_type == "document":
             document = _build_input_file(
-                file_id=file_id, file_path=file_path, file_bytes=file_bytes, file_name=file_name
+                file_id=file_id,
+                file_path=file_path,
+                file_bytes=file_bytes,
+                file_name=file_name,
             )
             await bot.send_document(
                 user_id,
@@ -375,28 +559,20 @@ async def safe_send_content(
         return False
 
     except TelegramBadRequest as e:
-        error_msg = str(e).lower()
-        if (
-            "blocked" in error_msg
-            or "chat not found" in error_msg
-            or "user is deactivated" in error_msg
-        ):
+        if _is_telegram_block_error(e):
             return False
 
         if content_type == "text" and text:
-            plain = truncate(strip_html(text))
-            try:
-                await bot.send_message(user_id, plain, reply_markup=reply_markup)
-                logger.warning(f"HTML-разметка не прошла, отправлен plain-текст для user {user_id}")
-                return True
-            except TelegramBadRequest as plain_err:
-                if (
-                    "blocked" in str(plain_err).lower()
-                    or "chat not found" in str(plain_err).lower()
-                ):
+            for plain_chunk in split_long_text(strip_html(text)):
+                try:
+                    await bot.send_message(user_id, plain_chunk)
+                except TelegramBadRequest as plain_err:
+                    if _is_telegram_block_error(plain_err):
+                        return False
+                    logger.error(f"Ошибка отправки plain-текста {user_id}: {plain_err}")
                     return False
-                logger.error(f"Ошибка отправки plain-текста {user_id}: {plain_err}")
-                return False
+            logger.warning(f"HTML-разметка не прошла, отправлен plain-текст для user {user_id}")
+            return True
         logger.error(f"Ошибка отправки контента {content_type} пользователю {user_id}: {e}")
         return False
     except Exception as e:  # noqa: BLE001
@@ -427,32 +603,33 @@ async def smart_answer(
     delete_origin: bool = False,
 ) -> bool:
     try:
-        text = truncate(text)
         if isinstance(event, Message):
-            await event.answer(text, reply_markup=reply_markup)
-        elif isinstance(event, CallbackQuery):
-            if event.message:
-                await event.message.answer(text, reply_markup=reply_markup)
-                if delete_origin:
-                    with suppress(Exception):
-                        await event.message.delete()
+            chat_id = event.chat.id
+        elif isinstance(event, CallbackQuery) and event.message:
+            chat_id = event.message.chat.id
+        else:
+            return False
+
+        chunks = split_long_text(text)
+        for index, chunk in enumerate(chunks):
+            markup = reply_markup if index == len(chunks) - 1 else None
+            try:
+                await event.bot.send_message(
+                    chat_id,
+                    chunk,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=markup,
+                )
+            except TelegramBadRequest:
+                await event.bot.send_message(chat_id, strip_html(chunk), reply_markup=markup)
+
+        if isinstance(event, CallbackQuery):
             with suppress(Exception):
                 await event.answer()
+            if delete_origin and event.message:
+                with suppress(Exception):
+                    await event.message.delete()
         return True
-    except TelegramBadRequest:
-        try:
-            plain = truncate(strip_html(text))
-            if isinstance(event, Message):
-                await event.answer(plain, reply_markup=reply_markup)
-            elif isinstance(event, CallbackQuery) and event.message:
-                await event.message.answer(plain, reply_markup=reply_markup)
-            with suppress(Exception):
-                if isinstance(event, CallbackQuery):
-                    await event.answer()
-            return True
-        except Exception as e:  # noqa: BLE001
-            logger.error(f"smart_answer error: {e}")
-            return False
     except Exception as e:  # noqa: BLE001
         logger.error(f"smart_answer error: {e}")
         return False
@@ -524,12 +701,18 @@ _EXPIRY_ALERT_CACHE_MAX_SIZE: int = 10000
 _EXPIRY_ALERT_CACHE_TTL: int = 86400
 
 
+def invalidate_expiry_alert_cache(*user_ids: int) -> None:
+    for user_id in user_ids:
+        if user_id > 0:
+            _expiry_alert_cache.pop(user_id, None)
+
+
 async def should_send_expiry_alert(user_id: int) -> bool:
     if not validate_user_id(user_id):
         logger.warning(f"Некорректный user_id для проверки уведомления: {user_id}")
         return False
 
-    user_data = await db.get_user_by_any_id(user_id)
+    user_data = await db.find_user_by_any_id(user_id)
     if user_data and to_int(user_data.get("expiry_alert_sent"), 0) == 1:
         return False
 
@@ -590,7 +773,7 @@ def resolve_local_path(value: Any, default: str = "") -> str:
     try:
         resolved.relative_to(BASE_DIR.resolve())
     except ValueError:
-        return ""
+        raise ValueError(f"Путь вне каталога проекта не разрешён: {resolved}") from None
     return str(resolved)
 
 
@@ -600,6 +783,7 @@ class Config:
     DEFAULT_LANGUAGE: str = os.getenv("DEFAULT_LANGUAGE", "ru").strip().lower()
 
     BOT_TOKEN: str = os.getenv("BOT_TOKEN", "").strip()
+    BOT_USERNAME: str = os.getenv("BOT_USERNAME", "").strip()
     ADMIN_USER_IDS: list[int] = env_int_list("ADMIN_USER_IDS")
     ADMIN_AUTO_SUBSCRIBE_DAYS: int = env_int("ADMIN_AUTO_SUBSCRIBE_DAYS", 3650)
     ADMIN_SUB_EMAIL: str = os.getenv("ADMIN_SUB_EMAIL", "").strip()
@@ -610,6 +794,7 @@ class Config:
     FASTAPI_DOCS: bool = str_to_bool(os.getenv("FASTAPI_DOCS", "false"))
     FASTAPI_CORS_ENABLED: bool = str_to_bool(os.getenv("FASTAPI_CORS_ENABLED", "false"))
     BOT_API_ENABLED: bool = str_to_bool(os.getenv("BOT_API_ENABLED", "true"))
+    TRUST_PROXY_COUNT: int = max(0, env_int("TRUST_PROXY_COUNT", 0))
     FASTAPI_ALLOW_ORIGINS: str = os.getenv(
         "FASTAPI_ALLOW_ORIGINS",
         "http://localhost:3000,http://localhost:2005",
@@ -647,6 +832,13 @@ class Config:
     TARIFFS_PATH: str = resolve_local_path(
         os.getenv("TARIFFS_PATH"), os.path.join(DATA_DIR, "tarifs.json")
     )
+    TARIFFS_NEW_PATH: str = resolve_local_path(
+        os.getenv("TARIFFS_NEW_PATH"), os.path.join(DATA_DIR, "tarifs_new.json")
+    )
+    SERVERS_PATH: str = resolve_local_path(
+        os.getenv("SERVERS_PATH"), os.path.join(DATA_DIR, "servers.json")
+    )
+    TARIFF_MODE: str = os.getenv("TARIFF_MODE", "old").strip().lower()
     PARTNER_OPS_FILE: str = resolve_local_path(
         os.getenv("PARTNER_OPS_FILE"),
         os.path.join("data", "partner_operations.json"),
@@ -721,6 +913,9 @@ class Config:
 
     PARTNER_CHANNEL_CHECK_INTERVAL_SEC: int = env_int("PARTNER_CHANNEL_CHECK_INTERVAL_SEC", 10800)
 
+    CO_OWNERS: str = os.getenv("CO_OWNERS", "").strip()
+    CO_OWNERS_COMMISSION_PERCENT: int = env_int("CO_OWNERS_COMMISSION_PERCENT", 10)
+
     RATE_LIMIT_COOLDOWN: float = env_float("RATE_LIMIT_COOLDOWN", 0.3)
     API_RATE_LIMIT: int = env_int("API_RATE_LIMIT", 120)
     API_RATE_WINDOW: int = env_int("API_RATE_WINDOW", 60)
@@ -742,16 +937,50 @@ class Config:
         return [s.strip().lower() for s in cls.PARTNER_REQUIRED_SOCIALS.split(",") if s.strip()]
 
     @classmethod
+    def co_owners_map(cls) -> dict[int, str]:
+        result: dict[int, str] = {}
+        for item in cls.CO_OWNERS.split(","):
+            record = item.strip()
+            if not record:
+                continue
+            raw_tid, sep, nickname = record.partition(":")
+            tid = int(raw_tid.strip()) if raw_tid.strip().isdigit() else 0
+            nick = nickname.strip()
+            if not sep or tid <= 0 or not re.fullmatch(r"[A-Za-z0-9_-]{1,32}", nick):
+                raise ValueError(f"Некорректная запись CO_OWNERS: {record}")
+            if tid in result:
+                raise ValueError(f"Дубликат Telegram ID в CO_OWNERS: {tid}")
+            result[tid] = nick
+        return result
+
+    @classmethod
     def validate(cls) -> None:
         errors: list[str] = []
 
         if not cls.BOT_TOKEN:
             errors.append("BOT_TOKEN не установлен")
 
-        if len(cls.BOT_API_KEY) < MIN_SECRET_LENGTH:
+        if cls.TARIFF_MODE not in ("old", "new"):
+            errors.append("TARIFF_MODE должен быть 'old' или 'new'")
+
+        path_fields = (
+            "LANGS_DIR",
+            "DATA_DIR",
+            "DATA_FILE",
+            "DATA_AWAIT",
+            "TARIFFS_PATH",
+            "TARIFFS_NEW_PATH",
+            "SERVERS_PATH",
+            "PARTNER_OPS_FILE",
+        )
+        for field_name in path_fields:
+            if not getattr(cls, field_name):
+                errors.append(f"{field_name} не установлен или вне каталога проекта")
+
+        if len(cls.BOT_API_KEY) < MIN_SECRET_LENGTH or _is_placeholder_secret(cls.BOT_API_KEY):
             errors.append("BOT_API_KEY должен быть уникальным ключом не короче 32 символов")
 
-        if len(cls.BOT_ADMIN_KEY) < MIN_SECRET_LENGTH:
+        if len(cls.BOT_ADMIN_KEY) < MIN_SECRET_LENGTH or _is_placeholder_secret(cls.BOT_ADMIN_KEY):
             errors.append("BOT_ADMIN_KEY должен быть уникальным ключом не короче 32 символов")
 
         if not cls.PANEL_BASE:
@@ -769,6 +998,12 @@ class Config:
                 errors.append("FASTAPI_ALLOW_ORIGINS не может содержать *")
             else:
                 origins = [o.strip() for o in cls.FASTAPI_ALLOW_ORIGINS.split(",") if o.strip()]
+                invalid_origins = [o for o in origins if not o.startswith(("http://", "https://"))]
+                if invalid_origins:
+                    errors.append(
+                        "FASTAPI_ALLOW_ORIGINS должен содержать адреса со схемой "
+                        f"http:// или https://: {', '.join(invalid_origins)}"
+                    )
                 if len(origins) != len(set(origins)):
                     errors.append("FASTAPI_ALLOW_ORIGINS содержит дубликаты")
 
@@ -781,13 +1016,14 @@ class Config:
         if cls.SESSION_MAX_AGE <= 0:
             errors.append("SESSION_MAX_AGE должен быть больше 0")
 
-        if (
-            len(cls.SESSION_SECRET) < MIN_SECRET_LENGTH
-            or cls.SESSION_SECRET == "change-this-to-a-random-secret-string"
+        if len(cls.SESSION_SECRET) < MIN_SECRET_LENGTH or _is_placeholder_secret(
+            cls.SESSION_SECRET
         ):
             errors.append("SESSION_SECRET должен быть уникальной строкой не короче 32 символов")
 
-        if len(cls.JWT_SECRET_KEY) < MIN_SECRET_LENGTH:
+        if len(cls.JWT_SECRET_KEY) < MIN_SECRET_LENGTH or _is_placeholder_secret(
+            cls.JWT_SECRET_KEY
+        ):
             errors.append("JWT_SECRET_KEY должен быть уникальной строкой не короче 32 символов")
 
         if cls.TRUST_SCORE_MIN < 0:
@@ -826,6 +1062,13 @@ class Config:
         ):
             errors.append("ADMIN_SUB_EMAIL должен быть корректным email-адресом")
 
+        if not 0 <= cls.CO_OWNERS_COMMISSION_PERCENT <= MAX_PERCENT:
+            errors.append("CO_OWNERS_COMMISSION_PERCENT должен быть от 0 до 100")
+        try:
+            cls.co_owners_map()
+        except ValueError as error:
+            errors.append(str(error))
+
         if errors:
             error_msg = "Ошибка конфигурации:\n" + "\n".join(f"  • {e}" for e in errors)
             logger.critical(error_msg)
@@ -853,6 +1096,8 @@ def _verify_admin_jwt(token: str) -> dict[str, Any] | None:
     try:
         payload = jwt.decode(token, Config.JWT_SECRET_KEY, algorithms=[Config.JWT_ALGORITHM])
         if payload.get("sub") != "admin":
+            return None
+        if payload.get("type") != "access":
             return None
         return payload
     except JWTError:
@@ -886,10 +1131,10 @@ class Features:
     @staticmethod
     def available_payment_methods() -> list[str]:
         methods: list[str] = []
-        if Config.YOOMONEY_WALLET:
-            methods.append("yoomoney")
         if Config.PAYMENT_CARD_NUMBER:
             methods.append("card")
+        if Config.YOOMONEY_WALLET:
+            methods.append("yoomoney")
         return methods
 
     @staticmethod
@@ -897,13 +1142,14 @@ class Features:
         return bool(Config.CUSTOM_TARIFF_ENABLED)
 
     @staticmethod
-    def features_dict() -> dict[str, bool]:
+    def features_dict() -> dict[str, Any]:
         return {
+            "tariff_mode": Config.TARIFF_MODE,
             "custom_tariff": Features.custom_tariff_available(),
             "partner": Features.partner_available(),
             "partner_new_auto_mode": Features.partner_new_auto_mode_available(),
             "trust_score": Config.TRUST_SCORE_ENABLED,
-            "telegram_login": bool(BOT_USERNAME),
+            "telegram_login": bool(Config.BOT_USERNAME),
             "main_panel": bool(Config.SUB_PANEL_BASE),
             "json_panel": bool(Config.JSON_SUB_PANEL_BASE),
             "card_payment": bool(Config.PAYMENT_CARD_NUMBER),
@@ -997,6 +1243,13 @@ BYTES_IN_GB = 1073741824
 SECONDS_IN_DAY = 86400
 SECONDS_IN_HOUR = 3600
 SECONDS_IN_YEAR = 31536000
+TRAFFIC_RESET_DAYS = 30
+LOW_TRAFFIC_ALERT_GB = 10.0
+CO_OWNER_CODE_MIN_PARTS = 3
+CO_OWNER_TREE_FIELDS = (
+    "user_id, telegram_id, username, join_date, has_subscription, plan_text, "
+    "expiry_sub_datatime, ref_by, co_owner_ref_by, is_coowner, total_traffic_gb"
+)
 BEARER_PREFIX = "Bearer "
 
 _admin_startup_completed: bool = False
@@ -1034,7 +1287,14 @@ def verify_password(password: str, password_hash: str | None) -> bool:
 
 # --- Session cookie helpers ---
 SESSION_COOKIE_NAME: str = "vpn_token"
-_SESSION_COOKIE_SAMESITE: str = "none"
+# Веб ходит к боту через same-origin /api/bot/*, кросс-сайт не нужен.
+# Lax не отправляет cookie в state-changing кросс-сайт POST (CSRF).
+_COOKIE_SAMESITE_CONFIGURED = os.getenv("SESSION_COOKIE_SAMESITE", "lax").strip().lower()
+_SESSION_COOKIE_SAMESITE: str = (
+    _COOKIE_SAMESITE_CONFIGURED
+    if _COOKIE_SAMESITE_CONFIGURED in {"lax", "strict", "none"}
+    else "lax"
+)
 _SESSION_COOKIE_SECURE: bool = bool(
     os.getenv("SESSION_COOKIE_SECURE", "true").lower() in ("1", "true", "yes", "on")
 )
@@ -1076,6 +1336,7 @@ def _cookie_headers_for_session(token: str, *, max_age: int | None = None) -> di
 
 # --- Rate limiting ---
 _user_request_times: dict[int, float] = {}
+_rate_limit_lock = asyncio.Lock()
 _subscription_creation_locks: dict[int, asyncio.Lock] = {}
 
 # --- Brute force protection for auth endpoints ---
@@ -1152,7 +1413,7 @@ def _clear_auth_failures(username: str, client_ip: str) -> None:
 
 
 async def _notify_account_change(user_id: int, text_template: str, **kwargs: Any) -> None:
-    user = await db.get_user_by_any_id(user_id)
+    user = await db.find_user_by_any_id(user_id)
     if not user:
         return
     tg_id = user.get("telegram_id", 0)
@@ -1229,11 +1490,19 @@ async def disconnect_all_subscriptions(reason: str) -> dict[str, int]:
     return result
 
 
+async def _traffic_suspended_panel_emails() -> set[str]:
+    return {
+        get_user_panel_email(to_int(user.get("user_id"), 0), user)
+        for user in await db.get_traffic_suspended_users()
+    }
+
+
 async def switch_all_clients_to_backup() -> dict[str, int]:
     result = {"total": 0, "switched": 0, "failed": 0, "skipped": 0}
     if not Config.TECH_WORK_BACKUP_INBOUND:
         logger.warning("TECH_WORK_BACKUP_INBOUND не настроен")
         return result
+    suspended_emails = await _traffic_suspended_panel_emails()
 
     backup_inbound_id = await panel.get_inbound_id_by_name(Config.TECH_WORK_BACKUP_INBOUND)
     if not backup_inbound_id:
@@ -1249,7 +1518,7 @@ async def switch_all_clients_to_backup() -> dict[str, int]:
         result["total"] = len(clients)
         for client_row in clients:
             email = str(client_row.get("email") or "")
-            if not email:
+            if not email or email in suspended_emails:
                 result["skipped"] += 1
                 continue
 
@@ -1293,7 +1562,13 @@ async def switch_all_clients_to_backup() -> dict[str, int]:
                 else:
                     result["failed"] += 1
                     logger.error(f"Ошибка переключения {email}: {data.get('msg')}")
-            except (TimeoutError, aiohttp.ClientError, KeyError, ValueError, OSError) as e:
+            except (
+                TimeoutError,
+                aiohttp.ClientError,
+                KeyError,
+                ValueError,
+                OSError,
+            ) as e:
                 result["failed"] += 1
                 logger.error(f"Исключение при переключении {email}: {e}")
 
@@ -1311,10 +1586,11 @@ async def restore_all_clients_from_backup() -> dict[str, int]:
         logger.info("Нет сохранённых оригинальных inbound для восстановления")
         return result
 
+    suspended_emails = await _traffic_suspended_panel_emails()
     result["total"] = len(original_inbounds)
 
     for email, original_ids in original_inbounds.items():
-        if not original_ids:
+        if not original_ids or email in suspended_emails:
             result["skipped"] += 1
             continue
 
@@ -1402,7 +1678,7 @@ async def compensate_all_users(days: int) -> dict[str, int]:
         async def _compensate(uid: int) -> bool:
             async with semaphore:
                 try:
-                    user = await db.get_user_by_any_id(uid)
+                    user = await db.find_user_by_any_id(uid)
                     internal_uid = user.get("user_id", uid) if user else uid
                     base_email = build_base_email(internal_uid)
                     extended = await panel.extend_client_expiry(base_email, days)
@@ -1589,7 +1865,7 @@ async def resolve_payment_identity(raw_id: int) -> tuple[int, int]:
     internal_uid = to_int(raw_id, 0)
     telegram_id = 0
     if internal_uid > 0:
-        user = await db.get_user_by_any_id(internal_uid)
+        user = await db.find_user_by_any_id(internal_uid)
         if user:
             internal_uid = to_int(user.get("user_id"), internal_uid)
             telegram_id = to_int(user.get("telegram_id"), 0)
@@ -1676,6 +1952,53 @@ def format_duration(days: int, lang: str = Config.DEFAULT_LANGUAGE) -> str:
     return translate(lang, "texts.duration_days", days=days)
 
 
+def _year_plural_key(years: int, lang: str) -> str:
+    if lang in ("ru", "be"):
+        if years % 10 == 1 and years % 100 != 11:
+            return "texts.duration_year_one"
+        if 2 <= years % 10 <= 4 and not 12 <= years % 100 <= 14:
+            return "texts.duration_year_few"
+        return "texts.duration_year_many"
+    if lang == "pl":
+        if years == 1:
+            return "texts.duration_year_one"
+        if 2 <= years % 10 <= 4 and not 12 <= years % 100 <= 14:
+            return "texts.duration_year_few"
+        return "texts.duration_year_many"
+    if years == 1:
+        return "texts.duration_year_one"
+    return "texts.duration_year_many"
+
+
+def format_tariff_duration(days: int, lang: str = Config.DEFAULT_LANGUAGE) -> str:
+    total_days = max(0, to_int(days, 0))
+    if total_days > 0 and total_days % DAYS_PER_YEAR == 0:
+        years = total_days // DAYS_PER_YEAR
+        return translate(lang, _year_plural_key(years, lang), years=years)
+    return format_duration(total_days, lang)
+
+
+def format_tariff_traffic(
+    traffic_gb: Any,
+    lang: str = Config.DEFAULT_LANGUAGE,
+    *,
+    per_month: bool = False,
+) -> str:
+    if not per_month:
+        return format_traffic(traffic_gb, lang)
+    try:
+        value = float(traffic_gb)
+    except Exception:  # noqa: BLE001
+        return str(traffic_gb)
+    if value <= 0:
+        return translate(lang, "texts.unlimited")
+    if value >= GB_PER_TB and value % GB_PER_TB == 0:
+        return translate(lang, "texts.traffic_tb_per_month", value=int(value / GB_PER_TB))
+    if value.is_integer():
+        return translate(lang, "texts.traffic_gb_per_month", value=int(value))
+    return translate(lang, "texts.traffic_gb_per_month", value=value)
+
+
 def format_tg_suffix(telegram_id: Any) -> str:
     tid = to_int(telegram_id, 0)
     return f" (TID: <code>{tid}</code>)" if tid > 0 else ""
@@ -1699,6 +2022,22 @@ def generate_ref_code() -> str:
     return "".join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(8))
 
 
+def generate_coowner_code(nickname: str) -> str:
+    nick = sanitize_mate_nickname(nickname) or "owner"
+    suffix = secrets.token_urlsafe(9).replace("-", "").replace("_", "")
+    return f"co_{nick}_{suffix}"
+
+
+def build_coowner_email(user_id: int, nickname: str) -> str:
+    nick = sanitize_mate_nickname(nickname) or "owner"
+    return f"co_{nick}_{user_id}@{Config.VPN_NAME.lower()}.com"
+
+
+def build_coowner_sub_id(nickname: str) -> str:
+    nick = sanitize_mate_nickname(nickname) or "owner"
+    return f"co_{nick}_{secrets.token_hex(4)}"
+
+
 def build_base_email(user_id: int) -> str:
     return f"user_{user_id}@{Config.VPN_NAME.lower()}.com"
 
@@ -1714,8 +2053,12 @@ def sanitize_mate_nickname_or_uid(nickname: Any, fallback: Any) -> str:
 
 
 def get_user_panel_email(user_id: int, user: dict[str, Any]) -> str:
+    if user.get("is_coowner"):
+        parts = str(user.get("coowner_code") or "").split("_")
+        nickname = parts[1] if len(parts) >= CO_OWNER_CODE_MIN_PARTS else "owner"
+        return build_coowner_email(to_int(user.get("user_id"), 0) or to_int(user_id, 0), nickname)
     if user.get("is_mate"):
-        mate_uid = to_int(user.get("telegram_id"), 0) or to_int(user_id, 0)
+        mate_uid = to_int(user.get("user_id"), 0) or to_int(user_id, 0)
         sanitized = sanitize_mate_nickname_or_uid(user.get("mate_nickname", ""), mate_uid)
         return f"mate_{mate_uid}_{sanitized}@{Config.VPN_NAME.lower()}.com"
     sub_id = normalize_sub_id(user.get("vpn_url") or "")
@@ -1786,13 +2129,23 @@ def build_subscription_link_blocks(sub_id: Any, lang: str) -> str:
 
 
 def get_ref_link(ref_code: str) -> str:
-    if BOT_USERNAME:
-        return f"https://t.me/{BOT_USERNAME}?start={ref_code}"
+    if Config.BOT_USERNAME:
+        return f"https://t.me/{Config.BOT_USERNAME}?start={ref_code}"
     return ""
 
 
+def get_co_owner_web_link(ref_code: str) -> str:
+    base = Config.SITE_URL.rstrip("/")
+    return f"{base}/?ref={ref_code}" if base else ""
+
+
 async def is_admin_user(user_id: int) -> bool:
-    return user_id in ADMIN_USER_ID_SET
+    if user_id in ADMIN_USER_ID_SET:
+        return True
+    user = await db.find_user_by_any_id(user_id)
+    if not user:
+        return False
+    return to_int(user.get("telegram_id"), 0) in ADMIN_USER_ID_SET
 
 
 def parse_stored_servers(value: Any) -> list[str]:
@@ -1963,8 +2316,10 @@ def kb(rows: list[list[dict[str, str]]]) -> InlineKeyboardMarkup:
 
 # --- Тарифы ---
 class TariffCatalog:
-    def __init__(self, path: str):
+    def __init__(self, path: str, locations_path: str, fill_all_servers: bool = False) -> None:
         self.path = path
+        self.locations_path = locations_path
+        self.fill_all_servers = fill_all_servers
         self._active: list[dict[str, Any]] = []
         self._by_id: dict[str, dict[str, Any]] = {}
         self._by_name: dict[str, dict[str, Any]] = {}
@@ -1976,6 +2331,9 @@ class TariffCatalog:
 
     def get_all_location_codes(self) -> list[str]:
         return [loc.get("code", "") for loc in self._locations if loc.get("code")]
+
+    def get_plan_ids(self) -> set[str]:
+        return {plan_id for plan_id in self._by_id if plan_id}
 
     def get_by_id(self, plan_id: str) -> dict[str, Any] | None:
         return self._by_id.get(plan_id)
@@ -2007,7 +2365,7 @@ class TariffCatalog:
     def is_trial(plan: dict[str, Any] | None) -> bool:
         if not plan:
             return False
-        return plan.get("id") == "trial"
+        return to_float(plan.get("price_rub"), 0.0) <= 0
 
     def load(self) -> None:
         if not os.path.exists(self.path):
@@ -2023,9 +2381,49 @@ class TariffCatalog:
             logger.error(f"Ошибка загрузки тарифов: {e}")
             raise
 
-        raw_locations = data.get("locations") or []
-        locations = []
-        locations_by_code = {}
+        locations, locations_by_code = self._load_locations()
+
+        plans = data.get("plans") or []
+        normalized = []
+        for raw in plans:
+            if not isinstance(raw, dict):
+                continue
+            try:
+                plan = dict(raw)
+                duration_months = to_int(plan.get("duration_months"), 0)
+                if duration_months > 0:
+                    plan["duration_days"] = duration_months * DAYS_PER_MONTH
+                if self.fill_all_servers:
+                    plan["servers"] = list(locations_by_code)
+                else:
+                    plan["servers"] = normalize_servers(
+                        plan.get("servers") if "servers" in plan else plan.get("description")
+                    )
+                plan.setdefault("active", True)
+                normalized.append(plan)
+            except Exception as e:  # noqa: BLE001
+                logger.error(f"Ошибка обработки плана: {e}")
+
+        self._locations = locations
+        self._locations_by_code = locations_by_code
+        self._active = [p for p in normalized if p.get("active", True)]
+        self._active.sort(key=lambda p: (p.get("sort", 9999), p.get("price_rub", 0)))
+        self._by_id = {p.get("id"): p for p in normalized if p.get("id")}
+        self._by_name = {p.get("name"): p for p in normalized if p.get("name")}
+
+    def _load_locations(self) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
+        try:
+            with open(self.locations_path, encoding="utf-8") as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            logger.error(f"Файл локаций не найден: {self.locations_path}")
+            raise
+        except json.JSONDecodeError as e:
+            logger.error(f"Ошибка парсинга локаций: {e}")
+            raise ValueError("Некорректный формат файла локаций") from e
+        raw_locations = data.get("servers") or data.get("locations") or []
+        locations: list[dict[str, Any]] = []
+        locations_by_code: dict[str, dict[str, Any]] = {}
         for i, raw in enumerate(raw_locations):
             if not isinstance(raw, dict):
                 continue
@@ -2063,35 +2461,27 @@ class TariffCatalog:
                 locations.append(loc)
             except Exception as e:  # noqa: BLE001
                 logger.error(f"Ошибка обработки локации {i}: {e}")
-
-        plans = data.get("plans") or []
-        normalized = []
-        for raw in plans:
-            if not isinstance(raw, dict):
-                continue
-            try:
-                plan = dict(raw)
-                plan["servers"] = normalize_servers(
-                    plan.get("servers") if "servers" in plan else plan.get("description")
-                )
-                plan.setdefault("active", True)
-                normalized.append(plan)
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"Ошибка обработки плана: {e}")
-
-        self._locations = locations
-        self._locations_by_code = locations_by_code
-        self._active = [p for p in normalized if p.get("active", True)]
-        self._active.sort(key=lambda p: (p.get("sort", 9999), p.get("price_rub", 0)))
-        self._by_id = {p.get("id"): p for p in normalized if p.get("id")}
-        self._by_name = {p.get("name"): p for p in normalized if p.get("name")}
+        return locations, locations_by_code
 
 
-tariff_catalog = TariffCatalog(Config.TARIFFS_PATH)
+old_tariff_catalog = TariffCatalog(Config.TARIFFS_PATH, Config.SERVERS_PATH)
+new_tariff_catalog = TariffCatalog(
+    Config.TARIFFS_NEW_PATH, Config.SERVERS_PATH, fill_all_servers=True
+)
+tariff_catalog = new_tariff_catalog if Config.TARIFF_MODE == "new" else old_tariff_catalog
 
 
 def load_tariffs() -> None:
     tariff_catalog.load()
+    try:
+        _inactive_tariff_catalog().load()
+    except FileNotFoundError:
+        logger.warning(
+            f"Неактивный каталог тарифов не найден, пропуск: {_inactive_tariff_catalog().path}"
+        )
+    overlap = sorted(old_tariff_catalog.get_plan_ids() & new_tariff_catalog.get_plan_ids())
+    if overlap:
+        raise ValueError("ID тарифов пересекаются между каталогами: " + ", ".join(overlap))
 
 
 def get_all_active() -> list[dict[str, Any]]:
@@ -2104,6 +2494,29 @@ def get_by_id(plan_id: str) -> dict[str, Any] | None:
 
 def get_by_name(plan_name: str) -> dict[str, Any] | None:
     return tariff_catalog.get_by_name(plan_name)
+
+
+def _inactive_tariff_catalog() -> TariffCatalog:
+    return new_tariff_catalog if Config.TARIFF_MODE == "old" else old_tariff_catalog
+
+
+def find_plan_by_id_any(plan_id: str) -> dict[str, Any] | None:
+    return get_by_id(plan_id) or _inactive_tariff_catalog().get_by_id(plan_id)
+
+
+def find_plan_by_name_any(plan_name: str) -> dict[str, Any] | None:
+    # Имена совпадают между каталогами: безымянные legacy-строки относятся к old.
+    return old_tariff_catalog.get_by_name(plan_name) or new_tariff_catalog.get_by_name(plan_name)
+
+
+def is_new_tariff_plan(plan: dict[str, Any] | None) -> bool:
+    if not plan:
+        return False
+    return new_tariff_catalog.get_by_id(str(plan.get("id") or "")) is not None
+
+
+def get_trial_plan() -> dict[str, Any] | None:
+    return next((p for p in get_all_active() if is_trial_plan(p)), None)
 
 
 def is_trial_plan(plan: dict[str, Any] | None) -> bool:
@@ -2133,6 +2546,7 @@ def get_plan_servers(plan: dict[str, Any] | None) -> list[str]:
 
 
 PARTNER_PLAN_ID = "partner"
+CO_OWNER_PLAN_ID = "co_owner"
 
 
 def get_admin_plan() -> dict[str, Any]:
@@ -2165,7 +2579,30 @@ def is_partner_grant(user: dict[str, Any]) -> bool:
     subscription_id = str(user.get("subscription_id") or "").strip()
     if subscription_id == PARTNER_PLAN_ID:
         return True
-    if not subscription_id or get_by_id(subscription_id):
+    if not subscription_id or find_plan_by_id_any(subscription_id):
+        return False
+    return normalize_sub_id(user.get("vpn_url") or "") == subscription_id
+
+
+def get_co_owner_plan() -> dict[str, Any]:
+    return {
+        "id": CO_OWNER_PLAN_ID,
+        "name": CO_OWNER_PLAN_ID,
+        "ip_limit": 0,
+        "traffic_gb": 0,
+        "duration_days": 36500,
+        "servers": get_all_location_codes(),
+        "active": True,
+    }
+
+
+def is_co_owner_grant(user: dict[str, Any]) -> bool:
+    if not user.get("is_coowner") or not user.get("has_subscription"):
+        return False
+    subscription_id = str(user.get("subscription_id") or "").strip()
+    if subscription_id == CO_OWNER_PLAN_ID:
+        return True
+    if not subscription_id or find_plan_by_id_any(subscription_id):
         return False
     return normalize_sub_id(user.get("vpn_url") or "") == subscription_id
 
@@ -2178,14 +2615,16 @@ def resolve_user_plan(user: dict[str, Any]) -> dict[str, Any] | None:
         or normalize_sub_id(user.get("vpn_url") or "") == admin_sub_id
     ):
         return get_admin_plan()
-    plan = get_by_id(subscription_id) if subscription_id else None
+    plan = find_plan_by_id_any(subscription_id) if subscription_id else None
     if plan:
         return plan
     plan_text = str(user.get("plan_text") or "").strip()
     base_plan_name = plan_text.split(" (", 1)[0].strip()
-    plan = get_by_name(base_plan_name) if base_plan_name else None
+    plan = find_plan_by_name_any(base_plan_name) if base_plan_name else None
     if plan:
         return plan
+    if is_co_owner_grant(user):
+        return get_co_owner_plan()
     return get_partner_plan() if is_partner_grant(user) else None
 
 
@@ -2377,7 +2816,9 @@ def build_custom_plan_from_payment(
     )
 
 
-def build_plan_from_payment(payment: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
+def build_plan_from_payment(
+    payment: dict[str, Any],
+) -> tuple[dict[str, Any] | None, str]:
     plan_type = str(payment.get("plan_type", "catalog"))
     plan_id = str(payment.get("plan_id", ""))
     if plan_type == "custom" or plan_id == "custom":
@@ -2414,7 +2855,7 @@ def apply_trust_discount(price: float, trust_score: int) -> tuple[float, int]:
 async def apply_trust_score_delta(user_id: int, delta: int) -> tuple[bool, int, int, int]:
     if not TRUST_SCORE_ENABLED:
         return False, 0, 0, 0
-    user = await db.get_user_by_any_id(user_id)
+    user = await db.find_user_by_any_id(user_id)
     if not user:
         return False, 0, 0, 0
     internal_uid = to_int(user.get("user_id"), 0)
@@ -2458,6 +2899,7 @@ def build_trust_change_line(delta: int, before: int, after: int) -> str:
 
 # --- База данных SQLite ---
 class Database:
+    ALTER_COLUMN_OVERRIDES: ClassVar[dict[str, str]] = {"join_date": "TIMESTAMP"}
     USER_COLUMN_DEFS: ClassVar[dict[str, str]] = {
         "telegram_id": "INTEGER DEFAULT 0",
         "web_id": "INTEGER DEFAULT 0",
@@ -2506,7 +2948,6 @@ class Database:
         "session_token": "TEXT DEFAULT ''",
         "session_expires_at": "TEXT DEFAULT ''",
         "session_created_at": "TEXT DEFAULT ''",
-        "session_version": "INTEGER DEFAULT 0",
         "password_hash": "TEXT DEFAULT ''",
         "discount_percent": "INTEGER DEFAULT 0",
         "abuse_status": "TEXT DEFAULT ''",
@@ -2515,13 +2956,161 @@ class Database:
         "total_traffic_gb": "REAL DEFAULT 0.0",
         "admin_test_sub_id": "TEXT DEFAULT ''",
         "admin_test_expiry": "TEXT DEFAULT ''",
+        "low_traffic_alert_sent": "INTEGER DEFAULT 0",
+        "traffic_reset_at": "TEXT DEFAULT ''",
+        "traffic_disabled": "INTEGER DEFAULT 0",
+        "is_coowner": "INTEGER DEFAULT 0",
+        "coowner_code": "TEXT DEFAULT ''",
+        "co_owner_ref_by": "INTEGER DEFAULT 0",
     }
+    MERGE_SUB_FIELDS: ClassVar[tuple[str, ...]] = (
+        "has_subscription",
+        "plan_text",
+        "plan_servers",
+        "subscription_id",
+        "vpn_url",
+        "ip_limit",
+        "traffic_gb",
+        "extra_sub_gb",
+        "expiry_sub_datatime",
+        "expiry_alert_sent",
+        "cleanup_notification_sent",
+        "low_traffic_alert_sent",
+        "traffic_reset_at",
+        "traffic_disabled",
+    )
+    MERGE_PROFILE_FIELDS: ClassVar[tuple[str, ...]] = (
+        "trial_used",
+        "ref_rewarded",
+        "ref_bonus_given",
+        "bonus_days_pending",
+        "is_coowner",
+        "coowner_code",
+        "is_mate",
+        "mate_nickname",
+        "mate_social_links",
+        "mate_followers",
+        "mate_avg_reach",
+        "mate_period_months",
+        "mate_bonus_type",
+        "mate_bonus_value",
+        "mate_ref_link_code",
+        "mate_subscription_id",
+        "mate_expiry",
+        "mate_balance",
+        "mate_commission_total",
+        "mate_withdrawal_requests",
+        "mate_status",
+        "abuse_status",
+        "daily_traffic_date",
+        "daily_traffic_gb",
+        "total_traffic_gb",
+        "admin_test_sub_id",
+        "admin_test_expiry",
+    )
+    MERGE_WEB_FIELDS: ClassVar[tuple[str, ...]] = (
+        "web_id",
+        "web_login",
+        "web_registered_at",
+        "web_last_login",
+        "web_auth_method",
+        "password_hash",
+        "session_token",
+        "session_expires_at",
+        "session_created_at",
+    )
+    UNIQUE_MERGE_FIELDS: ClassVar[dict[str, Any]] = {
+        "web_id": 0,
+        "ref_code": "",
+        "coowner_code": "",
+        "web_login": "",
+    }
+    PROFILE_GUARD_FIELDS: ClassVar[tuple[str, ...]] = (
+        "is_coowner",
+        "coowner_code",
+        "is_mate",
+        "mate_nickname",
+        "mate_balance",
+        "mate_commission_total",
+        "mate_ref_link_code",
+        "mate_status",
+        "trial_used",
+        "ref_code",
+        "bonus_days_pending",
+        "ref_rewarded",
+        "ref_bonus_given",
+        "admin_test_sub_id",
+        "abuse_status",
+        "total_traffic_gb",
+    )
 
-    DEPRECATED_USER_COLUMNS: ClassVar[set[str]] = {
-        "email",
-        "username_updated_at",
-        "web_linked_tg",
-    }
+    @classmethod
+    def _merge_is_empty(cls, value: Any) -> bool:
+        return value is None or value is False or value == "" or value == 0
+
+    @classmethod
+    def has_profile_data(cls, user: dict[str, Any]) -> bool:
+        return any(not cls._merge_is_empty(user.get(field)) for field in cls.PROFILE_GUARD_FIELDS)
+
+    @staticmethod
+    def account_merge_score(user: dict[str, Any]) -> tuple[int, int, int]:
+        return (
+            1 if (user.get("is_coowner") or user.get("is_mate")) else 0,
+            1 if (user.get("has_subscription") or user.get("mate_subscription_id")) else 0,
+            1 if user.get("trial_used") else 0,
+        )
+
+    @staticmethod
+    def collect_merge_updates(
+        keeper: dict[str, Any],
+        duplicate: dict[str, Any],
+        forbidden_refs: set[int],
+    ) -> dict[str, Any]:
+        updates: dict[str, Any] = {}
+        fields = (
+            *Database.MERGE_SUB_FIELDS,
+            "ref_code",
+            "ref_by",
+            "co_owner_ref_by",
+            *Database.MERGE_PROFILE_FIELDS,
+            *Database.MERGE_WEB_FIELDS,
+            "banned",
+            "ban_reason",
+        )
+        for field in fields:
+            val = duplicate.get(field)
+            if Database._merge_is_empty(val) or not Database._merge_is_empty(keeper.get(field)):
+                continue
+            if field in {"ref_by", "co_owner_ref_by"} and to_int(val, 0) in forbidden_refs:
+                continue
+            if field in {"banned", "ban_reason", "is_coowner", "is_mate"} and not val:
+                continue
+            updates[field] = val
+        for field in ("trust_score", "discount_percent"):
+            if to_int(duplicate.get(field), 0) > to_int(keeper.get(field), 0):
+                updates[field] = duplicate[field]
+        keeper_join = str(keeper.get("join_date") or "")
+        duplicate_join = str(duplicate.get("join_date") or "")
+        if duplicate_join and (not keeper_join or duplicate_join < keeper_join):
+            updates["join_date"] = duplicate_join
+        return updates
+
+    @staticmethod
+    async def clear_unique_merge_fields(
+        conn: Any,
+        user_ids: list[int] | set[int],
+        updates: dict[str, Any],
+    ) -> None:
+        fields = [field for field in Database.UNIQUE_MERGE_FIELDS if field in updates]
+        if not fields:
+            return
+        assignments = ", ".join(f"{field} = ?" for field in fields)
+        values = [Database.UNIQUE_MERGE_FIELDS[field] for field in fields]
+        for user_id in user_ids:
+            await conn.execute(
+                f"UPDATE users SET {assignments} WHERE user_id = ?",
+                (*values, user_id),
+            )
 
     def __init__(self, db_path: str):
         self.db_path: str = db_path
@@ -2591,6 +3180,51 @@ class Database:
             finally:
                 self.conn = None
 
+    async def _backfill_co_owner_refs(self) -> None:
+        cur = await self.conn.execute(
+            "SELECT user_id, ref_by, co_owner_ref_by, is_coowner FROM users"
+        )
+        rows = {
+            int(row[0]): (int(row[1] or 0), int(row[2] or 0), int(row[3] or 0))
+            for row in await cur.fetchall()
+        }
+        proposals: dict[int, int] = {}
+        for uid, (_, existing_owner, _) in rows.items():
+            if existing_owner > 0:
+                continue
+            current = uid
+            seen: set[int] = set()
+            while current and current not in seen:
+                row = rows.get(current)
+                if not row:
+                    break
+                ref_by, current_owner, is_coowner = row
+                candidate = current_owner or (current if is_coowner else 0)
+                if candidate and candidate != uid and candidate in rows and candidate not in seen:
+                    proposals[uid] = candidate
+                    break
+                seen.add(current)
+                current = ref_by
+        changed = True
+        while changed:
+            remove: set[int] = set()
+            for uid in list(proposals):
+                seen: set[int] = set()
+                current = uid
+                while current in proposals and current not in seen:
+                    seen.add(current)
+                    current = proposals[current]
+                if current in seen:
+                    remove.add(uid)
+            for uid in remove:
+                del proposals[uid]
+            changed = bool(remove)
+        if proposals:
+            await self.conn.executemany(
+                "UPDATE users SET co_owner_ref_by = ? WHERE user_id = ?",
+                [(owner, uid) for uid, owner in proposals.items()],
+            )
+
     async def init_db(self) -> None:
         if not self.conn or self._db_initialized:
             if self._db_initialized:
@@ -2654,7 +3288,6 @@ class Database:
                         session_token TEXT DEFAULT '',
                         session_expires_at TEXT DEFAULT '',
                         session_created_at TEXT DEFAULT '',
-                        session_version INTEGER DEFAULT 0,
                         password_hash TEXT DEFAULT '',
                         discount_percent INTEGER DEFAULT 0,
                         abuse_status TEXT DEFAULT '',
@@ -2662,9 +3295,29 @@ class Database:
                         daily_traffic_gb REAL DEFAULT 0.0,
                         total_traffic_gb REAL DEFAULT 0.0,
                         admin_test_sub_id TEXT DEFAULT '',
-                        admin_test_expiry TEXT DEFAULT ''
+                        admin_test_expiry TEXT DEFAULT '',
+                        low_traffic_alert_sent INTEGER DEFAULT 0,
+                        traffic_reset_at TEXT DEFAULT '',
+                        traffic_disabled INTEGER DEFAULT 0,
+                        is_coowner INTEGER DEFAULT 0,
+                        coowner_code TEXT DEFAULT '',
+                        co_owner_ref_by INTEGER DEFAULT 0
                     )
                 """)
+                cur = await self.conn.execute("PRAGMA table_info(users)")
+                existing_columns = {row[1] for row in await cur.fetchall()}
+                for name, definition in self.USER_COLUMN_DEFS.items():
+                    if name in existing_columns:
+                        continue
+                    sql_definition = self.ALTER_COLUMN_OVERRIDES.get(name, definition)
+                    await self.conn.execute(f"ALTER TABLE users ADD COLUMN {name} {sql_definition}")
+                    logger.info(f"Добавлена колонка users.{name}")
+                await self.conn.execute(
+                    "UPDATE users SET join_date = ? WHERE join_date IS NULL OR join_date = ''",
+                    (datetime.now(UTC).isoformat(),),
+                )
+                await self._backfill_co_owner_refs()
+                await self.conn.commit()
                 await self.conn.execute("""
                     CREATE TABLE IF NOT EXISTS partner_tg_channels (
                         channel_id INTEGER PRIMARY KEY,
@@ -2690,7 +3343,20 @@ class Database:
                     "CREATE INDEX IF NOT EXISTS idx_partner_channels_active "
                     "ON partner_tg_channels(is_active)"
                 )
+
+                async def ensure_column_for_index(name: str) -> None:
+                    cur = await self.conn.execute("PRAGMA table_info(users)")
+                    if name in {row[1] for row in await cur.fetchall()}:
+                        return
+                    definition = self.USER_COLUMN_DEFS.get(name)
+                    if not definition:
+                        raise DatabaseError(f"Нет определения колонки users.{name}")
+                    sql_definition = self.ALTER_COLUMN_OVERRIDES.get(name, definition)
+                    await self.conn.execute(f"ALTER TABLE users ADD COLUMN {name} {sql_definition}")
+                    logger.info(f"Добавлена колонка users.{name} перед созданием индекса")
+
                 try:
+                    await ensure_column_for_index("ref_code")
                     await self.conn.execute("""
                         CREATE UNIQUE INDEX IF NOT EXISTS idx_users_ref_code
                         ON users(ref_code)
@@ -2698,8 +3364,22 @@ class Database:
                         """)
                 except Exception as e:  # noqa: BLE001
                     logger.warning(f"Не удалось создать индекс ref_code: {e}")
+                try:
+                    await ensure_column_for_index("coowner_code")
+                    await self.conn.execute("""
+                        CREATE UNIQUE INDEX IF NOT EXISTS idx_users_coowner_code
+                        ON users(coowner_code)
+                        WHERE coowner_code IS NOT NULL AND coowner_code != ''
+                        """)
+                except Exception as e:
+                    raise DatabaseError(
+                        f"Не удалось создать уникальный индекс coowner_code: {e}"
+                    ) from e
                 await self.conn.execute(
                     "CREATE INDEX IF NOT EXISTS idx_users_ref_by ON users(ref_by)"
+                )
+                await self.conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_users_co_owner_ref_by ON users(co_owner_ref_by)"
                 )
                 await self.conn.execute(
                     "CREATE INDEX IF NOT EXISTS idx_users_vpn_url ON users(vpn_url)"
@@ -2710,14 +3390,32 @@ class Database:
                 await self.conn.execute(
                     "CREATE INDEX IF NOT EXISTS idx_users_session_token ON users(session_token)"
                 )
-                await self.conn.execute(
-                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_telegram_id "
-                    "ON users(telegram_id) WHERE telegram_id != 0"
-                )
-                await self.conn.execute(
-                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_web_id "
-                    "ON users(web_id) WHERE web_id != 0"
-                )
+                try:
+                    await self.conn.execute(
+                        "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_telegram_id "
+                        "ON users(telegram_id) WHERE telegram_id != 0"
+                    )
+                except Exception as e:
+                    raise DatabaseError(
+                        f"Не удалось создать уникальный индекс telegram_id: {e}"
+                    ) from e
+                try:
+                    await self.conn.execute(
+                        "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_web_id "
+                        "ON users(web_id) WHERE web_id != 0"
+                    )
+                except Exception as e:
+                    raise DatabaseError(f"Не удалось создать уникальный индекс web_id: {e}") from e
+                try:
+                    await self.conn.execute(
+                        "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_web_login "
+                        "ON users(LOWER(web_login)) WHERE web_login != ''"
+                    )
+                except Exception as e:
+                    raise DatabaseError(
+                        f"Не удалось создать уникальный индекс web_login: {e}"
+                    ) from e
+
                 logger.info("init_db: индексы созданы")
                 await self.conn.commit()
                 self._init_in_progress = False
@@ -2739,20 +3437,35 @@ class Database:
             existing = await self.get_user_by_telegram_id(telegram_id)
             if existing:
                 return True
-            if await self.get_user_by_id(telegram_id):
-                return True
             if telegram_id < 1:
                 return False
             async with self.lock:
                 await self.conn.execute(
-                    "INSERT OR IGNORE INTO users (telegram_id, language) VALUES (?, ?)",
-                    (telegram_id, Config.DEFAULT_LANGUAGE),
+                    "INSERT OR IGNORE INTO users (telegram_id, language, join_date) "
+                    "VALUES (?, ?, ?)",
+                    (
+                        telegram_id,
+                        Config.DEFAULT_LANGUAGE,
+                        datetime.now(UTC).isoformat(),
+                    ),
                 )
                 await self.conn.commit()
             return True
         except Exception as e:  # noqa: BLE001
             logger.error(f"add_user {telegram_id}: {e}")
             return False
+
+    @log_error
+    async def get_traffic_suspended_users(self) -> list[dict[str, Any]]:
+        if not self.conn:
+            return []
+        try:
+            async with self.lock:
+                cur = await self.conn.execute("SELECT * FROM users WHERE traffic_disabled = 1")
+                return [dict(row) for row in await cur.fetchall()]
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"get_traffic_suspended_users: {e}")
+            return []
 
     @log_error
     async def get_user(self, user_id: int) -> dict[str, Any] | None:
@@ -2844,6 +3557,81 @@ class Database:
             return None
 
     @log_error
+    async def get_user_by_coowner_code(self, code: str) -> dict[str, Any] | None:
+        if not self.conn or not code:
+            return None
+        try:
+            cur = await self.conn.execute("SELECT * FROM users WHERE coowner_code = ?", (code,))
+            row = await cur.fetchone()
+            return dict(row) if row else None
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"get_user_by_coowner_code {code}: {e}")
+            return None
+
+    @log_error
+    async def rotate_coowner_code(self, internal_uid: int, nickname: str) -> str | None:
+        if not self.conn:
+            return None
+        for _ in range(5):
+            try:
+                async with self.lock:
+                    for _ in range(10):
+                        code = generate_coowner_code(nickname)
+                        cur = await self.conn.execute(
+                            "SELECT 1 FROM users WHERE coowner_code = ?", (code,)
+                        )
+                        if await cur.fetchone():
+                            continue
+                        cur = await self.conn.execute(
+                            "UPDATE users SET coowner_code = ? WHERE user_id = ?",
+                            (code, internal_uid),
+                        )
+                        await self.conn.commit()
+                        if cur.rowcount == 1:
+                            return code
+                return None
+            except aiosqlite.IntegrityError:
+                continue
+        return None
+
+    @log_error
+    async def get_co_owners(self) -> list[dict[str, Any]]:
+        if not self.conn:
+            return []
+        try:
+            cur = await self.conn.execute("SELECT * FROM users WHERE is_coowner = 1")
+            rows = await cur.fetchall()
+            return [dict(row) for row in rows]
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"get_co_owners: {e}")
+            return []
+
+    @log_error
+    async def get_users_by_referrers(
+        self, referrer_ids: list[int], column: str = "ref_by"
+    ) -> list[dict[str, Any]]:
+        if column not in {"ref_by", "co_owner_ref_by"}:
+            raise DatabaseError(f"Недопустимая колонка реферера: {column}")
+        if not self.conn or not referrer_ids:
+            return []
+        result: list[dict[str, Any]] = []
+        for start in range(0, len(referrer_ids), 400):
+            chunk = [uid for uid in referrer_ids[start : start + 400] if uid > 0]
+            if not chunk:
+                continue
+            placeholders = ",".join("?" for _ in chunk)
+            try:
+                cur = await self.conn.execute(
+                    f"SELECT {CO_OWNER_TREE_FIELDS} FROM users WHERE {column} IN ({placeholders})",
+                    chunk,
+                )
+                result.extend(dict(row) for row in await cur.fetchall())
+            except Exception as e:  # noqa: BLE001
+                logger.error(f"get_users_by_referrers chunk {start}: {e}")
+                continue
+        return result
+
+    @log_error
     async def get_user_by_telegram_id(self, telegram_id: int) -> dict[str, Any] | None:
         if not self.conn:
             return None
@@ -2902,7 +3690,10 @@ class Database:
             return []
         try:
             cur = await self.conn.execute(
-                "SELECT * FROM users WHERE abuse_status IS NOT NULL AND abuse_status != ''"
+                "SELECT user_id, telegram_id, username, language, abuse_status, "
+                "daily_traffic_gb, total_traffic_gb, daily_traffic_date, "
+                "has_subscription, trust_score "
+                "FROM users WHERE abuse_status IS NOT NULL AND abuse_status != ''"
             )
             return [dict(row) for row in await cur.fetchall()]
         except Exception as e:  # noqa: BLE001
@@ -2916,7 +3707,8 @@ class Database:
         try:
             placeholders = ",".join("?" for _ in user_ids)
             cur = await self.conn.execute(
-                f"SELECT ref_by, COUNT(*) FROM users WHERE ref_by IN ({placeholders}) GROUP BY ref_by",
+                f"SELECT ref_by, COUNT(*) FROM users "
+                f"WHERE ref_by IN ({placeholders}) AND user_id != ref_by GROUP BY ref_by",
                 user_ids,
             )
             return {row[0]: row[1] for row in await cur.fetchall()}
@@ -2931,7 +3723,10 @@ class Database:
         try:
             placeholders = ",".join("?" for _ in user_ids)
             cur = await self.conn.execute(
-                f"""SELECT ref_by, COUNT(*) FROM users WHERE ref_by IN ({placeholders}) AND ref_rewarded = 1 AND telegram_id != 0 GROUP BY ref_by""",
+                f"""SELECT ref_by, COUNT(*) FROM users
+                    WHERE ref_by IN ({placeholders}) AND user_id != ref_by
+                      AND ref_rewarded = 1 AND telegram_id != 0
+                    GROUP BY ref_by""",
                 user_ids,
             )
             return {row[0]: row[1] for row in await cur.fetchall()}
@@ -2965,15 +3760,82 @@ class Database:
 
         try:
             async with self.lock:
-                await self.conn.execute(
+                cur = await self.conn.execute(
                     f"UPDATE users SET {set_clause} WHERE user_id = ?",
                     values,
                 )
                 await self.conn.commit()
-            return True
+                return cur.rowcount > 0
         except Exception as e:  # noqa: BLE001
             logger.error(f"update_user {user_id}: {e}")
             return False
+
+    @log_error
+    async def get_max_user_id(self) -> int:
+        if not self.conn:
+            return 0
+        cur = await self.conn.execute("SELECT MAX(user_id) FROM users")
+        row = await cur.fetchone()
+        return to_int(row[0], 0) if row else 0
+
+    @log_error
+    async def insert_csv_user(
+        self, values: dict[str, Any], *, explicit_uid: int | None = None
+    ) -> int | None:
+        if not self.conn:
+            return None
+        payload = dict(values)
+        if explicit_uid is not None:
+            payload["user_id"] = explicit_uid
+        if not payload:
+            return None
+        columns = list(payload)
+        placeholders = ", ".join("?" for _ in columns)
+        sql = f"INSERT INTO users ({', '.join(columns)}) VALUES ({placeholders})"
+        try:
+            async with self.lock:
+                cur = await self.conn.execute(sql, [payload[column] for column in columns])
+                await self.conn.commit()
+                return (
+                    explicit_uid if explicit_uid is not None else to_int(cur.lastrowid, 0) or None
+                )
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"insert_csv_user: {e}")
+            return None
+
+    @log_error
+    async def find_csv_conflict(
+        self, values: dict[str, Any], *, exclude_uid: int = 0
+    ) -> str | None:
+        if not self.conn:
+            return None
+        checks: tuple[tuple[str, Any], ...] = (
+            ("telegram_id", to_int(values.get("telegram_id"), 0)),
+            ("web_id", to_int(values.get("web_id"), 0)),
+            ("web_login", str(values.get("web_login") or "").strip()),
+            ("ref_code", str(values.get("ref_code") or "").strip()),
+            ("coowner_code", str(values.get("coowner_code") or "").strip()),
+            (
+                "vpn_url",
+                ""
+                if str(values.get("vpn_url") or "").strip().lower() in CSV_REGEN_MARKERS
+                else normalize_sub_id(values.get("vpn_url")),
+            ),
+        )
+        for column, value in checks:
+            if value in (None, "", 0):
+                continue
+            if column == "web_login":
+                sql = (
+                    "SELECT user_id FROM users WHERE LOWER(web_login) = LOWER(?) "
+                    "AND user_id != ? LIMIT 1"
+                )
+            else:
+                sql = f"SELECT user_id FROM users WHERE {column} = ? AND user_id != ? LIMIT 1"
+            cur = await self.conn.execute(sql, (value, exclude_uid))
+            if await cur.fetchone():
+                return column
+        return None
 
     @log_error
     async def update_user_by_telegram_id(
@@ -3001,12 +3863,12 @@ class Database:
 
         try:
             async with self.lock:
-                await self.conn.execute(
+                cur = await self.conn.execute(
                     f"UPDATE users SET {set_clause} WHERE telegram_id = ?",
                     values,
                 )
                 await self.conn.commit()
-            return True
+                return cur.rowcount > 0
         except Exception as e:  # noqa: BLE001
             logger.error(f"update_user_by_telegram_id {telegram_id}: {e}")
             return False
@@ -3108,7 +3970,7 @@ class Database:
 
     @log_error
     async def ban_user(self, user_id: int, reason: str = "") -> bool:
-        user = await self.get_user_by_any_id(user_id)
+        user = await self.find_user_by_any_id(user_id)
         if not user:
             return False
         internal_uid = user.get("user_id", user_id)
@@ -3121,11 +3983,16 @@ class Database:
             return False
         if await is_admin_user(to_int(user.get("telegram_id"), 0)):
             return False
-        return await self.update_user(internal_uid, banned=True, ban_reason=reason, trust_score=0)
+        updated = await self.update_user(
+            internal_uid, banned=True, ban_reason=reason, trust_score=0
+        )
+        if updated:
+            await self.update_web_auth(internal_uid, session_token="", session_expires_at="")
+        return updated
 
     @log_error
     async def unban_user(self, user_id: int) -> bool:
-        user = await self.get_user_by_any_id(user_id)
+        user = await self.find_user_by_any_id(user_id)
         if not user:
             return False
         internal_uid = user.get("user_id", user_id)
@@ -3152,11 +4019,14 @@ class Database:
         subscription_id: str | None = None,
         expiry_sub_datatime: str = "",
     ) -> bool:
-        user = await self.get_user_by_any_id(user_id)
+        user = await self.find_user_by_any_id(user_id)
         if not user:
             logger.error(f"set_subscription: пользователь не найден user_id={user_id}")
             return False
         internal_uid = user.get("user_id", user_id)
+        invalidate_expiry_alert_cache(
+            to_int(user.get("telegram_id"), 0), user_id, to_int(internal_uid, 0)
+        )
         return await self.update_user(
             internal_uid,
             force=True,
@@ -3172,6 +4042,9 @@ class Database:
             traffic_gb=traffic_gb,
             expiry_alert_sent=0,
             cleanup_notification_sent=0,
+            low_traffic_alert_sent=0,
+            traffic_reset_at="",
+            traffic_disabled=0,
             has_subscription=1,
             expiry_sub_datatime=expiry_sub_datatime,
         )
@@ -3210,6 +4083,9 @@ class Database:
             traffic_gb=0,
             expiry_alert_sent=0,
             cleanup_notification_sent=0,
+            low_traffic_alert_sent=0,
+            traffic_reset_at="",
+            traffic_disabled=0,
             has_subscription=0,
             expiry_sub_datatime="",
             extra_sub_gb=0,
@@ -3219,17 +4095,47 @@ class Database:
     async def set_expiry_notification_sent(self, user_id: int, sent: bool) -> bool:
         if await is_admin_user(user_id):
             return False
-        user = await self.get_user_by_any_id(user_id)
+        user = await self.find_user_by_any_id(user_id)
         if not user:
             return False
         internal_uid = user.get("user_id", user_id)
         return await self.update_user(internal_uid, expiry_alert_sent=1 if sent else 0)
 
     @log_error
+    async def set_low_traffic_alert_sent(self, user_id: int, sent: bool) -> bool:
+        if await is_admin_user(user_id):
+            return False
+        user = await self.find_user_by_any_id(user_id)
+        if not user:
+            return False
+        internal_uid = user.get("user_id", user_id)
+        return await self.update_user(internal_uid, low_traffic_alert_sent=1 if sent else 0)
+
+    @log_error
+    async def set_traffic_reset_at(self, user_id: int, value: str) -> bool:
+        if await is_admin_user(user_id):
+            return False
+        user = await self.find_user_by_any_id(user_id)
+        if not user:
+            return False
+        internal_uid = user.get("user_id", user_id)
+        return await self.update_user(internal_uid, traffic_reset_at=value)
+
+    @log_error
+    async def set_traffic_disabled(self, user_id: int, disabled: bool) -> bool:
+        if await is_admin_user(user_id):
+            return False
+        user = await self.find_user_by_any_id(user_id)
+        if not user:
+            return False
+        internal_uid = user.get("user_id", user_id)
+        return await self.update_user(internal_uid, traffic_disabled=1 if disabled else 0)
+
+    @log_error
     async def add_extra_traffic(self, user_id: int, extra_gb: int) -> bool:
         if extra_gb <= 0:
             return False
-        user = await self.get_user_by_any_id(user_id)
+        user = await self.find_user_by_any_id(user_id)
         if not user:
             return False
         internal_uid = user.get("user_id", user_id)
@@ -3244,13 +4150,13 @@ class Database:
             return ""
         try:
             user = await self.get_user_by_telegram_id(telegram_id)
-            return str(user.get("language", "") if user else "").strip().lower()
+            return _extract_user_language(user)
         except Exception:  # noqa: BLE001
             return ""
 
     @log_error
     async def set_user_language(self, user_id: int, language: str, *, force: bool = False) -> bool:
-        user = await self.get_user_by_any_id(user_id)
+        user = await self.find_user_by_any_id(user_id)
         if not user:
             return False
         internal_uid = user.get("user_id", user_id)
@@ -3262,7 +4168,7 @@ class Database:
             return ""
         try:
             user = await self.get_user_by_id(user_id)
-            return str(user.get("language", "") if user else "").strip().lower()
+            return _extract_user_language(user)
         except Exception:  # noqa: BLE001
             return ""
 
@@ -3307,6 +4213,26 @@ class Database:
             logger.error(f"change_password error: {e}")
             return False
 
+    async def _co_owner_would_cycle(self, user_uid: int, owner_uid: int) -> bool:
+        if user_uid <= 0 or owner_uid <= 0:
+            return False
+        if user_uid == owner_uid:
+            return True
+        frontier = [user_uid]
+        seen: set[int] = {user_uid}
+        while frontier:
+            children = await self.get_users_by_referrers(frontier, column="co_owner_ref_by")
+            next_frontier: list[int] = []
+            for child in children:
+                child_id = to_int(child.get("user_id"), 0)
+                if child_id == owner_uid:
+                    return True
+                if child_id and child_id not in seen:
+                    seen.add(child_id)
+                    next_frontier.append(child_id)
+            frontier = next_frontier
+        return False
+
     @log_error
     async def set_ref_by(self, user_id: int, referrer_id: int) -> bool:
         if await is_admin_user(user_id) or await is_admin_user(referrer_id):
@@ -3326,13 +4252,48 @@ class Database:
         if to_int(user.get("telegram_id"), 0) == to_int(referrer.get("telegram_id"), -1):
             logger.warning(f"Попытка self-referral для user_id={internal_uid}")
             return False
-        return await self.update_user(internal_uid, ref_by=referrer_uid)
+        updates: dict[str, Any] = {"ref_by": referrer_uid}
+        inherited_owner = to_int(referrer.get("co_owner_ref_by"), 0)
+        if (
+            inherited_owner
+            and not to_int(user.get("co_owner_ref_by"), 0)
+            and not await self._co_owner_would_cycle(internal_uid, inherited_owner)
+        ):
+            updates["co_owner_ref_by"] = inherited_owner
+        return await self.update_user(internal_uid, **updates)
+
+    @log_error
+    async def set_co_owner_ref_by(self, user_id: int, owner_id: int) -> bool:
+        if (
+            user_id <= 0
+            or owner_id <= 0
+            or await is_admin_user(user_id)
+            or await is_admin_user(owner_id)
+        ):
+            return False
+        user = await self.find_user_by_any_id(user_id)
+        owner = await self.find_user_by_any_id(owner_id)
+        if not user or not owner:
+            return False
+        internal_uid = to_int(user.get("user_id"), 0)
+        owner_uid = to_int(owner.get("user_id"), 0)
+        if not internal_uid or not owner_uid or internal_uid == owner_uid:
+            return False
+        user_tid = to_int(user.get("telegram_id"), 0)
+        if user_tid and user_tid == to_int(owner.get("telegram_id"), -1):
+            logger.warning(f"Попытка self-referral со-владельца для user_id={internal_uid}")
+            return False
+        if to_int(user.get("co_owner_ref_by"), 0) or await self._co_owner_would_cycle(
+            internal_uid, owner_uid
+        ):
+            return False
+        return await self.update_user(internal_uid, co_owner_ref_by=owner_uid, force=True)
 
     @log_error
     async def set_has_subscription(self, user_id: int) -> bool:
         if await is_admin_user(user_id):
             return False
-        user = await self.get_user_by_any_id(user_id)
+        user = await self.find_user_by_any_id(user_id)
         if not user:
             return False
         internal_uid = user.get("user_id", user_id)
@@ -3344,7 +4305,8 @@ class Database:
             return []
         try:
             cur = await self.conn.execute(
-                "SELECT user_id FROM users WHERE ref_by = ?", (internal_uid,)
+                "SELECT user_id FROM users WHERE ref_by = ? AND user_id != ?",
+                (internal_uid, internal_uid),
             )
             rows = await cur.fetchall()
             return [int(row[0]) for row in rows if row and int(row[0]) > 0]
@@ -3359,8 +4321,9 @@ class Database:
         try:
             async with self.lock:
                 cur = await self.conn.execute(
-                    "UPDATE users SET ref_by = 0, ref_rewarded = 0 WHERE ref_by = ?",
-                    (internal_uid,),
+                    "UPDATE users SET ref_by = 0, co_owner_ref_by = 0, ref_rewarded = 0 "
+                    "WHERE ref_by = ? OR co_owner_ref_by = ?",
+                    (internal_uid, internal_uid),
                 )
                 await self.conn.commit()
                 return cur.rowcount
@@ -3373,7 +4336,9 @@ class Database:
         if not self.conn:
             return False
         try:
-            return await self.update_user(internal_uid, ref_by=0, ref_rewarded=0, force=True)
+            return await self.update_user(
+                internal_uid, ref_by=0, co_owner_ref_by=0, ref_rewarded=0, force=True
+            )
         except Exception as e:  # noqa: BLE001
             logger.error(f"reset_referral {internal_uid}: {e}")
             return False
@@ -3399,8 +4364,14 @@ class Database:
         if new_dt <= datetime.now(UTC):
             return ""
         new_iso = new_dt.replace(hour=23, minute=59, second=59, microsecond=0).isoformat()
+        invalidate_expiry_alert_cache(to_int(user.get("telegram_id"), 0), to_int(internal_uid, 0))
         if not await self.update_user(
-            internal_uid, expiry_sub_datatime=new_iso, expiry_alert_sent=0, force=True
+            internal_uid,
+            expiry_sub_datatime=new_iso,
+            expiry_alert_sent=0,
+            cleanup_notification_sent=0,
+            low_traffic_alert_sent=0,
+            force=True,
         ):
             return ""
         return new_iso
@@ -3424,10 +4395,31 @@ class Database:
         )
 
     @log_error
+    async def claim_trial(self, user_id: int) -> bool:
+        if not self.conn or not validate_user_id(user_id):
+            return False
+        try:
+            async with self.lock:
+                cur = await self.conn.execute(
+                    "UPDATE users SET trial_used = 1, has_subscription = 1 "
+                    "WHERE user_id = ? AND trial_used = 0 AND has_subscription = 0",
+                    (user_id,),
+                )
+                await self.conn.commit()
+                return cur.rowcount == 1
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"claim_trial {user_id}: {e}")
+            return False
+
+    @log_error
+    async def release_trial_claim(self, user_id: int) -> None:
+        await self.update_user(user_id, trial_used=0, has_subscription=0, force=True)
+
+    @log_error
     async def mark_trial_used(self, user_id: int) -> bool:
         if await is_admin_user(user_id):
             return False
-        user = await self.get_user_by_any_id(user_id)
+        user = await self.find_user_by_any_id(user_id)
         if not user:
             return False
         internal_uid = user.get("user_id", user_id)
@@ -3437,7 +4429,7 @@ class Database:
     async def mark_ref_rewarded(self, user_id: int) -> bool:
         if await is_admin_user(user_id):
             return False
-        user = await self.get_user_by_any_id(user_id)
+        user = await self.find_user_by_any_id(user_id)
         if not user:
             return False
         internal_uid = user.get("user_id", user_id)
@@ -3456,7 +4448,7 @@ class Database:
 
     @log_error
     async def mark_ref_bonus_given(self, user_id: int) -> bool:
-        user = await self.get_user_by_any_id(user_id)
+        user = await self.find_user_by_any_id(user_id)
         if not user:
             return False
         internal_uid = user.get("user_id", user_id)
@@ -3477,7 +4469,7 @@ class Database:
     async def release_ref_reward(self, user_id: int) -> bool:
         if not self.conn:
             return False
-        user = await self.get_user_by_any_id(user_id)
+        user = await self.find_user_by_any_id(user_id)
         if not user:
             return False
         internal_uid = user.get("user_id", user_id)
@@ -3498,7 +4490,10 @@ class Database:
         if not self.conn:
             return 0
         try:
-            cur = await self.conn.execute("SELECT COUNT(*) FROM users WHERE ref_by = ?", (user_id,))
+            cur = await self.conn.execute(
+                "SELECT COUNT(*) FROM users WHERE ref_by = ? AND user_id != ?",
+                (user_id, user_id),
+            )
             row = await cur.fetchone()
             return int(row[0]) if row else 0
         except Exception as e:  # noqa: BLE001
@@ -3514,9 +4509,10 @@ class Database:
                 """
                 SELECT COUNT(*)
                 FROM users
-                WHERE ref_by = ? AND ref_rewarded = 1 AND telegram_id != 0
+                WHERE ref_by = ? AND user_id != ?
+                  AND ref_rewarded = 1 AND telegram_id != 0
                 """,
-                (user_id,),
+                (user_id, user_id),
             )
             row = await cur.fetchone()
             return int(row[0]) if row else 0
@@ -3526,25 +4522,37 @@ class Database:
 
     @log_error
     async def get_bonus_days_pending(self, user_id: int) -> int:
-        user = await self.get_user_by_any_id(user_id)
+        user = await self.find_user_by_any_id(user_id)
         return max(0, to_int(user.get("bonus_days_pending"), 0)) if user else 0
 
     @log_error
     async def add_bonus_days_pending(self, user_id: int, days: int) -> bool:
-        if await is_admin_user(user_id) or days <= 0:
+        if await is_admin_user(user_id) or days <= 0 or not self.conn:
             return False
-        user = await self.get_user_by_any_id(user_id)
+        user = await self.find_user_by_any_id(user_id)
         if not user:
             return False
-        internal_uid = user.get("user_id", user_id)
-        current = await self.get_bonus_days_pending(internal_uid)
-        return await self.update_user(internal_uid, bonus_days_pending=max(0, current + int(days)))
+        internal_uid = to_int(user.get("user_id"), 0)
+        if internal_uid <= 0:
+            return False
+        try:
+            async with self.lock:
+                cur = await self.conn.execute(
+                    "UPDATE users SET bonus_days_pending = MAX(0, bonus_days_pending + ?) "
+                    "WHERE user_id = ?",
+                    (int(days), internal_uid),
+                )
+                await self.conn.commit()
+                return cur.rowcount > 0
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"add_bonus_days_pending {internal_uid}: {e}")
+            return False
 
     @log_error
     async def clear_bonus_days_pending(self, user_id: int) -> bool:
         if await is_admin_user(user_id):
             return False
-        user = await self.get_user_by_any_id(user_id)
+        user = await self.find_user_by_any_id(user_id)
         if not user:
             return False
         internal_uid = user.get("user_id", user_id)
@@ -3575,9 +4583,20 @@ class Database:
             return False
         if telegram_id and await is_admin_user(telegram_id):
             return False
-        current = to_int(user.get("trust_score"), 0)
-        new_score = max(TRUST_SCORE_MIN, min(TRUST_SCORE_MAX, current + points))
-        return await self.update_user(internal_uid, trust_score=new_score)
+        if not self.conn:
+            return False
+        try:
+            async with self.lock:
+                cur = await self.conn.execute(
+                    "UPDATE users SET trust_score = MIN(?, MAX(?, trust_score + ?)) "
+                    "WHERE user_id = ?",
+                    (TRUST_SCORE_MAX, TRUST_SCORE_MIN, int(points), internal_uid),
+                )
+                await self.conn.commit()
+                return cur.rowcount > 0
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"add_trust_score {internal_uid}: {e}")
+            return False
 
     @log_error
     async def _get_trust_score_raw(self, user_id: int) -> int:
@@ -3613,10 +4632,10 @@ class Database:
     async def ensure_ref_code(self, user_id: int) -> str | None:
         if await is_admin_user(user_id):
             return None
-        user = await self.get_user_by_any_id(user_id)
+        user = await self.find_user_by_any_id(user_id)
         if not user:
             await self.add_user(user_id)
-            user = await self.get_user_by_any_id(user_id)
+            user = await self.find_user_by_any_id(user_id)
         if not user:
             return None
         internal_uid = user.get("user_id", user_id)
@@ -3744,16 +4763,17 @@ class Database:
             return False
 
     @log_error
-    async def remove_partner_channel(self, channel_id: int) -> bool:
+    async def remove_partner_channel(self, channel_id: int, owner_user_id: int) -> bool:
         if not self.conn:
             return False
         try:
             async with self.lock:
-                await self.conn.execute(
-                    "DELETE FROM partner_tg_channels WHERE channel_id = ?", (channel_id,)
+                cur = await self.conn.execute(
+                    "DELETE FROM partner_tg_channels WHERE channel_id = ? AND owner_user_id = ?",
+                    (channel_id, owner_user_id),
                 )
                 await self.conn.commit()
-            return True
+            return cur.rowcount > 0
         except Exception as e:  # noqa: BLE001
             logger.error(f"remove_partner_channel {channel_id}: {e}")
             return False
@@ -3889,7 +4909,7 @@ class Database:
     ) -> bool:
         if not self.conn:
             return False
-        user = await self.get_user_by_any_id(user_id)
+        user = await self.find_user_by_any_id(user_id)
         if not user:
             logger.error(f"set_user_as_partner: пользователь не найден user_id={user_id}")
             return False
@@ -3935,7 +4955,7 @@ class Database:
     ) -> bool:
         if not self.conn:
             return False
-        user = await self.get_user_by_any_id(user_id)
+        user = await self.find_user_by_any_id(user_id)
         if not user:
             logger.error(f"update_partner_subscription: пользователь не найден user_id={user_id}")
             return False
@@ -3959,7 +4979,7 @@ class Database:
     async def update_partner_balance(self, user_id: int, amount: float) -> bool:
         if not self.conn:
             return False
-        user = await self.get_user_by_any_id(user_id)
+        user = await self.find_user_by_any_id(user_id)
         if not user:
             logger.error(f"update_partner_balance: пользователь не найден user_id={user_id}")
             return False
@@ -3986,7 +5006,7 @@ class Database:
     async def restore_partner_balance(self, user_id: int, amount: float) -> bool:
         if not self.conn or amount <= 0:
             return False
-        user = await self.get_user_by_any_id(user_id)
+        user = await self.find_user_by_any_id(user_id)
         if not user:
             logger.error(f"restore_partner_balance: пользователь не найден user_id={user_id}")
             return False
@@ -4007,7 +5027,7 @@ class Database:
     async def debit_partner_balance(self, user_id: int, amount: float) -> bool:
         if not self.conn or amount <= 0:
             return False
-        user = await self.get_user_by_any_id(user_id)
+        user = await self.find_user_by_any_id(user_id)
         if not user:
             logger.error(f"debit_partner_balance: пользователь не найден user_id={user_id}")
             return False
@@ -4037,7 +5057,7 @@ class Database:
     @log_error
     async def add_partner_application(
         self,
-        telegram_id: int,
+        internal_user_id: int,
         followers: int,
         social_links: str,
         nickname: str,
@@ -4048,12 +5068,7 @@ class Database:
         if not self.conn:
             return None
         try:
-            user = await self.get_user_by_telegram_id(telegram_id)
-            if not user:
-                logger.error(f"add_partner_application: пользователь не найден tg_id={telegram_id}")
-                return None
-            internal_user_id = user["user_id"]
-            app_id = f"app_{telegram_id}_{int(time.time() * 1000)}"
+            app_id = f"app_{internal_user_id}_{int(time.time() * 1000)}"
             async with self.lock:
                 await self.conn.execute(
                     """UPDATE users SET
@@ -4078,13 +5093,13 @@ class Database:
                 await self.conn.commit()
             return app_id
         except Exception as e:  # noqa: BLE001
-            logger.error(f"add_partner_application {telegram_id}: {e}")
+            logger.error(f"add_partner_application {internal_user_id}: {e}")
             return None
 
     @log_error
     async def add_partner_withdrawal_request(
         self,
-        telegram_id: int,
+        internal_user_id: int,
         amount: float,
         *,
         fio: str = "",
@@ -4094,41 +5109,83 @@ class Database:
         if not self.conn:
             return None
         try:
-            withdrawal_id = f"wd_{telegram_id}_{int(time.time() * 1000)}"
-            user = await self.get_user_by_telegram_id(telegram_id)
-            if not user:
-                return None
-            internal_user_id = user["user_id"]
-            existing_requests = []
-            raw = user.get("mate_withdrawal_requests", "[]")
-            if raw:
-                try:
-                    existing_requests = json.loads(raw)
-                except Exception:  # noqa: BLE001
-                    existing_requests = []
-            existing_requests.append(
-                {
-                    "withdrawal_id": withdrawal_id,
-                    "amount": amount,
-                    "fio": fio,
-                    "phone": phone,
-                    "bank": bank,
-                    "status": "pending",
-                    "created_at": datetime.now(UTC).isoformat(),
-                }
-            )
+            withdrawal_id = f"wd_{internal_user_id}_{int(time.time() * 1000)}"
             async with self.lock:
+                cur = await self.conn.execute(
+                    "SELECT mate_withdrawal_requests FROM users WHERE user_id = ?",
+                    (internal_user_id,),
+                )
+                row = await cur.fetchone()
+                if not row:
+                    return None
+                existing_requests = []
+                raw = row[0] if row[0] is not None else "[]"
+                if raw:
+                    try:
+                        parsed = json.loads(raw)
+                        if isinstance(parsed, list):
+                            existing_requests = parsed
+                    except Exception:  # noqa: BLE001
+                        existing_requests = []
+                existing_requests.append(
+                    {
+                        "withdrawal_id": withdrawal_id,
+                        "amount": amount,
+                        "fio": fio,
+                        "phone": phone,
+                        "bank": bank,
+                        "status": "pending",
+                        "created_at": datetime.now(UTC).isoformat(),
+                    }
+                )
                 await self.conn.execute(
-                    """UPDATE users SET
-                        mate_withdrawal_requests = ?
-                    WHERE user_id = ?""",
+                    "UPDATE users SET mate_withdrawal_requests = ? WHERE user_id = ?",
                     (json.dumps(existing_requests), internal_user_id),
                 )
                 await self.conn.commit()
             return withdrawal_id
         except Exception as e:  # noqa: BLE001
-            logger.error(f"add_partner_withdrawal_request {telegram_id}: {e}")
+            logger.error(f"add_partner_withdrawal_request {internal_user_id}: {e}")
             return None
+
+    @log_error
+    async def remove_partner_withdrawal_request(
+        self, internal_user_id: int, withdrawal_id: str
+    ) -> bool:
+        if not self.conn:
+            return False
+        try:
+            async with self.lock:
+                cur = await self.conn.execute(
+                    "SELECT user_id, mate_withdrawal_requests FROM users WHERE user_id = ?",
+                    (internal_user_id,),
+                )
+                row = await cur.fetchone()
+                if not row:
+                    return False
+                requests = []
+                try:
+                    parsed = json.loads(row[1] or "[]")
+                    if isinstance(parsed, list):
+                        requests = parsed
+                except Exception:  # noqa: BLE001
+                    return False
+                remaining = [
+                    item
+                    for item in requests
+                    if not (isinstance(item, dict) and item.get("withdrawal_id") == withdrawal_id)
+                ]
+                if len(remaining) == len(requests):
+                    return False
+                await self.conn.execute(
+                    "UPDATE users SET mate_withdrawal_requests = ? WHERE user_id = ?",
+                    (json.dumps(remaining), row[0]),
+                )
+                await self.conn.commit()
+                return True
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"remove_partner_withdrawal_request {withdrawal_id}: {e}")
+            return False
 
     @log_error
     async def get_user_by_username(self, username: str) -> dict[str, Any] | None:
@@ -4210,6 +5267,9 @@ class Database:
             if not row:
                 return None
             user = dict(row)
+            if user.get("banned"):
+                await self.update_web_auth(user["user_id"], session_token="", session_expires_at="")
+                return None
             expires_str = user.get("session_expires_at", "")
             if expires_str:
                 try:
@@ -4238,13 +5298,14 @@ class Database:
             tg_id = telegram_id if telegram_id else 0
             async with self.lock:
                 cursor = await self.conn.execute(
-                    "INSERT INTO users (telegram_id, web_login, password_hash, web_registered_at, web_auth_method, session_token, session_expires_at, session_created_at, language) VALUES (?, ?, ?, ?, 'local', '', '', '', ?)",
+                    "INSERT INTO users (telegram_id, language, join_date, web_login, web_registered_at, web_auth_method, session_token, session_expires_at, session_created_at, password_hash) VALUES (?, ?, ?, ?, ?, 'local', '', '', '', ?)",
                     (
                         tg_id,
-                        web_login.strip(),
-                        password_hash,
-                        now,
                         Config.DEFAULT_LANGUAGE,
+                        now,
+                        web_login.strip(),
+                        now,
+                        password_hash,
                     ),
                 )
                 user_id = cursor.lastrowid
@@ -4315,12 +5376,12 @@ class Database:
                 return False
             values.append(user_id)
             async with self.lock:
-                await self.conn.execute(
+                cur = await self.conn.execute(
                     f"UPDATE users SET {', '.join(updates)} WHERE user_id = ?",
                     values,
                 )
                 await self.conn.commit()
-            return True
+            return cur.rowcount > 0
         except Exception as e:  # noqa: BLE001
             logger.error(f"update_web_auth {user_id}: {e}")
             return False
@@ -4395,74 +5456,38 @@ class Database:
             return 0
 
     @log_error
-    async def merge_accounts(self, user_a_id: int, user_b_id: int) -> bool:
+    async def merge_accounts(self, user_a_id: int, user_b_id: int) -> int | None:
         if not self.conn or user_a_id == user_b_id:
-            return False
+            return None
         try:
             async with self.lock:
                 cur = await self.conn.execute("SELECT * FROM users WHERE user_id = ?", (user_a_id,))
                 row_a = await cur.fetchone()
                 if not row_a:
-                    return False
+                    return None
                 data_a = dict(row_a)
 
                 cur = await self.conn.execute("SELECT * FROM users WHERE user_id = ?", (user_b_id,))
                 row_b = await cur.fetchone()
                 if not row_b:
-                    return False
+                    return None
                 data_b = dict(row_b)
 
-                better = await self._compare_subscriptions(data_a, data_b)
-                if better >= 0:
-                    keep_data = data_a
-                    delete_data = data_b
-                    keep_id = user_a_id
-                    delete_id = user_b_id
+                score_a = self.account_merge_score(data_a)
+                score_b = self.account_merge_score(data_b)
+                if score_b > score_a or (
+                    score_b == score_a and await self._compare_subscriptions(data_b, data_a) > 0
+                ):
+                    keep_data, delete_data = data_b, data_a
+                    keep_id, delete_id = user_b_id, user_a_id
                 else:
-                    keep_data = data_b
-                    delete_data = data_a
-                    keep_id = user_b_id
-                    delete_id = user_a_id
+                    keep_data, delete_data = data_a, data_b
+                    keep_id, delete_id = user_a_id, user_b_id
 
-                sub_fields = [
-                    "has_subscription",
-                    "plan_text",
-                    "plan_servers",
-                    "subscription_id",
-                    "ip_limit",
-                    "traffic_gb",
-                    "vpn_url",
-                    "expiry_sub_datatime",
-                    "extra_sub_gb",
-                    "expiry_alert_sent",
-                    "cleanup_notification_sent",
-                ]
-                updates = {}
-                for field in sub_fields:
-                    val = delete_data.get(field)
-                    if (
-                        val is not None
-                        and val not in {"", 0}
-                        and (
-                            not keep_data.get(field)
-                            or keep_data.get(field) == ""
-                            or keep_data.get(field) == 0
-                        )
-                    ):
-                        updates[field] = val
-
-                if delete_data.get("ref_code") and not keep_data.get("ref_code"):
-                    updates["ref_code"] = delete_data["ref_code"]
-                if delete_data.get("ref_by") and not keep_data.get("ref_by"):
-                    updates["ref_by"] = delete_data["ref_by"]
-
-                if delete_data.get("trust_score", 0) > keep_data.get("trust_score", 0):
-                    updates["trust_score"] = delete_data["trust_score"]
-
-                if delete_data.get("discount_percent", 0) > keep_data.get("discount_percent", 0):
-                    updates["discount_percent"] = delete_data["discount_percent"]
-
+                forbidden_refs = {keep_id, delete_id}
+                updates = self.collect_merge_updates(keep_data, delete_data, forbidden_refs)
                 if updates:
+                    await self.clear_unique_merge_fields(self.conn, [delete_id], updates)
                     set_clause = ", ".join(f"{k} = ?" for k in updates)
                     values = [*list(updates.values()), keep_id]
                     await self.conn.execute(
@@ -4473,29 +5498,34 @@ class Database:
                 if delete_data.get("telegram_id") and delete_data["telegram_id"] != keep_data.get(
                     "telegram_id"
                 ):
+                    await self.conn.execute(
+                        "UPDATE users SET telegram_id = 0 WHERE user_id = ?",
+                        (delete_id,),
+                    )
                     if not keep_data.get("telegram_id"):
                         await self.conn.execute(
                             "UPDATE users SET telegram_id = ? WHERE user_id = ?",
                             (delete_data["telegram_id"], keep_id),
                         )
-                    await self.conn.execute(
-                        "UPDATE users SET telegram_id = 0 WHERE user_id = ?",
-                        (delete_id,),
-                    )
 
                 await self.conn.execute(
                     "DELETE FROM users WHERE user_id = ?",
                     (delete_id,),
                 )
+                await self.conn.execute(
+                    "UPDATE users SET ref_by = 0, co_owner_ref_by = 0 "
+                    "WHERE user_id = ? AND (ref_by = ? OR co_owner_ref_by = ?)",
+                    (keep_id, keep_id, keep_id),
+                )
                 await self.conn.commit()
             logger.info(f"merge_accounts: kept user_id={keep_id}, deleted user_id={delete_id}")
-            return True
+            return keep_id
         except Exception as e:  # noqa: BLE001
             logger.error(f"merge_accounts {user_a_id}<->{user_b_id}: {e}")
-            return False
+            return None
 
     @log_error
-    async def search_users(self, query: str) -> list[dict[str, Any]]:
+    async def search_users(self, query: str, *, id_only: bool = False) -> list[dict[str, Any]]:
         if not self.conn:
             return []
         try:
@@ -4505,24 +5535,38 @@ class Database:
             query_int = None
             with suppress(ValueError, TypeError):
                 query_int = int(q)
+            if id_only and query_int is None:
+                return []
 
-            sql = "SELECT * FROM users WHERE 1=0"
-            params: list[Any] = []
-            order_clause = "ORDER BY CASE WHEN 1=0 THEN 0"
-
+            where_parts = ["1=0"]
+            where_params: list[Any] = []
             if query_int is not None:
-                sql += " OR user_id = ? OR telegram_id = ?"
-                params.extend([query_int, query_int])
-                order_clause += " WHEN user_id = ? THEN 1 WHEN telegram_id = ? THEN 2"
-                params.extend([query_int, query_int])
+                where_parts.extend(["user_id = ?", "telegram_id = ?"])
+                where_params.extend([query_int, query_int])
+            if not id_only:
+                like_pattern = f"%{q}%"
+                where_parts.extend(
+                    [
+                        "username LIKE ?",
+                        "web_login LIKE ?",
+                        "ref_code LIKE ?",
+                        "vpn_url LIKE ?",
+                        "mate_nickname LIKE ?",
+                        "mate_ref_link_code LIKE ?",
+                    ]
+                )
+                where_params.extend([like_pattern] * 6)
 
-            like_pattern = f"%{q}%"
-            sql += " OR username LIKE ? OR web_login LIKE ? OR ref_code LIKE ? OR vpn_url LIKE ? OR mate_nickname LIKE ? OR mate_ref_link_code LIKE ?"
-            params.extend(
-                [like_pattern, like_pattern, like_pattern, like_pattern, like_pattern, like_pattern]
-            )
-            order_clause += " ELSE 3 END, user_id"
-            sql += f" {order_clause} LIMIT 50"
+            params = [*where_params]
+            if query_int is not None:
+                order_clause = (
+                    "ORDER BY CASE WHEN user_id = ? THEN 1 WHEN telegram_id = ? "
+                    "THEN 2 ELSE 3 END, user_id"
+                )
+                params.extend([query_int, query_int])
+            else:
+                order_clause = "ORDER BY user_id"
+            sql = f"SELECT * FROM users WHERE {' OR '.join(where_parts)} {order_clause} LIMIT 50"
 
             async with self.lock:
                 cur = await self.conn.execute(sql, params)
@@ -4590,79 +5634,43 @@ class Database:
                     )
                 return only["user_id"]
 
-            def has_web(u: dict[str, Any]) -> bool:
-                return bool(u.get("web_login")) or (u.get("web_id") not in (None, 0))
-
-            web_rows = [u for u in rows if has_web(u)]
-            if admin_rows:
-                keeper = max(
-                    admin_rows,
-                    key=lambda u: (
-                        int(u.get("has_subscription", 0) or 0),
-                        u.get("expiry_sub_datatime") or "",
-                    ),
-                )
-            elif web_rows:
-                keeper = max(
-                    web_rows,
-                    key=lambda u: (
-                        int(u.get("has_subscription", 0) or 0),
-                        u.get("expiry_sub_datatime") or "",
-                    ),
-                )
-            else:
-                keeper = max(
-                    rows,
-                    key=lambda u: (
-                        int(u.get("has_subscription", 0) or 0),
-                        u.get("expiry_sub_datatime") or "",
-                    ),
+            def keeper_key(u: dict[str, Any]) -> tuple[tuple[int, int, int], int, str]:
+                return (
+                    self.account_merge_score(u),
+                    int(u.get("has_subscription", 0) or 0),
+                    u.get("expiry_sub_datatime") or "",
                 )
 
-            sub_fields = [
-                "has_subscription",
-                "plan_text",
-                "plan_servers",
-                "subscription_id",
-                "ip_limit",
-                "traffic_gb",
-                "vpn_url",
-                "expiry_sub_datatime",
-                "extra_sub_gb",
-                "expiry_alert_sent",
-                "cleanup_notification_sent",
+            candidates = admin_rows or rows
+            keeper = max(candidates, key=keeper_key)
+            keeper_id = int(keeper["user_id"])
+            duplicate_ids = [
+                int(other["user_id"]) for other in rows if int(other["user_id"]) != keeper_id
             ]
+            forbidden_refs = {keeper_id, *duplicate_ids}
             updates: dict[str, Any] = {}
             for other in rows:
-                if other["user_id"] == keeper["user_id"]:
+                if int(other["user_id"]) == keeper_id:
                     continue
-                for field in [*sub_fields, "ref_code", "ref_by", "trust_score", "discount_percent"]:
-                    val = other.get(field)
-                    if val not in (None, "", 0) and not keeper.get(field):
-                        updates[field] = val
-                for field in ["password_hash"]:
-                    if not keeper.get(field) and other.get(field):
-                        updates[field] = other[field]
-                for field in [
-                    "web_id",
-                    "web_login",
-                    "web_registered_at",
-                    "web_auth_method",
-                    "web_last_login",
-                ]:
-                    if not keeper.get(field) and other.get(field):
-                        updates[field] = other[field]
-                await self.conn.execute("DELETE FROM users WHERE user_id = ?", (other["user_id"],))
+                updates.update(self.collect_merge_updates(keeper, other, forbidden_refs))
+                keeper = {**keeper, **updates}
             updates["telegram_id"] = telegram_id
-            if updates:
-                set_clause = ", ".join(f"{k} = ?" for k in updates)
-                values = [*list(updates.values()), keeper["user_id"]]
-                async with self.lock:
-                    await self.conn.execute(
-                        f"UPDATE users SET {set_clause} WHERE user_id = ?",
-                        values,
-                    )
-                    await self.conn.commit()
+            await self.clear_unique_merge_fields(self.conn, duplicate_ids, updates)
+            set_clause = ", ".join(f"{k} = ?" for k in updates)
+            values = [*list(updates.values()), keeper["user_id"]]
+            async with self.lock:
+                for duplicate_id in duplicate_ids:
+                    await self.conn.execute("DELETE FROM users WHERE user_id = ?", (duplicate_id,))
+                await self.conn.execute(
+                    f"UPDATE users SET {set_clause} WHERE user_id = ?",
+                    values,
+                )
+                await self.conn.execute(
+                    "UPDATE users SET ref_by = 0, co_owner_ref_by = 0 "
+                    "WHERE user_id = ? AND (ref_by = ? OR co_owner_ref_by = ?)",
+                    (keeper_id, keeper_id, keeper_id),
+                )
+                await self.conn.commit()
             logger.info(
                 f"reconcile_telegram_account: tg={telegram_id} -> kept user_id={keeper['user_id']}"
             )
@@ -4687,6 +5695,8 @@ class Database:
                 if data.get("web_id"):
                     return False
                 if data.get("web_login") or data.get("password_hash"):
+                    return False
+                if self.has_profile_data(data):
                     return False
                 await self.conn.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
                 await self.conn.commit()
@@ -4735,6 +5745,8 @@ class Database:
                         continue
                     if data.get("web_id"):
                         continue
+                    if self.has_profile_data(data):
+                        continue
                     await self.conn.execute("DELETE FROM users WHERE user_id = ?", (uid,))
                     deleted += 1
                 if deleted:
@@ -4748,87 +5760,17 @@ class Database:
 
 # --- JSON Storage для платежей ---
 
-try:
-    import fcntl as _fcntl
-except ImportError:
-    _fcntl = None
-
-try:
-    import msvcrt as _msvcrt
-except ImportError:
-    _msvcrt = None
-
-
-class _InterProcessFileLock:
-    def __init__(self, lock_path: str) -> None:
-        self.lock_path = lock_path
-
-    async def __aenter__(self) -> Self:
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, self._acquire)
-        return self
-
-    async def __aexit__(self, *exc: object) -> None:
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, self._release)
-
-    def _acquire(self) -> None:
-        if getattr(self, "_fh", None) is not None:
-            return
-        fh = open(self.lock_path, "a+b")  # noqa: SIM115
-        self._fh = fh
-        try:
-            fh.seek(0, os.SEEK_END)
-            if fh.tell() == 0:
-                fh.write(b"\0")
-                fh.flush()
-            fh.seek(0)
-            if _fcntl:
-                deadline = time.monotonic() + FILE_LOCK_TIMEOUT_SEC
-                while True:
-                    try:
-                        _fcntl.flock(fh.fileno(), _fcntl.LOCK_EX | _fcntl.LOCK_NB)
-                        return
-                    except OSError:
-                        if time.monotonic() >= deadline:
-                            with suppress(OSError):
-                                fh.close()
-                            self._fh = None
-                            raise TimeoutError(
-                                f"Не удалось получить блокировку {self.lock_path}"
-                            ) from None
-                        time.sleep(0.1)
-            elif _msvcrt:
-                _msvcrt.locking(fh.fileno(), _msvcrt.LK_LOCK, 1)
-        except OSError:
-            fh.close()
-            self._fh = None
-            raise
-
-    def _release(self) -> None:
-        fh = getattr(self, "_fh", None)
-        if fh is None:
-            return
-        try:
-            fh.seek(0)
-            if _fcntl:
-                _fcntl.flock(fh.fileno(), _fcntl.LOCK_UN)
-            elif _msvcrt:
-                _msvcrt.locking(fh.fileno(), _msvcrt.LK_UNLCK, 1)
-        except (OSError, ValueError):
-            pass
-        finally:
-            with suppress(OSError):
-                fh.close()
-            self._fh = None
-
 
 class JSONStorage:
     def __init__(self, path: str) -> None:
         self.path: str = path
         self._lock: asyncio.Lock = asyncio.Lock()
-        self._file_lock: _InterProcessFileLock = _InterProcessFileLock(f"{path}.lock")
         self._data: list[dict[str, Any]] = []
+        for suffix in (".bak", ".lock", ".tmp"):
+            legacy_path = f"{path}{suffix}"
+            if os.path.exists(legacy_path):
+                with suppress(OSError):
+                    os.remove(legacy_path)
 
     async def _ensure_file(self) -> None:
         if await asyncio.to_thread(os.path.exists, self.path):
@@ -4848,31 +5790,26 @@ class JSONStorage:
 
     @log_error
     async def _load_data(self) -> list[dict[str, Any]]:
-        if await asyncio.to_thread(os.path.exists, self.path):
-            try:
-                async with aiofiles.open(self.path, encoding="utf-8") as f:
-                    content = await f.read()
-                    if content:
-                        parsed = json.loads(content)
-                        if not isinstance(parsed, list):
-                            logger.error(f"Некорректный формат {self.path}: ожидался список")
-                            self._data = []
-                        else:
-                            self._data = parsed
-                            logger.info(f"Загружено {len(self._data)} записей из {self.path}")
-                    else:
-                        self._data = []
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"Ошибка загрузки {self.path}: {e}")
-                self._data = []
-        else:
+        if not await asyncio.to_thread(os.path.exists, self.path):
             self._data = []
+            return self._data
+        async with aiofiles.open(self.path, encoding="utf-8") as f:
+            content = await f.read()
+        if not content:
+            self._data = []
+            return self._data
+        parsed = json.loads(content)
+        if not isinstance(parsed, list):
+            raise TypeError(f"Некорректный формат {self.path}: ожидался список")
+        self._data = parsed
+        logger.info(f"Загружено {len(self._data)} записей из {self.path}")
         return self._data
 
     async def _transaction(self, callback, *, save: bool = True):
-        async with self._lock, self._file_lock:
-            await self._load_data()
-            result = await callback(self._data)
+        async with self._lock:
+            data = await self._load_data()
+            result = await callback(data)
+            self._data = data
             if save:
                 await self._save_data()
             return result
@@ -4884,11 +5821,11 @@ class JSONStorage:
         try:
             parent = os.path.dirname(self.path)
             if parent:
-                os.makedirs(parent, exist_ok=True)
+                await asyncio.to_thread(os.makedirs, parent, exist_ok=True)
             tmp_path = f"{self.path}.tmp"
             async with aiofiles.open(tmp_path, "w", encoding="utf-8") as f:
                 await f.write(json.dumps(self._data, ensure_ascii=False, indent=2))
-            os.replace(tmp_path, self.path)
+            await asyncio.to_thread(os.replace, tmp_path, self.path)
         except Exception as e:
             logger.error(f"Ошибка сохранения {self.path}: {e}")
             raise
@@ -5478,28 +6415,10 @@ class PanelAPI:
     def _client_payload_for_update(client: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(client, dict):
             return {}
-        passthrough = (
-            "id",
-            "email",
-            "enable",
-            "flow",
-            "limitIp",
-            "totalGB",
-            "expiryTime",
-            "subId",
-            "tgId",
-            "uuid",
-            "password",
-            "method",
-            "security",
-            "alterId",
-            "reset",
-            "comment",
-            "reverse",
-            "inboundIds",
-        )
         payload: dict[str, Any] = {
-            key: client[key] for key in passthrough if key in client and client.get(key) is not None
+            key: client[key]
+            for key in CLIENT_UPDATE_FIELDS
+            if key in client and client.get(key) is not None
         }
         if "id" in payload:
             payload["id"] = str(payload["id"])
@@ -5570,11 +6489,54 @@ class PanelAPI:
         traffic = item.get("traffic") if isinstance(item.get("traffic"), dict) else {}
         item["up"] = to_int(traffic.get("up", item.get("up", 0)), 0)
         item["down"] = to_int(traffic.get("down", item.get("down", 0)), 0)
-        item["total"] = to_int(item.get("totalGB", item.get("total", 0)), 0)
+        item["total"] = to_int(item.get("totalGB", item.get("total", traffic.get("total", 0))), 0)
+        item["reset"] = to_int(traffic.get("reset", item.get("reset", 0)), 0)
         item["expiryTime"] = to_int(item.get("expiryTime", 0), 0)
         item["enable"] = bool(item.get("enable", traffic.get("enable", True)))
-        item["clientObj"] = dict(row)
+
+        client = dict(row)
+        for key, default in (
+            ("email", ""),
+            ("flow", ""),
+            ("security", ""),
+            ("comment", ""),
+            ("group", ""),
+            ("limitIp", 0),
+            ("totalGB", item["total"]),
+            ("reset", 0),
+            ("subId", ""),
+        ):
+            if key not in client or client[key] is None:
+                client[key] = default
+        missing = [key for key in CLIENT_UPDATE_FIELDS if key not in client]
+        missing_base = [key for key in missing if key not in CLIENT_SECRET_FIELDS]
+        if missing_base:
+            logger.warning(
+                f"_normalize_client_row: незаполненные поля {missing_base} "
+                f"для {client.get('email') or '<без email>'}"
+            )
+        if missing and not missing_base:
+            logger.debug(
+                f"_normalize_client_row: отсутствуют secrets {missing} "
+                f"для {client.get('email') or '<без email>'}"
+            )
+        item["clientObj"] = client
         return item
+
+    @staticmethod
+    def _merge_client_traffic(row: dict[str, Any], full: dict[str, Any] | None) -> dict[str, Any]:
+        stats = PanelAPI._normalize_client_row(row)
+        if not isinstance(full, dict):
+            return stats
+        merged = dict(full)
+        merged["up"] = stats.get("up", 0)
+        merged["down"] = stats.get("down", 0)
+        merged["total"] = stats.get("total", 0)
+        merged["totalGB"] = stats.get("total", 0)
+        merged["reset"] = stats.get("reset", 0)
+        if isinstance(row.get("traffic"), dict):
+            merged["traffic"] = dict(row["traffic"])
+        return merged
 
     @staticmethod
     def _quote_path(value: Any) -> str:
@@ -5686,7 +6648,6 @@ class PanelAPI:
                 logger.error(f"_add_clients_traffic_one_by_one: клиент {email} не найден")
                 continue
             client["totalGB"] = max(0, to_int(client.get("totalGB"), 0)) + add_bytes
-            client["enable"] = True
             if await self.update_client(email, client):
                 updated_any = True
         if not updated_any:
@@ -5714,7 +6675,6 @@ class PanelAPI:
                 continue
             if current == 0:
                 client["totalGB"] = target_bytes
-                client["enable"] = True
                 if await self.update_client(email, client):
                     updated_any = True
                 continue
@@ -5735,7 +6695,6 @@ class PanelAPI:
                     if not isinstance(client, dict):
                         continue
                     client["totalGB"] = max(0, to_int(client.get("totalGB", 0), 0) + delta)
-                    client["enable"] = True
                     if await self.update_client(email, client):
                         updated_any = True
         if not updated_any:
@@ -5797,12 +6756,11 @@ class PanelAPI:
         total_gb: int,
         days: int = 30,
         servers: list[str] | None = None,
-        tg_id: int = 0,
         inbound_ids: list[int] | None = None,
         sub_id: str | None = None,
     ) -> dict[str, Any] | None:
         logger.info(
-            f"PanelAPI create_client: email={email}, ip={limit_ip}, gb={total_gb}, days={days}, tg_id={tg_id}, sub_id={sub_id}"
+            f"PanelAPI create_client: email={email}, ip={limit_ip}, gb={total_gb}, days={days}, sub_id={sub_id}"
         )
         await self.ensure_auth()
         expiry_ms = int((time.time() + days * SECONDS_IN_DAY) * 1000)
@@ -5826,7 +6784,7 @@ class PanelAPI:
             "totalGB": total_bytes,
             "expiryTime": expiry_ms,
             "subId": client_sub_id,
-            "tgId": max(0, int(tg_id or 0)),
+            "auth": generate_client_auth(),
         }
         payload: dict[str, Any] = {"client": client, "inboundIds": inbound_ids}
         url = f"{self.apibase}/panel/api/clients/add"
@@ -5860,7 +6818,6 @@ class PanelAPI:
         total_gb: float,
         expiry_ms: int,
         sub_id: str,
-        tg_id: int = 0,
     ) -> bool:
         logger.info(
             f"PanelAPI create_client_in_inbound: email={email}, inbound={inbound_id}, gb={total_gb}"
@@ -5877,7 +6834,7 @@ class PanelAPI:
             "totalGB": int(float(total_gb) * BYTES_IN_GB),
             "expiryTime": max(0, int(expiry_ms)),
             "subId": normalize_sub_id(sub_id) or f"user_{uuid.uuid4().hex[:12]}",
-            "tgId": max(0, int(tg_id or 0)),
+            "auth": generate_client_auth(),
         }
         payload: dict[str, Any] = {"client": client, "inboundIds": [inbound]}
         url = f"{self.apibase}/panel/api/clients/add"
@@ -5925,7 +6882,7 @@ class PanelAPI:
             "totalGB": int(backup.get("totalGB", 0) or 0),
             "expiryTime": max(0, int(backup.get("expiryTime", 0) or 0)),
             "subId": sub_id,
-            "tgId": max(0, int(backup.get("tgId", 0) or 0)),
+            "auth": str(backup.get("auth") or "") or generate_client_auth(),
         }
         payload: dict[str, Any] = {"client": client, "inboundIds": inbound_ids}
         try:
@@ -6051,6 +7008,39 @@ class PanelAPI:
         return success
 
     @log_error
+    async def set_client_enabled(self, base_email: str, enabled: bool) -> bool:
+        ok, clients = await self.find_clients_full_by_email_safe(base_email)
+        if not ok or not clients:
+            logger.warning(f"set_client_enabled: клиенты не найдены для {base_email}")
+            return False
+        emails: list[str] = []
+        seen_emails: set[str] = set()
+        seen_sub_ids: set[str] = set()
+        pending = list(clients)
+        while pending:
+            row = pending.pop()
+            email = str(row.get("email") or "")
+            if email and email not in seen_emails:
+                seen_emails.add(email)
+                emails.append(email)
+            sub_id = str(row.get("subId") or "")
+            if sub_id and sub_id not in seen_sub_ids:
+                seen_sub_ids.add(sub_id)
+                sub_ok, sub_clients = await self.find_clients_by_sub_id_safe(sub_id)
+                if sub_ok:
+                    pending.extend(sub_clients)
+        if not emails:
+            logger.warning(f"set_client_enabled: не собраны email для {base_email}")
+            return False
+        success = True
+        for email in emails:
+            if not await self.update_client(email, {"enable": enabled}):
+                success = False
+        if success:
+            self._invalidate_clients_cache()
+        return success
+
+    @log_error
     async def ensure_auth(self) -> None:
         if not self.logged_in:
             await self.login()
@@ -6063,12 +7053,6 @@ class PanelAPI:
         if not emails:
             logger.warning(f"extend_client_expiry: нет email для продления {base_email}")
             return False
-        if await self._bulk_adjust(base_email, {"addDays": add_days}) > 0:
-            return True
-        logger.warning(
-            f"extend_client_expiry: массовое продление не сработало для {emails}, "
-            "переход на точечное обновление"
-        )
         return await self._extend_clients_one_by_one(emails, add_days)
 
     async def _extend_clients_one_by_one(self, emails: list[str], add_days: int) -> bool:
@@ -6085,7 +7069,6 @@ class PanelAPI:
                 )
                 continue
             client["expiryTime"] = expiry + add_days * SECONDS_IN_DAY * 1000
-            client["enable"] = True
             if await self.update_client(email, client):
                 extended_any = True
         if not extended_any:
@@ -6115,8 +7098,6 @@ class PanelAPI:
             if new_expiry <= 0:
                 new_expiry = 1
             client["expiryTime"] = new_expiry
-            if delta_days > 0:
-                client["enable"] = True
             if await self.update_client(email, client):
                 shifted_any = True
         if not shifted_any:
@@ -6141,8 +7122,10 @@ class PanelAPI:
         result: list[dict[str, Any]] = []
         for row in self._client_rows_from_response(clients_data):
             email = str(row.get("email") or "")
-            if self._is_base_email(email, base_email):
-                result.append(self._normalize_client_row(row))
+            if not self._is_base_email(email, base_email):
+                continue
+            full = await self.get_client_by_email(email)
+            result.append(self._normalize_client_row(self._merge_client_traffic(row, full)))
         return True, result
 
     async def find_clients_by_sub_id_safe(self, sub_id: str) -> tuple[bool, list[dict[str, Any]]]:
@@ -6154,8 +7137,11 @@ class PanelAPI:
         result: list[dict[str, Any]] = []
         for row in self._client_rows_from_response(clients_data):
             client_sub_id = str(row.get("subId", "") or "")
-            if client_sub_id == sub_id:
-                result.append(self._normalize_client_row(row))
+            if client_sub_id != sub_id:
+                continue
+            email = str(row.get("email") or "")
+            full = await self.get_client_by_email(email) if email else None
+            result.append(self._normalize_client_row(self._merge_client_traffic(row, full)))
         return True, result
 
     async def find_clients_full_by_email(self, base_email: str) -> list[dict[str, Any]]:
@@ -6324,6 +7310,8 @@ class PanelAPI:
             xray_version = str(xray_obj.get("version") or "")
         elif xray_obj:
             xray_version = str(xray_obj)
+        if not xray_version:
+            xray_version = XRAY_VERSION
         return {
             "panel_version": server_status.get("panelVersion")
             or server_status.get("panel_version")
@@ -6476,12 +7464,24 @@ class PanelAPI:
         target = str(email or "").strip()
         if not target or not isinstance(client, dict):
             return False
+
+        client_data = dict(client)
+        if any(key not in client_data for key in CLIENT_UPDATE_FIELDS):
+            full = await self.get_client_by_email(target)
+            if isinstance(full, dict):
+                merged = dict(full)
+                merged.update(client_data)
+                client_data = merged
+        missing = [key for key in CLIENT_UPDATE_FIELDS if key not in client_data]
+        if missing:
+            logger.warning(f"update_client: незаполненные поля {missing} для {target}")
+
         url = f"{self.apibase}/panel/api/clients/update/{self._quote_path(target)}"
         status, data, _ = await self._request_json_with_reauth(
             "POST",
             url,
             headers=self._headers(),
-            json=self._client_payload_for_update(client),
+            json=self._client_payload_for_update(client_data),
         )
         if status in (200, 201) and data.get("success"):
             self._invalidate_clients_cache()
@@ -6494,12 +7494,13 @@ async def _validate_admin_target_user(uid: int, event: Message, lang: str) -> bo
     if not uid or uid <= 0:
         await event.answer(translate(lang, "texts.invalid_user_id_number"))
         return False
-    if await is_admin_user(uid):
-        await event.answer(translate(lang, "texts.cannot_modify_admin"))
-        return False
-    existing = await db.get_user_by_any_id(uid)
+    existing = await db.find_user_by_any_id(uid)
     if not existing:
         await event.answer(translate(lang, "texts.user_not_found"))
+        return False
+    tg_id = to_int(existing.get("telegram_id"), 0)
+    if tg_id and await is_admin_user(tg_id):
+        await event.answer(translate(lang, "texts.cannot_modify_admin"))
         return False
     return True
 
@@ -6737,13 +7738,11 @@ dp.callback_query.middleware(CallbackAnswerMiddleware())
 db = Database(Config.DATA_FILE)
 json_db = JSONStorage(Config.DATA_AWAIT)
 panel = PanelAPI()
-BOT_USERNAME = os.getenv("BOT_USERNAME", "").strip()
 
 
 def set_bot_username(username: str) -> None:
-    global BOT_USERNAME
-    if not BOT_USERNAME:
-        BOT_USERNAME = username or ""
+    if not Config.BOT_USERNAME:
+        Config.BOT_USERNAME = username or ""
 
 
 # --- Клавиатуры и вспомогательные функции ---
@@ -6901,10 +7900,11 @@ def build_main_keyboard(
     language: str = Config.DEFAULT_LANGUAGE,
     *,
     is_partner: bool = False,
+    is_coowner: bool = False,
 ) -> list[list[dict[str, str]]]:
     rows = []
 
-    if is_admin or not has_active_subscription or is_partner:
+    if not is_coowner and (is_admin or not has_active_subscription or is_partner):
         rows.append([{"text": translate(language, "buttons.buy"), "callback_data": "buy"}])
 
     rows.append(
@@ -6916,7 +7916,7 @@ def build_main_keyboard(
         ]
     )
 
-    if not is_admin and not is_partner:
+    if not is_admin and not is_partner and not is_coowner:
         rows.append(
             [
                 {
@@ -6932,6 +7932,16 @@ def build_main_keyboard(
                 {
                     "text": translate(language, "buttons.partner_menu"),
                     "callback_data": "partner_dashboard",
+                },
+            ]
+        )
+
+    if is_coowner:
+        rows.append(
+            [
+                {
+                    "text": translate(language, "buttons.co_owner_menu"),
+                    "callback_data": "co_owner_dashboard",
                 },
             ]
         )
@@ -6968,24 +7978,26 @@ def build_main_keyboard(
     return rows
 
 
-def active_subscription_keyboard() -> InlineKeyboardMarkup:
+def active_subscription_keyboard(
+    language: str = Config.DEFAULT_LANGUAGE,
+) -> InlineKeyboardMarkup:
     return kb(
         [
             [
                 {
-                    "text": translate(Config.DEFAULT_LANGUAGE, "buttons.renew_subscription"),
+                    "text": translate(language, "buttons.renew_subscription"),
                     "callback_data": "renew",
                 }
             ],
             [
                 {
-                    "text": translate(Config.DEFAULT_LANGUAGE, "buttons.my_subscription"),
+                    "text": translate(language, "buttons.my_subscription"),
                     "callback_data": "mysub",
                 }
             ],
             [
                 {
-                    "text": translate(Config.DEFAULT_LANGUAGE, "buttons.main"),
+                    "text": translate(language, "buttons.main"),
                     "callback_data": "start",
                 }
             ],
@@ -6993,11 +8005,13 @@ def active_subscription_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-def inactive_subscription_actions_keyboard() -> InlineKeyboardMarkup:
+def inactive_subscription_actions_keyboard(
+    language: str = Config.DEFAULT_LANGUAGE,
+) -> InlineKeyboardMarkup:
     rows = [
         [
             {
-                "text": translate(Config.DEFAULT_LANGUAGE, "buttons.buy"),
+                "text": translate(language, "buttons.buy"),
                 "callback_data": "buy",
             }
         ]
@@ -7006,7 +8020,7 @@ def inactive_subscription_actions_keyboard() -> InlineKeyboardMarkup:
         rows.append(
             [
                 {
-                    "text": translate(Config.DEFAULT_LANGUAGE, "buttons.support"),
+                    "text": translate(language, "buttons.support"),
                     "url": Config.SUPPORT_URL,
                 }
             ]
@@ -7014,7 +8028,7 @@ def inactive_subscription_actions_keyboard() -> InlineKeyboardMarkup:
     rows.append(
         [
             {
-                "text": translate(Config.DEFAULT_LANGUAGE, "buttons.main"),
+                "text": translate(language, "buttons.main"),
                 "callback_data": "start",
             }
         ]
@@ -7071,39 +8085,11 @@ def _build_price_line(plan: dict[str, Any], lang: str) -> str:
     return translate(lang, "texts.price_fixed_days", price=price, duration=duration)
 
 
-def build_tariffs_text(
-    plans: list[dict[str, Any]] | None = None, lang: str = Config.DEFAULT_LANGUAGE
-) -> str:
-    plans = plans if plans is not None else get_all_active()
-    if not plans:
-        text = translate(lang, "texts.tariffs_unavailable", vpn_name=Config.VPN_NAME)
-        if custom_tariff_enabled():
-            text += "\n\n" + build_custom_tariff_info_block(lang)
-        return text
-    text = translate(lang, "texts.tariffs_title", vpn_name=Config.VPN_NAME)
-    for idx, plan in enumerate(plans, 1):
-        price_line = _build_price_line(plan, lang)
-        text += translate(
-            lang,
-            "texts.plan_block",
-            idx=idx,
-            name=plan.get("name", plan.get("id")),
-            price_line=price_line,
-            ip_limit=plan.get("ip_limit", 0),
-            traffic=format_traffic(plan.get("traffic_gb", 0), lang),
-        )
-        servers = get_plan_servers(plan)
-        if servers:
-            text += translate(
-                lang,
-                "texts.plan_block_servers",
-                servers=format_servers(servers),
-            )
-        text += "\n"
-    if custom_tariff_enabled():
-        text += build_custom_tariff_info_block(lang) + "\n\n"
-    text += translate(lang, "texts.tariffs_footer")
-    return text
+def _build_price_line_plain(plan: dict[str, Any], lang: str = Config.DEFAULT_LANGUAGE) -> str:
+    price = max(0.0, to_float(plan.get("price_rub"), 0.0))
+    if price <= 0:
+        return translate(lang, "texts.price_free_plain")
+    return translate(lang, "texts.price_plain", price=f"{price:g}")
 
 
 def build_fixed_tariffs_text(
@@ -7113,7 +8099,39 @@ def build_fixed_tariffs_text(
     if not plans:
         return translate(lang, "texts.tariffs_unavailable", vpn_name=Config.VPN_NAME)
     text = translate(lang, "texts.buy_fixed_title")
+    is_new = Config.TARIFF_MODE == "new"
+    non_trial = [plan for plan in plans if not is_trial_plan(plan)]
+    common_ip = bool(non_trial) and all(
+        to_int(plan.get("ip_limit"), 0) == to_int(non_trial[0].get("ip_limit"), 0)
+        for plan in non_trial
+    )
+    common_traffic = bool(non_trial) and all(
+        to_int(plan.get("traffic_gb"), 0) == to_int(non_trial[0].get("traffic_gb"), 0)
+        for plan in non_trial
+    )
     for idx, plan in enumerate(plans, 1):
+        if is_new:
+            text += translate(
+                lang,
+                "texts.plan_block_compact",
+                idx=idx,
+                name=plan.get("name", plan.get("id")),
+                price_line=_build_price_line_plain(plan, lang),
+                duration=format_tariff_duration(to_int(plan.get("duration_days"), 0), lang),
+            )
+            is_trial = is_trial_plan(plan)
+            if not (common_ip and not is_trial):
+                text += translate(
+                    lang, "texts.plan_block_devices", ip_limit=to_int(plan.get("ip_limit"), 0)
+                )
+            if not (common_traffic and not is_trial):
+                text += translate(
+                    lang,
+                    "texts.plan_block_traffic",
+                    traffic=format_tariff_traffic(plan.get("traffic_gb", 0), lang, per_month=True),
+                )
+            text += "\n"
+            continue
         price_line = _build_price_line(plan, lang)
         text += translate(
             lang,
@@ -7132,41 +8150,28 @@ def build_fixed_tariffs_text(
                 servers=format_servers(servers),
             )
         text += "\n"
-    text += translate(lang, "texts.tariffs_footer")
-    return text
-
-
-def build_buy_text(
-    plans: list[dict[str, Any]] | None = None,
-    *,
-    for_admin: bool = False,
-    lang: str = Config.DEFAULT_LANGUAGE,
-) -> str:
-    plans = plans if plans is not None else get_all_active()
-    if not plans:
-        text = translate(lang, "texts.buy_unavailable")
-        if custom_tariff_enabled():
-            text += translate(lang, "texts.buy_custom_button_hint")
-        return text
-    text = translate(lang, "texts.buy_title")
-    for idx, plan in enumerate(plans, 1):
-        price_line = _build_price_line(plan, lang)
-        servers = get_plan_servers(plan)
-        servers_text = f" - {format_servers(servers)}" if servers else ""
+    if is_new:
+        if common_ip:
+            text += translate(
+                lang,
+                "texts.tariffs_common_devices",
+                ip_limit=to_int(non_trial[0].get("ip_limit"), 0),
+            )
+        if common_traffic:
+            text += translate(
+                lang,
+                "texts.tariffs_common_traffic",
+                traffic=format_tariff_traffic(
+                    non_trial[0].get("traffic_gb", 0), lang, per_month=True
+                ),
+            )
         text += translate(
             lang,
-            "texts.buy_plan_option",
-            idx=idx,
-            name=plan.get("name", plan.get("id")),
-            price_line=price_line,
-            servers_text=servers_text,
+            "texts.available_locations_line",
+            servers=format_servers(get_all_location_codes()),
         )
-    if custom_tariff_enabled():
-        text += translate(lang, "texts.buy_custom_button_hint")
-    if for_admin:
-        text += translate(lang, "texts.buy_admin_custom_hint")
     else:
-        text += translate(lang, "texts.buy_user_payment_hint")
+        text += translate(lang, "texts.tariffs_footer")
     return text
 
 
@@ -7298,6 +8303,35 @@ async def store_api_subscription_payment(
     return payment_data, ""
 
 
+def _cleanup_trust_value(value: Any) -> int | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text or "none" in text.lower():
+        return None
+    return to_int(value, 0)
+
+
+def _build_cleanup_trust_line(
+    reason: str,
+    trust_before: int | None,
+    trust_after: int | None,
+    trust_delta: int,
+    lang: str,
+) -> str:
+    if not TRUST_SCORE_ENABLED:
+        return ""
+    if trust_before is not None and trust_after is not None:
+        return build_trust_change_line(trust_delta, trust_before, trust_after)
+    if reason == "traffic_exhausted":
+        return translate(
+            lang,
+            "texts.trust_penalty_applied",
+            penalty=TRUST_SCORE_PENALTY_TRAFFIC_EXHAUSTED,
+        )
+    return translate(lang, "texts.trust_change_short_none")
+
+
 def build_subscription_cleanup_message(
     reason: str,
     trust_before: int | None = None,
@@ -7305,18 +8339,7 @@ def build_subscription_cleanup_message(
     trust_delta: int = 0,
     lang: str = Config.DEFAULT_LANGUAGE,
 ) -> str:
-    if not TRUST_SCORE_ENABLED:
-        trust_line = ""
-    elif trust_before is not None and trust_after is not None:
-        trust_line = build_trust_change_line(trust_delta, trust_before, trust_after)
-    elif reason == "traffic_exhausted":
-        trust_line = translate(
-            lang,
-            "texts.trust_penalty_applied",
-            penalty=TRUST_SCORE_PENALTY_TRAFFIC_EXHAUSTED,
-        )
-    else:
-        trust_line = translate(lang, "texts.trust_change_short_none")
+    trust_line = _build_cleanup_trust_line(reason, trust_before, trust_after, trust_delta, lang)
     if reason == "traffic_exhausted":
         return translate(
             lang,
@@ -7330,6 +8353,38 @@ def build_subscription_cleanup_message(
             trust_line=trust_line,
         )
     return translate(lang, "texts.subscription_cleanup_inactive", trust_line=trust_line)
+
+
+def build_subscription_traffic_suspend_message(
+    reset_date: str,
+    trust_before: int | None = None,
+    trust_after: int | None = None,
+    trust_delta: int = 0,
+    lang: str = Config.DEFAULT_LANGUAGE,
+) -> str:
+    trust_line = _build_cleanup_trust_line(
+        "traffic_exhausted", trust_before, trust_after, trust_delta, lang
+    )
+    return translate(
+        lang,
+        "texts.subscription_traffic_suspended",
+        reset_date=reset_date,
+        trust_line=trust_line,
+    )
+
+
+def should_suspend_on_traffic_exhausted(plan: dict[str, Any] | None) -> bool:
+    return bool(plan and is_new_tariff_plan(plan))
+
+
+def _next_traffic_reset_date(user: dict[str, Any], plan: dict[str, Any] | None) -> str:
+    reset_ms = _traffic_reset_anchor_ms(user, plan)
+    if reset_ms <= 0:
+        reset_ms = int(time.time() * 1000)
+    next_reset = datetime.fromtimestamp(
+        (reset_ms + TRAFFIC_RESET_DAYS * SECONDS_IN_DAY * 1000) / 1000, tz=UTC
+    )
+    return format_payment_time(next_reset.isoformat())
 
 
 def custom_locations_keyboard(selected_servers: Any) -> InlineKeyboardMarkup:
@@ -7405,9 +8460,13 @@ def get_event_user_id(event: Any) -> int | None:
     return getattr(user, "id", None)
 
 
+def _extract_user_language(user: dict[str, Any] | None) -> str:
+    return str(user.get("language", "") if user else "").strip().lower()
+
+
 async def get_user_language(user_id: int) -> str:
-    user = await db.get_user_by_any_id(user_id)
-    lang = str(user.get("language", "") if user else "").strip().lower()
+    user = await db.find_user_by_any_id(user_id)
+    lang = _extract_user_language(user)
     return lang if lang in LANGUAGES else Config.DEFAULT_LANGUAGE
 
 
@@ -7479,6 +8538,15 @@ async def show_custom_locations_picker(event: Message | CallbackQuery, state: FS
             return
         except Exception:  # noqa: BLE001, S110
             pass
+    await smart_answer(event, text, reply_markup=markup, delete_origin=True)
+
+
+async def _safe_edit_menu(event: CallbackQuery, text: str, markup: Any) -> None:
+    if event.message:
+        with suppress(Exception):
+            await event.message.edit_text(text, reply_markup=markup)
+            await event.answer()
+            return
     await smart_answer(event, text, reply_markup=markup, delete_origin=True)
 
 
@@ -7603,7 +8671,7 @@ async def show_offer_agreement(
 
 
 async def get_subscription_state(user_id: int) -> dict[str, Any]:
-    user = await db.get_user_by_any_id(user_id)
+    user = await db.find_user_by_any_id(user_id)
     if not user:
         return {"status": "no_user", "panel_available": True}
     internal_uid = await db.resolve_internal_uid(user_id)
@@ -7612,11 +8680,18 @@ async def get_subscription_state(user_id: int) -> dict[str, Any]:
     if "admin" in plan_text_admin_check.lower() and not await is_admin_user(
         to_int(user.get("telegram_id"), 0)
     ):
+        base_email_admin_check = get_user_panel_email(internal_uid, user_data_admin)
+        panel_deleted = False
+        with suppress(Exception):
+            panel_deleted = await panel.delete_client(base_email_admin_check)
+        if not panel_deleted:
+            logger.error(
+                f"Не удалось удалить подписку Admin с панели у не-админа {internal_uid}, "
+                "запись в БД сохранена"
+            )
+            return {"status": "no_subscription", "panel_available": False}
         if not await db.remove_subscription(internal_uid):
             logger.error(f"Не удалось автоудалить подписку Admin у не-админа {internal_uid}")
-        base_email_admin_check = get_user_panel_email(internal_uid, user_data_admin)
-        with suppress(Exception):
-            await panel.delete_client(base_email_admin_check)
         logger.info(f"Автоудалена подписка Admin у не-админа {internal_uid}")
         return {"status": "no_subscription", "panel_available": True}
     sub_id = normalize_sub_id(user.get("vpn_url"))
@@ -7662,6 +8737,7 @@ async def get_subscription_state(user_id: int) -> dict[str, Any]:
                 return {
                     "status": "traffic_exhausted",
                     "panel_available": True,
+                    "traffic_disabled": to_int(user.get("traffic_disabled"), 0),
                     "sub_id": sub_id,
                     "clients": clients,
                     "max_expiry": max_expiry,
@@ -7672,9 +8748,14 @@ async def get_subscription_state(user_id: int) -> dict[str, Any]:
                 }
         else:
             panel_available = False
+            logger.warning(
+                f"get_subscription_state: панель недоступна для {base_email}, "
+                "статистика трафика не проверена"
+            )
     return {
         "status": "active",
         "panel_available": panel_available,
+        "traffic_disabled": to_int(user.get("traffic_disabled"), 0),
         "sub_id": sub_id,
         "clients": clients,
         "max_expiry": max_expiry,
@@ -7683,6 +8764,24 @@ async def get_subscription_state(user_id: int) -> dict[str, Any]:
         "traffic_gb": total_traffic_gb,
         "traffic_bytes": traffic_bytes,
     }
+
+
+async def _send_cleanup_notification(
+    internal_uid: int,
+    tg_id: int,
+    user_id: int,
+    fallback_lang: str,
+    build_text: Callable[[str], str],
+) -> None:
+    try:
+        user_lang = await db.get_user_language_by_user_id(internal_uid) or fallback_lang
+        await notify_user(
+            tg_id,
+            build_text(user_lang),
+            reply_markup=support_keyboard(include_main=True),
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"cleanup_subscription: ошибка уведомления {user_id}: {e}")
 
 
 async def cleanup_subscription(
@@ -7703,7 +8802,7 @@ async def cleanup_subscription(
         logger.warning(f"cleanup_subscription: некорректный user_id {user_id}")
         return result
 
-    user_data = await db.get_user_by_any_id(user_id)
+    user_data = await db.find_user_by_any_id(user_id)
     if not user_data:
         logger.warning(f"cleanup_subscription: пользователь не найден user_id={user_id}")
         return result
@@ -7719,6 +8818,19 @@ async def cleanup_subscription(
         )
         await _ensure_admin_subscription(internal_uid)
         result["success"] = False
+        return result
+
+    plan = resolve_user_plan(user_data)
+    suspend_by_traffic = reason == "traffic_exhausted" and should_suspend_on_traffic_exhausted(plan)
+    already_suspended = to_int(user_data.get("traffic_disabled"), 0) == 1
+    base_email = get_user_panel_email(internal_uid, user_data)
+
+    if suspend_by_traffic and already_suspended:
+        fresh_user = await db.find_user_by_any_id(user_id)
+        if to_int((fresh_user or user_data).get("traffic_disabled"), 0) == 1:
+            with suppress(Exception):
+                await panel.set_client_enabled(base_email, False)
+        result["success"] = True
         return result
 
     trust_before: int | None = None
@@ -7738,44 +8850,67 @@ async def cleanup_subscription(
             trust_after = after
             trust_delta = delta
 
-    base_email = get_user_panel_email(internal_uid, user_data)
-    deleted = False
-    try:
-        deleted = await panel.delete_client(base_email)
-        if deleted:
-            logger.info(f"🗑 Клиент {user_id} удалён с панели (reason={reason})")
-        else:
-            logger.warning(f"⚠️ Не удалось удалить клиента {user_id} с панели (reason={reason})")
-    except Exception as e:  # noqa: BLE001
-        logger.error(f"cleanup_subscription: ошибка удаления с панели {user_id}: {e}")
-
-    if deleted:
-        if await db.remove_subscription(internal_uid):
-            logger.info(f"🗑 Подписка {user_id} очищена из БД (reason={reason})")
-            result["success"] = True
-        else:
-            logger.error(
-                f"⚠️ Подписка {user_id} не удалена из БД после удаления "
-                f"клиента с панели (reason={reason})"
-            )
-    else:
-        logger.warning(
-            f"⚠️ Подписка {user_id} не удалена из БД, т.к. клиент не удалён с панели (reason={reason})"
-        )
-
-    if deleted and notify_user_about_cleanup and not await is_admin_user(tg_id):
+    if suspend_by_traffic:
+        disabled = False
         try:
-            user_lang = await db.get_user_language_by_user_id(internal_uid) or lang
-            cleanup_text = build_subscription_cleanup_message(
-                reason,
-                trust_before=trust_before,
-                trust_after=trust_after,
-                trust_delta=trust_delta,
-                lang=user_lang,
-            )
-            await notify_user(tg_id, cleanup_text, reply_markup=support_keyboard(include_main=True))
+            disabled = await panel.set_client_enabled(base_email, False)
+            if disabled:
+                logger.info(f"⏸ Клиент {user_id} отключён за трафик без удаления подписки")
+            else:
+                logger.warning(f"⚠️ Не удалось отключить клиента {user_id} за трафик")
         except Exception as e:  # noqa: BLE001
-            logger.error(f"cleanup_subscription: ошибка уведомления {user_id}: {e}")
+            logger.error(f"cleanup_subscription: ошибка отключения {user_id}: {e}")
+
+        result["success"] = bool(await db.set_traffic_disabled(internal_uid, True))
+        if notify_user_about_cleanup and not await is_admin_user(tg_id):
+
+            def _suspend_text(user_lang: str) -> str:
+                return build_subscription_traffic_suspend_message(
+                    _next_traffic_reset_date(user_data, plan),
+                    trust_before=trust_before,
+                    trust_after=trust_after,
+                    trust_delta=trust_delta,
+                    lang=user_lang,
+                )
+
+            await _send_cleanup_notification(internal_uid, tg_id, user_id, lang, _suspend_text)
+    else:
+        deleted = False
+        try:
+            deleted = await panel.delete_client(base_email)
+            if deleted:
+                logger.info(f"🗑 Клиент {user_id} удалён с панели (reason={reason})")
+            else:
+                logger.warning(f"⚠️ Не удалось удалить клиента {user_id} с панели (reason={reason})")
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"cleanup_subscription: ошибка удаления с панели {user_id}: {e}")
+
+        if deleted:
+            if await db.remove_subscription(internal_uid):
+                logger.info(f"🗑 Подписка {user_id} очищена из БД (reason={reason})")
+                result["success"] = True
+            else:
+                logger.error(
+                    f"⚠️ Подписка {user_id} не удалена из БД после удаления "
+                    f"клиента с панели (reason={reason})"
+                )
+        else:
+            logger.warning(
+                f"⚠️ Подписка {user_id} не удалена из БД, т.к. клиент не удалён с панели (reason={reason})"
+            )
+
+        if deleted and notify_user_about_cleanup and not await is_admin_user(tg_id):
+
+            def _cleanup_text(user_lang: str) -> str:
+                return build_subscription_cleanup_message(
+                    reason,
+                    trust_before=trust_before,
+                    trust_after=trust_after,
+                    trust_delta=trust_delta,
+                    lang=user_lang,
+                )
+
+            await _send_cleanup_notification(internal_uid, tg_id, user_id, lang, _cleanup_text)
 
     result["trust_before"] = trust_before
     result["trust_after"] = trust_after
@@ -7813,7 +8948,7 @@ async def cleanup_admin_test_subscriptions() -> dict[str, int]:
 
     for admin_id in ADMIN_USER_ID_SET:
         try:
-            user_data = await db.get_user_by_any_id(admin_id)
+            user_data = await db.find_user_by_any_id(admin_id)
             if not user_data:
                 continue
 
@@ -7841,7 +8976,7 @@ async def cleanup_admin_test_subscriptions() -> dict[str, int]:
 
             target = sub_clients[0]
             expiry_time = to_int(target.get("expiryTime"), 0)
-            if expiry_time <= cutoff_time:
+            if 0 < expiry_time <= cutoff_time:
                 test_email = str(target.get("email") or "").strip()
                 if not test_email:
                     result["errors"] += 1
@@ -7866,13 +9001,6 @@ async def cleanup_admin_test_subscriptions() -> dict[str, int]:
 
 
 # --- Новая авто-партнёрка: проверка прав бота в ТГК каналах ---
-PARTNER_CHANNEL_CB = "pch"
-PARTNER_CHANNEL_ACTION_LIST = "list"
-PARTNER_CHANNEL_ACTION_ADD = "add"
-PARTNER_CHANNEL_ACTION_REMOVE = "rem"
-PARTNER_CHANNEL_ACTION_VERIFY = "ver"
-
-
 async def verify_channel_rights(bot: Bot, channel_id: int) -> dict[str, Any]:
     """Проверяет права бота в канале: админ + право на публикацию."""
     result: dict[str, Any] = {
@@ -7891,8 +9019,13 @@ async def verify_channel_rights(bot: Bot, channel_id: int) -> dict[str, Any]:
         status = str(me.status or "")
         if status in ("administrator", "creator"):
             result["is_admin"] = True
-            result["can_post"] = bool(getattr(me, "can_post_messages", False))
+            if status == "creator":
+                result["can_post"] = True
+            else:
+                result["can_post"] = bool(getattr(me, "can_post_messages", False))
             result["ok"] = result["can_post"]
+            if not result["ok"]:
+                result["error"] = "бот не может публиковать сообщения в канале"
         else:
             result["error"] = f"бот не администратор канала (статус: {status})"
     except Exception as e:  # noqa: BLE001
@@ -7939,12 +9072,14 @@ async def send_auto_post_to_partner_channels(text: str) -> dict[str, Any]:
         if owner_tg:
             u = await db.get_user_by_telegram_id(owner_tg)
             if u:
-                if u.get("language"):
-                    language = str(u.get("language") or Config.DEFAULT_LANGUAGE)
+                user_language = str(u.get("language") or "")
+                if user_language in LANGUAGES:
+                    language = user_language
                 ref_link = get_ref_link(str(u.get("mate_ref_link_code") or ""))
         msg = await _append_partner_bonus(text, language, ref_link)
         try:
-            await bot.send_message(channel_id, msg, parse_mode=ParseMode.HTML)
+            for part in split_long_text(msg):
+                await bot.send_message(channel_id, part, parse_mode=ParseMode.HTML)
             await db.update_partner_channel_status(channel_id, last_status="posted", last_error="")
             sent += 1
         except Exception as e:  # noqa: BLE001
@@ -7966,7 +9101,10 @@ async def check_partner_channels_loop() -> None:
                 continue
             by_owner: dict[int, list[dict[str, Any]]] = {}
             for ch in channels:
-                by_owner.setdefault(to_int(ch.get("owner_user_id"), 0), []).append(ch)
+                owner_uid = to_int(ch.get("owner_user_id"), 0)
+                if owner_uid <= 0:
+                    continue
+                by_owner.setdefault(owner_uid, []).append(ch)
             for owner_user_id, owner_channels in by_owner.items():
                 still_active = 0
                 if not bot:
@@ -7980,7 +9118,7 @@ async def check_partner_channels_loop() -> None:
                             is_owner_verified=1,
                             has_posting_rights=1,
                             is_active=1,
-                            last_status=check.get("title", ""),
+                            last_status="verified",
                             last_error="",
                         )
                         still_active += 1
@@ -8013,12 +9151,183 @@ async def check_partner_channels_loop() -> None:
             logger.error(f"check_partner_channels_loop: {e}")
 
 
+async def _create_co_owner_vpn_client(uid: int, nickname: str) -> str:
+    email = build_coowner_email(uid, nickname)
+    inbound_ids = await panel.get_matching_inbound_ids(None)
+    if not inbound_ids:
+        raise RuntimeError("Нет доступных inbound'ов для со-владельца")
+    sub_id = build_coowner_sub_id(nickname)
+    if await panel.get_client_by_email(email):
+        await panel.delete_client(email)
+    client = await panel.create_client(
+        email=email,
+        limit_ip=0,
+        total_gb=0,
+        days=36500,
+        inbound_ids=inbound_ids,
+        sub_id=sub_id,
+    )
+    if not client:
+        sub_id = build_coowner_sub_id(nickname)
+        client = await panel.create_client(
+            email=email,
+            limit_ip=0,
+            total_gb=0,
+            days=36500,
+            inbound_ids=inbound_ids,
+            sub_id=sub_id,
+        )
+    if not client:
+        raise RuntimeError(f"Панель не создала клиента со-владельца {email}")
+    sub_id = normalize_sub_id(client.get("subId", "")) or sub_id
+    expiry_dt = datetime.now(UTC) + timedelta(days=36500)
+    ok = await db.set_subscription(
+        uid,
+        plan_text="Co-Owner",
+        plan_servers=json.dumps(get_all_location_codes()),
+        ip_limit=0,
+        vpn_url=sub_id,
+        traffic_gb=0,
+        subscription_id=CO_OWNER_PLAN_ID,
+        expiry_sub_datatime=expiry_dt.isoformat(),
+    )
+    if not ok:
+        raise RuntimeError(f"Не удалось сохранить подписку со-владельца {uid} в БД")
+    logger.info(f"✅ Безлимитная VPN-подписка создана для со-владельца {uid}: {sub_id}")
+    return sub_id
+
+
+async def ensure_co_owner_account(telegram_id: int, nickname: str) -> None:
+    user = await db.get_user_by_telegram_id(telegram_id)
+    if not user:
+        await db.add_user(telegram_id, force=True)
+        user = await db.get_user_by_telegram_id(telegram_id)
+    if not user:
+        raise RuntimeError(f"Не удалось создать аккаунт со-владельца {telegram_id}")
+    uid = to_int(user.get("user_id"), 0)
+    code = str(user.get("coowner_code") or "")
+    nickname_changed = bool(code) and co_owner_nickname(user) != sanitize_mate_nickname(nickname)
+    if not code or nickname_changed:
+        if nickname_changed:
+            with suppress(Exception):
+                await panel.delete_client(get_user_panel_email(uid, user))
+            await db.remove_subscription(uid)
+        while True:
+            candidate = generate_coowner_code(nickname)
+            if not await db.get_user_by_coowner_code(candidate):
+                code = candidate
+                break
+    await db.update_user(uid, is_coowner=1, coowner_code=code, force=True)
+    user = await db.get_user_by_id(uid) or user
+    has_plan = str(user.get("subscription_id") or "") == CO_OWNER_PLAN_ID
+    if not (user.get("has_subscription") and has_plan):
+        await _create_co_owner_vpn_client(uid, nickname)
+
+
+async def reconcile_co_owners() -> None:
+    owners = Config.co_owners_map()
+    if not owners:
+        logger.warning("CO_OWNERS пуст: удаление и понижение со-владельцев при старте пропущены")
+        return
+    for user in await db.get_co_owners():
+        telegram_id = to_int(user.get("telegram_id"), 0)
+        if telegram_id in owners:
+            continue
+        uid = to_int(user.get("user_id"), 0)
+        # Не удаляем аккаунт и реферальную сеть: опечатка в CO_OWNERS не должна
+        # уничтожать данные. Снимаем только права и безлимитный план.
+        await db.update_user(uid, is_coowner=0, coowner_code="", force=True)
+        with suppress(Exception):
+            await panel.delete_client(get_user_panel_email(uid, user))
+        await db.remove_subscription(uid)
+        logger.warning(f"Со-владелец {uid} ({telegram_id}) понижен: TID отсутствует в CO_OWNERS")
+    for telegram_id, nickname in owners.items():
+        try:
+            await ensure_co_owner_account(telegram_id, nickname)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Не удалось подготовить со-владельца {telegram_id}: {e}")
+
+
+def co_owner_nickname(user: dict[str, Any]) -> str:
+    parts = str(user.get("coowner_code") or "").split("_")
+    return parts[1] if len(parts) >= CO_OWNER_CODE_MIN_PARTS and parts[1] else "owner"
+
+
+async def collect_co_owner_tree(root_uid: int) -> list[tuple[dict[str, Any], int]]:
+    if root_uid <= 0:
+        return []
+    result: list[tuple[dict[str, Any], int]] = []
+    frontier: list[tuple[int, int]] = [(root_uid, 0)]
+    seen: set[int] = {root_uid}
+    while frontier:
+        current = frontier
+        frontier = []
+        children = await db.get_users_by_referrers(
+            [parent_id for parent_id, _ in current], column="co_owner_ref_by"
+        )
+        by_parent: dict[int, list[dict[str, Any]]] = {}
+        for child in children:
+            parent_id = to_int(child.get("co_owner_ref_by"), 0)
+            by_parent.setdefault(parent_id, []).append(child)
+        for parent_id, depth in current:
+            for child in sorted(
+                by_parent.get(parent_id, []),
+                key=lambda item: to_int(item.get("user_id"), 0),
+            ):
+                child_id = to_int(child.get("user_id"), 0)
+                if not child_id or child_id in seen:
+                    continue
+                if to_int(child.get("is_coowner"), 0):
+                    continue
+                seen.add(child_id)
+                result.append((child, depth + 1))
+                frontier.append((child_id, depth + 1))
+    return result
+
+
+async def co_owner_payments(uids: set[int]) -> list[dict[str, Any]]:
+    if not uids:
+        return []
+    records = await json_db.read_all()
+    return [
+        record
+        for record in records
+        if record.get("status") == "accepted" and to_int(record.get("user_id"), 0) in uids
+    ]
+
+
+async def build_co_owner_stats(owner: dict[str, Any]) -> dict[str, Any]:
+    tree = await collect_co_owner_tree(to_int(owner.get("user_id"), 0))
+    ids = {to_int(user.get("user_id"), 0) for user, _ in tree}
+    payments = await co_owner_payments(ids)
+    revenue = round(sum(to_float(p.get("amount"), 0.0) for p in payments), 2)
+    percent = Config.CO_OWNERS_COMMISSION_PERCENT
+    commission = round(
+        sum(round(to_float(p.get("amount"), 0.0) * percent / 100, 2) for p in payments),
+        2,
+    )
+    paid_ids = {to_int(p.get("user_id"), 0) for p in payments if to_float(p.get("amount"), 0.0) > 0}
+    return {
+        "total_invited": len(tree),
+        "active_subscriptions": sum(1 for user, _ in tree if user.get("has_subscription")),
+        "paid_users": len(paid_ids),
+        "revenue": revenue,
+        "commission": commission,
+        "commission_percent": percent,
+        "max_depth": max((depth for _, depth in tree), default=0),
+        "traffic_gb": round(
+            sum(to_float(user.get("total_traffic_gb"), 0.0) for user, _ in tree), 2
+        ),
+        "newest_join_date": max((str(user.get("join_date") or "") for user, _ in tree), default=""),
+    }
+
+
 async def ensure_startup_admin_accounts() -> None:
     global _admin_startup_completed
     for admin_tg_id in Config.ADMIN_USER_IDS:
         try:
             await db.add_user(admin_tg_id, force=True)
-            user_data = await db.get_user_by_any_id(admin_tg_id)
+            user_data = await db.find_user_by_any_id(admin_tg_id)
             if user_data:
                 await _ensure_admin_subscription(user_data["user_id"])
         except Exception as e:  # noqa: BLE001
@@ -8029,7 +9338,7 @@ async def ensure_startup_admin_accounts() -> None:
 async def _ensure_admin_subscription(admin_id: int) -> bool:
     async with _admin_sub_lock:
         try:
-            user_data = await db.get_user_by_any_id(admin_id)
+            user_data = await db.find_user_by_any_id(admin_id)
             if not user_data:
                 return False
             telegram_id = to_int(user_data.get("telegram_id"), 0) or admin_id
@@ -8065,7 +9374,6 @@ async def _ensure_admin_subscription(admin_id: int) -> bool:
                 client["limitIp"] = ip_limit
                 client["totalGB"] = 0
                 client["subId"] = admin_sub_id
-                client["tgId"] = max(0, int(telegram_id))
                 client["inboundIds"] = inbound_ids
                 payload = panel._client_payload_for_update(client)
                 url = (
@@ -8093,7 +9401,6 @@ async def _ensure_admin_subscription(admin_id: int) -> bool:
                     total_gb=traffic_gb,
                     days=days,
                     servers=servers,
-                    tg_id=telegram_id,
                     sub_id=admin_sub_id,
                 )
                 if not client:
@@ -8112,7 +9419,6 @@ async def _ensure_admin_subscription(admin_id: int) -> bool:
                         client["limitIp"] = ip_limit
                         client["totalGB"] = 0
                         client["subId"] = admin_sub_id
-                        client["tgId"] = max(0, int(telegram_id))
                         client["inboundIds"] = inbound_ids
                         payload = panel._client_payload_for_update(client)
                         url = (
@@ -8220,7 +9526,7 @@ async def _partner_channel_menu_text(owner_user_id: int, lang: str) -> str:
         "",
         translate(lang, "texts.partner_auto_bonus_info", bonus=bonus_txt),
     ]
-    user = await db.get_user_by_any_id(owner_user_id)
+    user = await db.find_user_by_any_id(owner_user_id)
     ref_code = str((user or {}).get("mate_ref_link_code", "") or "")
     if ref_code:
         lines.append("")
@@ -8272,7 +9578,9 @@ def _partner_channel_keyboard(
                 [
                     InlineKeyboardButton(
                         text=translate(
-                            lang, "buttons.partner_channel_remove", channel=html.escape(title)[:24]
+                            lang,
+                            "buttons.partner_channel_remove",
+                            channel=html.escape(title)[:24],
                         ),
                         callback_data=f"pch:rem:{cid}",
                     )
@@ -8301,8 +9609,7 @@ async def cb_partner_channel_list(event: CallbackQuery, **kwargs: Any) -> None:
     owner_user_id = to_int(user_data.get("user_id"), event.from_user.id)
     text = await _partner_channel_menu_text(owner_user_id, lang)
     channels = await db.get_partner_channels(owner_user_id)
-    await event.message.edit_text(text, reply_markup=_partner_channel_keyboard(lang, channels))
-    await event.answer()
+    await _safe_edit_menu(event, text, _partner_channel_keyboard(lang, channels))
 
 
 @router.callback_query(F.data == "pch:add")
@@ -8314,9 +9621,10 @@ async def cb_partner_channel_add(event: CallbackQuery, state: FSMContext, **kwar
         return
     lang = await get_user_language(event.from_user.id)
     await state.set_state(PartnerChannelStates.waiting_channel_id)
-    await event.message.edit_text(
+    await _safe_edit_menu(
+        event,
         translate(lang, "texts.partner_channel_add_prompt"),
-        reply_markup=InlineKeyboardMarkup(
+        InlineKeyboardMarkup(
             inline_keyboard=[
                 [
                     InlineKeyboardButton(
@@ -8326,7 +9634,6 @@ async def cb_partner_channel_add(event: CallbackQuery, state: FSMContext, **kwar
             ]
         ),
     )
-    await event.answer()
 
 
 @router.message(PartnerChannelStates.waiting_channel_id, F.text)
@@ -8394,14 +9701,16 @@ async def msg_partner_channel_add(message: Message, state: FSMContext) -> None:
     await state.clear()
     await message.answer(
         translate(
-            lang, "texts.partner_channel_added", channel=html.escape(str(check.get("title", "")))
+            lang,
+            "texts.partner_channel_added",
+            channel=html.escape(str(check.get("title", ""))),
         )
     )
 
     owner_user_id = to_int(user_data.get("user_id"), message.from_user.id)
     text = await _partner_channel_menu_text(owner_user_id, lang)
     channels = await db.get_partner_channels(owner_user_id)
-    await message.answer(text, reply_markup=_partner_channel_keyboard(lang, channels))
+    await smart_answer(message, text, reply_markup=_partner_channel_keyboard(lang, channels))
 
 
 @router.callback_query(F.data.startswith("pch:rem:"))
@@ -8422,11 +9731,13 @@ async def cb_partner_channel_remove(event: CallbackQuery, **kwargs: Any) -> None
         await event.answer(translate(lang, "texts.user_not_found"))
         return
     owner_user_id = to_int(user_data.get("user_id"), event.from_user.id)
-    await db.remove_partner_channel(channel_id)
-    await event.answer(translate(lang, "texts.partner_channel_removed"))
+    if not await db.remove_partner_channel(channel_id, owner_user_id):
+        await event.answer(translate(lang, "texts.channel_not_found"))
+        return
+    await event.answer(translate(lang, "texts.partner_channel_removed", channel=str(channel_id)))
     text = await _partner_channel_menu_text(owner_user_id, lang)
     channels = await db.get_partner_channels(owner_user_id)
-    await event.message.edit_text(text, reply_markup=_partner_channel_keyboard(lang, channels))
+    await _safe_edit_menu(event, text, _partner_channel_keyboard(lang, channels))
 
 
 @router.callback_query(F.data == "pch:verify_all")
@@ -8452,7 +9763,7 @@ async def cb_partner_channel_verify_all(event: CallbackQuery, **kwargs: Any) -> 
             is_owner_verified=to_int(1 if check.get("ok") else 0),
             has_posting_rights=to_int(1 if check.get("can_post") else 0),
             is_active=to_int(1 if check.get("ok") else 0),
-            last_status=str(check.get("title", "")) if check.get("ok") else "lost_rights",
+            last_status="verified" if check.get("ok") else "lost_rights",
             last_error="" if check.get("ok") else str(check.get("error", ""))[:200],
         )
         if check["ok"]:
@@ -8463,7 +9774,7 @@ async def cb_partner_channel_verify_all(event: CallbackQuery, **kwargs: Any) -> 
     owner_user_id = to_int(user_data.get("user_id"), event.from_user.id)
     text = await _partner_channel_menu_text(owner_user_id, lang)
     channels = await db.get_partner_channels(owner_user_id)
-    await event.message.edit_text(text, reply_markup=_partner_channel_keyboard(lang, channels))
+    await _safe_edit_menu(event, text, _partner_channel_keyboard(lang, channels))
 
 
 @router.message(Command("autopost"))
@@ -8481,7 +9792,10 @@ async def cmd_autopost(message: Message, **kwargs: Any) -> None:
     raw = (message.text or "").replace("/autopost", "", 1).strip()
     if not raw:
         await message.answer(
-            translate(await get_user_language(message.from_user.id), "texts.partner_autopost_usage")
+            translate(
+                await get_user_language(message.from_user.id),
+                "texts.partner_autopost_usage",
+            )
         )
         return
     lang = await get_user_language(message.from_user.id)
@@ -8501,7 +9815,7 @@ async def _notify_subscription_creation_failed(
     user_id: int, plan_name: str, error: str = ""
 ) -> None:
     try:
-        user = await db.get_user_by_any_id(user_id)
+        user = await db.find_user_by_any_id(user_id)
         tg_id = to_int(user.get("telegram_id"), 0) if user else 0
         if tg_id <= 0:
             logger.info(
@@ -8566,7 +9880,7 @@ async def _create_subscription_unlocked(
         return None
     await db.add_user(user_id)
 
-    db_user = await db.get_user_by_any_id(user_id)
+    db_user = await db.find_user_by_any_id(user_id)
     if db_user and not db_user.get("ref_by") and db_user.get("ref_code"):
         ref_user = await db.get_user_by_ref_code(db_user.get("ref_code"))
         if ref_user and ref_user.get("user_id") != user_id:
@@ -8614,7 +9928,6 @@ async def _create_subscription_unlocked(
             total_gb=int(plan.get("traffic_gb", 0)),
             days=days,
             servers=plan_servers,
-            tg_id=user_id,
             inbound_ids=inbound_ids,
         )
     except Exception as e:  # noqa: BLE001
@@ -8657,7 +9970,6 @@ async def _create_subscription_unlocked(
                 total_gb=int(plan.get("traffic_gb", 0)),
                 days=days,
                 servers=plan_servers,
-                tg_id=user_id,
                 inbound_ids=inbound_ids,
             )
         except Exception as e:  # noqa: BLE001
@@ -8764,7 +10076,7 @@ async def _renew_subscription_unlocked(
     paid_amount: float | None = None,
 ) -> str | None:
     await db.add_user(user_id)
-    user_data = await db.get_user_by_any_id(user_id)
+    user_data = await db.find_user_by_any_id(user_id)
     if not user_data:
         logger.error(f"renew_subscription: пользователь не найден {user_id}")
         return None
@@ -8776,7 +10088,7 @@ async def _renew_subscription_unlocked(
     max_expiry = to_int(state.get("max_expiry"), 0)
 
     if state.get("status") != "active" or max_expiry <= int(time.time() * 1000):
-        return await create_subscription(
+        return await _create_subscription_unlocked(
             user_id,
             plan,
             extra_days=extra_days,
@@ -8799,7 +10111,7 @@ async def _renew_subscription_unlocked(
 
     if not await panel.extend_client_expiry(base_email, days):
         logger.warning(f"renew_subscription: не удалось продлить {base_email}, пробуем пересоздать")
-        return await create_subscription(
+        return await _create_subscription_unlocked(
             user_id,
             plan,
             extra_days=extra_days,
@@ -8872,7 +10184,6 @@ async def _sync_client_limits(
         if not isinstance(client, dict):
             continue
         client["limitIp"] = limit_ip
-        client["enable"] = True
         await panel.update_client(email, client)
         existing = sorted(
             {to_int(i, 0) for i in (client.get("inboundIds") or []) if to_int(i, 0) > 0}
@@ -8889,9 +10200,7 @@ async def is_active_subscription(user_id: int, *, notify_user_about_cleanup: boo
     state = await ensure_subscription_state(
         user_id, notify_user_about_cleanup=notify_user_about_cleanup
     )
-    return state.get("status") == "active" or (
-        state.get("status") == "panel_unavailable" and state.get("sub_id")
-    )
+    return state.get("status") == "active"
 
 
 async def notify_expiring_subscription(
@@ -8900,7 +10209,7 @@ async def notify_expiring_subscription(
     if days is None:
         days = Config.EXPIRY_ALERT_DAYS
 
-    user_data = await db.get_user_by_any_id(user_id)
+    user_data = await db.find_user_by_any_id(user_id)
     if not user_data:
         return False
     max_expiry = to_int(state.get("max_expiry"), 0)
@@ -8969,6 +10278,10 @@ def resolve_referral_bonus_spec(referrer: dict[str, Any] | None) -> tuple[str, i
 def resolve_referrer_display_name(referrer: dict[str, Any] | None) -> str:
     if not referrer:
         return "-"
+    if referrer.get("is_coowner"):
+        parts = str(referrer.get("coowner_code") or "").split("_")
+        if len(parts) >= CO_OWNER_CODE_MIN_PARTS and parts[1]:
+            return parts[1]
     nickname = str(referrer.get("mate_nickname", "") or "").strip()
     if nickname:
         return nickname
@@ -8985,7 +10298,7 @@ async def notify_referee_bonus_ready(
     referrer_name: str = "",
     is_partner: bool = False,
 ) -> None:
-    user = await db.get_user_by_any_id(uid)
+    user = await db.find_user_by_any_id(uid)
     if not user:
         return
     tg_id = to_int(user.get("telegram_id"), uid)
@@ -9018,11 +10331,29 @@ async def notify_referee_bonus_ready(
     )
 
 
+async def is_self_referral(uid: int, referrer_id: int) -> bool:
+    if uid <= 0 or referrer_id <= 0 or uid == referrer_id:
+        return True
+    referee = await db.find_user_by_any_id(uid)
+    referrer = await db.find_user_by_any_id(referrer_id)
+    if not referee or not referrer:
+        return False
+    referee_uid = to_int(referee.get("user_id"), 0)
+    referrer_uid = to_int(referrer.get("user_id"), 0)
+    if referee_uid and referee_uid == referrer_uid:
+        return True
+    referee_tid = to_int(referee.get("telegram_id"), 0)
+    return bool(referee_tid and referee_tid == to_int(referrer.get("telegram_id"), -1))
+
+
 async def grant_referee_bonus_on_registration(uid: int, referrer: dict[str, Any] | None) -> None:
     if not referrer or uid <= 0:
         return
-    if await db.get_user_by_any_id(uid) and to_int(
-        (await db.get_user_by_any_id(uid)).get("ref_bonus_given"), 0
+    if await is_self_referral(uid, to_int(referrer.get("user_id"), 0)):
+        logger.warning(f"Self-referral в бонусе приглашённому: uid={uid}")
+        return
+    if await db.find_user_by_any_id(uid) and to_int(
+        (await db.find_user_by_any_id(uid)).get("ref_bonus_given"), 0
     ):
         return
     bonus_type, bonus_value = resolve_referral_bonus_spec(referrer)
@@ -9049,7 +10380,7 @@ async def reward_referrer(
     is_partner: bool = False,
     is_referee: bool = False,
 ) -> bool:
-    user = await db.get_user_by_any_id(referrer_id)
+    user = await db.find_user_by_any_id(referrer_id)
     if not user:
         return False
     if is_referee:
@@ -9088,7 +10419,7 @@ async def reward_referrer(
     pending = await db.get_bonus_days_pending(referrer_id)
     total = bonus_days + pending
     internal_uid = user.get("user_id", referrer_id)
-    base_email = build_base_email(internal_uid)
+    base_email = get_user_panel_email(internal_uid, user)
     has_active = await is_active_subscription(referrer_id)
     if has_active:
         if await panel.extend_client_expiry(base_email, total):
@@ -9100,7 +10431,7 @@ async def reward_referrer(
                         f"Не удалось очистить bonus_days_pending для {referrer_id}: {e}"
                     )
                     with suppress(Exception):
-                        await db.add_bonus_days_pending(referrer_id, bonus_days)
+                        await db.add_bonus_days_pending(referrer_id, total)
             try:
                 await notify_user(
                     tg_id,
@@ -9143,7 +10474,7 @@ async def reward_referrer(
             return True
         return False
     vpn_url = await create_subscription(
-        referrer_id,
+        tg_id or referrer_id,
         min_plan,
         days_override=bonus_days,
         plan_suffix=translate(lang, suffix_key),
@@ -9182,7 +10513,10 @@ async def reward_referrer(
 
 
 async def grant_referee_days_bonus_after_payment(uid: int, ref_by: int) -> None:
-    referee = await db.get_user_by_any_id(uid)
+    if await is_self_referral(uid, ref_by):
+        logger.warning(f"Self-referral в бонусе приглашённому после оплаты: uid={uid}")
+        return
+    referee = await db.find_user_by_any_id(uid)
     if not referee or to_int(referee.get("ref_bonus_given"), 0):
         return
     referrer = await db.find_user_by_any_id(ref_by)
@@ -9207,6 +10541,9 @@ async def grant_referral_bonus(
     uid: int, ref_by: int, ref_rewarded: Any, paid_amount: float = 0.0
 ) -> None:
     if not ref_by:
+        return
+    if await is_self_referral(uid, ref_by):
+        logger.warning(f"Self-referral в реферальном бонусе: uid={uid}")
         return
     await grant_referee_days_bonus_after_payment(uid, ref_by)
     if not ref_rewarded:
@@ -9292,17 +10629,7 @@ async def resolve_user_from_payment(payment: dict[str, Any]) -> ResolvedUser | N
     if raw_uid <= 0:
         return None
 
-    tg_id = to_int(payment.get("tg_id"), 0)
-    if tg_id > 0:
-        user_data = await db.get_user_by_any_id(tg_id)
-        if user_data:
-            return ResolvedUser(
-                user_data=user_data,
-                telegram_id=tg_id,
-                internal_user_id=user_data["user_id"],
-            )
-
-    user_data = await db.get_user_by_any_id(raw_uid)
+    user_data = await db.get_user_by_id(raw_uid)
     if user_data:
         real_tg_id = to_int(user_data.get("telegram_id"), 0)
         return ResolvedUser(
@@ -9311,13 +10638,23 @@ async def resolve_user_from_payment(payment: dict[str, Any]) -> ResolvedUser | N
             internal_user_id=user_data["user_id"],
         )
 
+    tg_id = to_int(payment.get("tg_id"), 0)
+    if tg_id > 0:
+        user_data = await db.get_user_by_telegram_id(tg_id)
+        if user_data:
+            return ResolvedUser(
+                user_data=user_data,
+                telegram_id=tg_id,
+                internal_user_id=user_data["user_id"],
+            )
+
     return None
 
 
 async def resolve_tg_id(raw_id: int) -> int:
     if raw_id <= 0:
         return 0
-    user = await db.get_user_by_any_id(raw_id)
+    user = await db.find_user_by_any_id(raw_id)
     if user:
         return to_int(user.get("telegram_id"), raw_id)
     return raw_id
@@ -9326,14 +10663,17 @@ async def resolve_tg_id(raw_id: int) -> int:
 async def resolve_user_by_any_id(raw_id: int) -> dict[str, Any] | None:
     if raw_id <= 0:
         return None
-    return await db.get_user_by_any_id(raw_id)
+    return await db.find_user_by_any_id(raw_id)
 
 
 async def append_payment_decision_label(message: Message | None, status_label: str) -> None:
     if not message:
         return
     current = message.text or ""
-    new_text = f"{current}\n\n{status_label}" if current else status_label
+    suffix = f"\n\n{status_label}"
+    if utf16_length(current) + utf16_length(suffix) > TG_MAX_TEXT_LENGTH:
+        current = truncate(current, TG_MAX_TEXT_LENGTH - utf16_length(suffix))
+    new_text = f"{current}{suffix}" if current else status_label
     with suppress(Exception):
         await message.edit_text(new_text, parse_mode="HTML")
 
@@ -9341,7 +10681,7 @@ async def append_payment_decision_label(message: Message | None, status_label: s
 async def show_active_subscription_guard(event: Message | CallbackQuery) -> None:
     lang = await get_lang(event)
     user_id = get_event_user_id(event) or 0
-    user = await db.get_user_by_any_id(user_id)
+    user = await db.find_user_by_any_id(user_id)
     is_partner = bool(user.get("is_mate")) if user else False
     await smart_answer(
         event,
@@ -9351,9 +10691,38 @@ async def show_active_subscription_guard(event: Message | CallbackQuery) -> None
             if is_partner
             else "texts.active_subscription_guard",
         ),
-        reply_markup=active_subscription_keyboard(),
+        reply_markup=active_subscription_keyboard(lang),
         delete_origin=True,
     )
+
+
+async def show_traffic_suspended_guard(event: Message | CallbackQuery, lang: str) -> None:
+    await smart_answer(
+        event,
+        translate(lang, "texts.traffic_suspended_guard"),
+        reply_markup=support_keyboard(include_main=True),
+        delete_origin=True,
+    )
+
+
+def is_traffic_suspended_state(state: dict[str, Any]) -> bool:
+    return to_int(state.get("traffic_disabled"), 0) == 1
+
+
+async def block_active_subscription_purchase(
+    event: Message | CallbackQuery, user_id: int, lang: str | None = None
+) -> bool:
+    if await is_admin_user(user_id):
+        return False
+    user_lang = lang or await get_user_language(user_id)
+    state = await ensure_subscription_state(user_id, notify_user_about_cleanup=True, lang=user_lang)
+    if is_traffic_suspended_state(state):
+        await show_traffic_suspended_guard(event, user_lang)
+        return True
+    if state.get("status") == "active" and not is_expiring_soon(state, Config.EXPIRY_ALERT_DAYS):
+        await show_active_subscription_guard(event)
+        return True
+    return False
 
 
 async def block_if_pending_payment(event: Message | CallbackQuery, user_id: int) -> bool:
@@ -9411,7 +10780,7 @@ async def get_visible_plans(user_id: int, *, for_admin: bool) -> list[dict[str, 
     plans = get_all_active()
     if for_admin:
         return [p for p in plans if not is_trial_plan(p)]
-    user = await db.get_user_by_any_id(user_id)
+    user = await db.find_user_by_any_id(user_id)
     trial_used = bool(user.get("trial_used")) if user else False
     has_sub = bool(user.get("has_subscription")) if user else False
     visible = []
@@ -9481,10 +10850,24 @@ async def rate_limit_middleware(handler: Callable, event: Any, data: dict[str, A
         return await handler(event, data)
 
     now = time.time()
-    last_request = _user_request_times.get(user_id, 0)
-    elapsed = now - last_request
+    async with _rate_limit_lock:
+        last_request = _user_request_times.get(user_id, 0)
+        elapsed = now - last_request
+        limited = elapsed < Config.RATE_LIMIT_COOLDOWN
+        if not limited:
+            _user_request_times[user_id] = now
+            if len(_user_request_times) > MAX_IN_MEMORY_TRACK_ENTRIES:
+                cutoff = now - Config.RATE_LIMIT_COOLDOWN
+                for old_uid, ts in list(_user_request_times.items()):
+                    if ts < cutoff:
+                        del _user_request_times[old_uid]
+                overflow = len(_user_request_times) - MAX_IN_MEMORY_TRACK_ENTRIES
+                if overflow > 0:
+                    oldest = sorted(_user_request_times, key=_user_request_times.get)[:overflow]
+                    for old_uid in oldest:
+                        del _user_request_times[old_uid]
 
-    if elapsed < Config.RATE_LIMIT_COOLDOWN:
+    if limited:
         remaining = Config.RATE_LIMIT_COOLDOWN - elapsed
         lang = data.get("language", Config.DEFAULT_LANGUAGE)
         try:
@@ -9510,9 +10893,6 @@ async def rate_limit_middleware(handler: Callable, event: Any, data: dict[str, A
             pass
         return None
 
-    _user_request_times[user_id] = now
-    if len(_user_request_times) > MAX_IN_MEMORY_TRACK_ENTRIES:
-        _user_request_times.clear()
     return await handler(event, data)
 
 
@@ -9542,10 +10922,10 @@ async def tech_work_middleware(handler: Callable, event: Any, data: dict[str, An
     return None
 
 
-router.message.outer_middleware(ban_middleware)
-router.callback_query.outer_middleware(ban_middleware)
 router.message.outer_middleware(language_middleware)
 router.callback_query.outer_middleware(language_middleware)
+router.message.outer_middleware(ban_middleware)
+router.callback_query.outer_middleware(ban_middleware)
 router.message.outer_middleware(rate_limit_middleware)
 router.callback_query.outer_middleware(rate_limit_middleware)
 router.message.outer_middleware(tech_work_middleware)
@@ -9557,7 +10937,6 @@ _IGNORED_TG_ERROR_MARKERS: tuple[str, ...] = (
     "message is not modified",
     "message to edit not found",
     "message to delete not found",
-    "message is too long",
     "button_data_invalid",
     "query is too old",
     "query_id is invalid",
@@ -9579,10 +10958,18 @@ def _is_ignorable_telegram_error(error: TelegramBadRequest) -> bool:
 def _describe_error_event(event: Any) -> str:
     update = getattr(event, "update", None)
     update_type = type(update).__name__ if update is not None else "Unknown"
-    source = getattr(event, "callback_query", None) or getattr(event, "message", None)
+    source = (
+        getattr(update, "callback_query", None)
+        or getattr(update, "message", None)
+        or getattr(update, "inline_query", None)
+        or getattr(event, "callback_query", None)
+        or getattr(event, "message", None)
+    )
     user_id = get_event_user_id(source) if source is not None else None
     data = str(getattr(source, "data", "") or "") if source is not None else ""
-    return f"update={update_type} user_id={user_id or '-'} data={data or '-'}"
+    update_id = getattr(update, "update_id", None)
+    prefix = f"update_id={update_id} " if update_id is not None else ""
+    return f"{prefix}update={update_type} user_id={user_id or '-'} data={data or '-'}"
 
 
 async def _notify_admins_about_error(
@@ -9632,6 +11019,35 @@ async def error_handler(event: ErrorEvent) -> bool:
     return True
 
 
+async def set_priority_ref_by(user_id: int, referrer_id: int) -> bool:
+    if user_id <= 0 or referrer_id <= 0:
+        return False
+    user = await db.find_user_by_any_id(user_id)
+    referrer = await db.find_user_by_any_id(referrer_id)
+    if not user or not referrer:
+        return False
+    internal_uid = to_int(user.get("user_id"), 0)
+    referrer_uid = to_int(referrer.get("user_id"), 0)
+    if (
+        not internal_uid
+        or not referrer_uid
+        or internal_uid == referrer_uid
+        or await is_admin_user(internal_uid)
+        or await is_admin_user(referrer_uid)
+    ):
+        return False
+    user_tid = to_int(user.get("telegram_id"), 0)
+    if user_tid and user_tid == to_int(referrer.get("telegram_id"), -1):
+        logger.warning(f"Попытка self-referral для user_id={internal_uid}")
+        return False
+    current_id = to_int(user.get("ref_by"), 0)
+    if current_id:
+        current = await db.get_user_by_id(current_id)
+        if current and (current.get("is_mate") or current.get("is_coowner")):
+            return False
+    return await db.update_user(internal_uid, ref_by=referrer_uid, force=True)
+
+
 # --- Обработчики команд ---
 @router.message(Command("start"))
 @router.callback_query(F.data == "start")
@@ -9660,6 +11076,7 @@ async def cmd_start(event: Message | CallbackQuery, state: FSMContext, **kwargs:
         bot_auth_action: str | None = None
         bot_auth_state_data: dict[str, Any] | None = None
         lang = Config.DEFAULT_LANGUAGE
+        is_new_user = False
 
         if isinstance(event, Message) and event.text:
             parts = event.text.strip().split(maxsplit=1)
@@ -9697,6 +11114,7 @@ async def cmd_start(event: Message | CallbackQuery, state: FSMContext, **kwargs:
             "link",
         ):
             try:
+                is_new_user = await db.get_user_by_telegram_id(user_id) is None
                 await db.add_user(user_id)
                 await db.ensure_ref_code(user_id)
                 lang = await db.get_user_language(user_id) or Config.DEFAULT_LANGUAGE
@@ -9713,9 +11131,9 @@ async def cmd_start(event: Message | CallbackQuery, state: FSMContext, **kwargs:
             lang = await db.get_user_language(user_id) or Config.DEFAULT_LANGUAGE
 
         if bot_auth_action == "login":
-            tg_user = await db.get_user_by_any_id(user_id)
+            tg_user = await db.find_user_by_any_id(user_id)
             await db.reconcile_telegram_account(user_id)
-            tg_user = await db.get_user_by_any_id(user_id)
+            tg_user = await db.find_user_by_any_id(user_id)
 
             if not tg_user and await is_admin_user(user_id):
                 web_acct = await db.get_unlinked_web_account()
@@ -9724,10 +11142,10 @@ async def cmd_start(event: Message | CallbackQuery, state: FSMContext, **kwargs:
                         web_acct["user_id"],
                         telegram_id=user_id,
                     )
-                    tg_user = await db.get_user_by_any_id(web_acct["user_id"])
+                    tg_user = await db.find_user_by_any_id(web_acct["user_id"])
                 elif not _admin_startup_completed:
                     await db.add_user(user_id, force=True)
-                    tg_user = await db.get_user_by_any_id(user_id)
+                    tg_user = await db.find_user_by_any_id(user_id)
 
             if tg_user and tg_user.get("web_id") and to_int(tg_user.get("telegram_id"), 0) > 0:
                 web_user = tg_user
@@ -9747,14 +11165,14 @@ async def cmd_start(event: Message | CallbackQuery, state: FSMContext, **kwargs:
                         telegram_id=user_id,
                     )
                     await db.reconcile_telegram_account(user_id)
-                    web_user = await db.get_user_by_any_id(user_id)
+                    web_user = await db.find_user_by_any_id(user_id)
                 if web_user and (not web_user.get("web_id") or web_user.get("web_id") == 0):
                     await db.update_web_auth(
                         web_user["user_id"],
                         web_id=web_user["user_id"],
                         web_registered_at=datetime.now(UTC).isoformat(),
                     )
-                    web_user = await db.get_user_by_any_id(user_id)
+                    web_user = await db.find_user_by_any_id(user_id)
             elif bot_auth_action == "link":
                 auth_state_data = await get_bot_auth_state(state)
                 session_token_hash = (
@@ -9869,7 +11287,7 @@ async def cmd_start(event: Message | CallbackQuery, state: FSMContext, **kwargs:
                     delete_origin=True,
                 )
                 return
-            existing = await db.get_user_by_any_id(user_id)
+            existing = await db.find_user_by_any_id(user_id)
             if existing and existing.get("web_id") and existing["web_id"] == session_user["web_id"]:
                 await complete_bot_auth_state(state, "")
                 await smart_answer(
@@ -9884,10 +11302,24 @@ async def cmd_start(event: Message | CallbackQuery, state: FSMContext, **kwargs:
                 return
             await db.reconcile_telegram_account(user_id)
             session_user = await db.get_user_by_session_token_hash(session_token_hash)
-            existing = await db.get_user_by_any_id(user_id)
+            if not session_user:
+                await smart_answer(
+                    event,
+                    translate(lang or Config.DEFAULT_LANGUAGE, "texts.telegram_link_failed"),
+                    delete_origin=True,
+                )
+                return
+            existing = await db.find_user_by_any_id(user_id)
             if existing and existing["user_id"] != session_user["user_id"]:
-                if existing.get("web_id") and existing["web_id"] != session_user["web_id"]:
-                    await db.merge_accounts(session_user["user_id"], existing["user_id"])
+                if (
+                    (existing.get("web_id") and existing["web_id"] != session_user["web_id"])
+                    or db.has_profile_data(existing)
+                    or existing.get("has_subscription")
+                    or existing.get("trial_used")
+                ):
+                    kept_id = await db.merge_accounts(session_user["user_id"], existing["user_id"])
+                    if kept_id:
+                        session_user = await db.get_user_by_id(kept_id) or session_user
                 else:
                     await db.update_web_auth(existing["user_id"], telegram_id=0)
                     await db.delete_phantom_account(existing["user_id"])
@@ -9924,17 +11356,39 @@ async def cmd_start(event: Message | CallbackQuery, state: FSMContext, **kwargs:
             try:
                 ref_user = None
                 is_mate_link = False
+                is_co_owner_link = False
                 if ref_code:
-                    ref_user = await db.get_user_by_ref_code(ref_code)
-                    if not ref_user:
-                        ref_user = await db.get_user_by_mate_ref_code(ref_code)
-                        is_mate_link = ref_user is not None
+                    ref_user = await db.get_user_by_coowner_code(ref_code)
+                    if ref_user:
+                        is_co_owner_link = True
+                    else:
+                        ref_user = await db.get_user_by_ref_code(ref_code)
+                        if not ref_user:
+                            ref_user = await db.get_user_by_mate_ref_code(ref_code)
+                            is_mate_link = ref_user is not None
                     ref_tid = to_int((ref_user or {}).get("telegram_id"), 0)
-                    if ref_user and ref_tid and ref_tid != user_id:
-                        linked = await db.set_ref_by(user_id, ref_user.get("user_id"))
+                    can_link = ref_user and ref_tid and ref_tid != user_id
+                    if is_co_owner_link and not is_new_user:
+                        can_link = False
+                    if can_link:
+                        referrer_uid = to_int(ref_user.get("user_id"), 0)
+                        if is_co_owner_link:
+                            linked = await db.set_co_owner_ref_by(user_id, referrer_uid)
+                        elif is_mate_link:
+                            linked = await set_priority_ref_by(user_id, referrer_uid)
+                        else:
+                            linked = await db.set_ref_by(user_id, referrer_uid)
                         ref_nickname = str(ref_user.get("mate_nickname", "") or "").strip()
                         if linked:
-                            if is_mate_link:
+                            if is_co_owner_link:
+                                await event.answer(
+                                    translate(
+                                        lang,
+                                        "texts.invited_by_co_owner",
+                                        nickname=resolve_referrer_display_name(ref_user),
+                                    )
+                                )
+                            elif is_mate_link:
                                 await event.answer(
                                     translate(
                                         lang,
@@ -9950,20 +11404,23 @@ async def cmd_start(event: Message | CallbackQuery, state: FSMContext, **kwargs:
                                         nickname=resolve_referrer_display_name(ref_user),
                                     )
                                 )
-                            try:
-                                await grant_referee_bonus_on_registration(user_id, ref_user)
-                            except Exception as e:  # noqa: BLE001
-                                logger.error(f"Ошибка выдачи бонуса приглашённому {user_id}: {e}")
+                            if not is_co_owner_link:
+                                try:
+                                    await grant_referee_bonus_on_registration(user_id, ref_user)
+                                except Exception as e:  # noqa: BLE001
+                                    logger.error(
+                                        f"Ошибка выдачи бонуса приглашённому {user_id}: {e}"
+                                    )
                         if ref_nickname:
                             logger.info(
                                 f"Пользователь TID {user_id} приглашён партнёром UID {ref_user.get('user_id')} (TID: {ref_tid}, {ref_nickname})"
                             )
                         else:
                             logger.info(
-                                f"Пользователь TID {user_id} приглашен рефералом UID {ref_user.get('user_id')} (TID: {ref_tid})"
+                                f"Пользователь TID {user_id} приглашён UID {ref_user.get('user_id')} (TID: {ref_tid})"
                             )
 
-                if not lang:
+                if is_new_user:
                     await prompt_language_selection(event)
                     return
             except Exception as e:  # noqa: BLE001
@@ -9995,10 +11452,13 @@ async def cmd_start(event: Message | CallbackQuery, state: FSMContext, **kwargs:
                 banned_users=banned,
                 vpn_name=Config.VPN_NAME,
             )
-            keyboard = build_main_keyboard(True, False, lang)
+            admin_user = await db.get_user_by_telegram_id(user_id)
+            is_coowner = bool((admin_user or {}).get("is_coowner"))
+            keyboard = build_main_keyboard(True, False, lang, is_coowner=is_coowner)
         else:
-            user_data = await db.get_user_by_any_id(user_id)
+            user_data = await db.find_user_by_any_id(user_id)
             is_partner = bool(user_data.get("is_mate")) if user_data else False
+            is_coowner = bool(user_data.get("is_coowner")) if user_data else False
             text = translate(
                 lang,
                 "texts.welcome",
@@ -10006,13 +11466,96 @@ async def cmd_start(event: Message | CallbackQuery, state: FSMContext, **kwargs:
                 active_vpns=active,
                 vpn_name=Config.VPN_NAME,
             )
-            keyboard = build_main_keyboard(False, has_sub, lang, is_partner=is_partner)
+            keyboard = build_main_keyboard(
+                False, has_sub, lang, is_partner=is_partner, is_coowner=is_coowner
+            )
 
         await smart_answer(event, text, reply_markup=kb(keyboard), delete_origin=True)
     except Exception:
         logger.exception("Ошибка в cmd_start")
         with suppress(Exception):
             await event.answer(translate(lang or Config.DEFAULT_LANGUAGE, "texts.unexpected_error"))
+
+
+@router.message(Command("coowner"))
+@router.callback_query(F.data == "co_owner_dashboard")
+@log_error
+async def cmd_co_owner_dashboard(event: Message | CallbackQuery, **kwargs: Any) -> None:
+    user_id = get_event_user_id(event) or 0
+    lang = await get_user_language(user_id)
+    user_data = await db.find_user_by_any_id(user_id)
+    if not user_data or not user_data.get("is_coowner"):
+        await smart_answer(
+            event,
+            translate(lang, "texts.not_a_co_owner"),
+            reply_markup=main_menu_keyboard(lang),
+            delete_origin=True,
+        )
+        return
+    code = str(user_data.get("coowner_code") or "")
+    stats = await build_co_owner_stats(user_data)
+    sub_id = normalize_sub_id(user_data.get("vpn_url") or "")
+    links = build_subscription_link_blocks_from_urls(
+        lang,
+        build_subscription_url(sub_id) if sub_id else "",
+        build_json_subscription_url(sub_id) if sub_id else "",
+    )
+    text = translate(
+        lang,
+        "texts.co_owner_dashboard_stats",
+        nickname=co_owner_nickname(user_data),
+        telegram_link=get_ref_link(code) or translate(lang, "texts.not_specified"),
+        web_link=get_co_owner_web_link(code) or translate(lang, "texts.not_specified"),
+        total_invited=stats["total_invited"],
+        active_subscriptions=stats["active_subscriptions"],
+        paid_users=stats["paid_users"],
+        revenue=stats["revenue"],
+        commission=stats["commission"],
+        commission_percent=stats["commission_percent"],
+        max_depth=stats["max_depth"],
+        traffic_gb=stats["traffic_gb"],
+        newest_join_date=stats["newest_join_date"] or translate(lang, "texts.not_specified"),
+        subscription_links=links,
+    )
+    rows = [
+        [
+            {
+                "text": translate(lang, "buttons.co_owner_rotate_link"),
+                "callback_data": "co_owner_rotate_link",
+            }
+        ],
+        [
+            {
+                "text": translate(lang, "buttons.search_user"),
+                "callback_data": "co_owner_search_user",
+            },
+            {
+                "text": translate(lang, "buttons.csv_editor"),
+                "callback_data": "co_owner_csv_editor",
+            },
+        ],
+        [{"text": translate(lang, "buttons.main"), "callback_data": "start"}],
+    ]
+    await smart_answer(event, text, reply_markup=kb(rows), delete_origin=True)
+
+
+@router.callback_query(F.data == "co_owner_rotate_link")
+@log_error
+async def cmd_co_owner_rotate_link(event: CallbackQuery, **kwargs: Any) -> None:
+    user_id = get_event_user_id(event) or 0
+    lang = await get_user_language(user_id)
+    user_data = await db.find_user_by_any_id(user_id)
+    if not user_data or not user_data.get("is_coowner"):
+        await event.answer(translate(lang, "texts.not_a_co_owner"), show_alert=True)
+        return
+    nickname = co_owner_nickname(user_data)
+    uid = to_int(user_data.get("user_id"), 0)
+    code = await db.rotate_coowner_code(uid, nickname)
+    if not code:
+        await event.answer(translate(lang, "texts.unexpected_error"), show_alert=True)
+        return
+    await event.answer(translate(lang, "texts.co_owner_link_rotated"), show_alert=True)
+    await cmd_co_owner_dashboard(event, **kwargs)
 
 
 @router.callback_query(F.data == "cancel")
@@ -10055,16 +11598,8 @@ async def cmd_buy(event: CallbackQuery, **kwargs):
         if await block_if_pending_payment(event, user_id):
             return
         await db.add_user(user_id)
-        user_data = await db.get_user_by_any_id(user_id)
-        if not (user_data or {}).get("is_mate"):
-            state = await ensure_subscription_state(
-                user_id, notify_user_about_cleanup=True, lang=lang
-            )
-            if state.get("status") == "active" and not is_expiring_soon(
-                state, Config.EXPIRY_ALERT_DAYS
-            ):
-                await show_active_subscription_guard(event)
-                return
+        if await block_active_subscription_purchase(event, user_id, lang):
+            return
     await show_tariffs_catalog(event, user_id, lang, is_admin=is_admin, is_renewal=False)
 
 
@@ -10073,8 +11608,11 @@ async def cmd_renew(event: CallbackQuery, **kwargs):
     user_id = get_event_user_id(event) or 0
     lang = await get_user_language(user_id)
     is_admin = await is_admin_user(user_id)
-    if not is_admin and await block_if_pending_payment(event, user_id):
-        return
+    if not is_admin:
+        if await block_if_pending_payment(event, user_id):
+            return
+        if await block_active_subscription_purchase(event, user_id, lang):
+            return
     await show_tariffs_catalog(event, user_id, lang, is_admin=is_admin, is_renewal=True)
 
 
@@ -10113,7 +11651,7 @@ async def show_tariffs_catalog(
         return
 
     if has_custom and not has_fixed_plans:
-        await cmd_buy_choose_custom(event, is_renewal=is_renewal)
+        await cmd_buy_choose_custom(event)
         return
 
     if has_fixed_plans and not has_custom:
@@ -10131,12 +11669,12 @@ async def show_tariffs_catalog(
 
 
 @router.callback_query(F.data == "buy:choose_custom")
-async def cmd_buy_choose_custom(event: CallbackQuery, *, is_renewal: bool = False, **kwargs):
+async def cmd_buy_choose_custom(event: CallbackQuery, **kwargs):
     user_id = get_event_user_id(event) or 0
     if not await is_admin_user(user_id) and await block_if_pending_payment(event, user_id):
         return
     await event.answer()
-    await cmd_custom_start(event, is_renewal=is_renewal, **kwargs)
+    await cmd_custom_start(event, **kwargs)
 
 
 @router.callback_query(F.data == "buy:choose_fixed")
@@ -10148,16 +11686,8 @@ async def cmd_buy_choose_fixed(event: CallbackQuery, **kwargs):
         if await block_if_pending_payment(event, user_id):
             return
         await db.add_user(user_id)
-        user_data = await db.get_user_by_any_id(user_id)
-        if not (user_data or {}).get("is_mate"):
-            state = await ensure_subscription_state(
-                user_id, notify_user_about_cleanup=True, lang=lang
-            )
-            if state.get("status") == "active" and not is_expiring_soon(
-                state, Config.EXPIRY_ALERT_DAYS
-            ):
-                await show_active_subscription_guard(event)
-                return
+        if await block_active_subscription_purchase(event, user_id, lang):
+            return
     await show_fixed_tariffs(event, user_id, lang, is_admin=is_admin, plan_prefix="buy")
 
 
@@ -10166,8 +11696,11 @@ async def cmd_renew_choose_fixed(event: CallbackQuery, **kwargs):
     user_id = get_event_user_id(event) or 0
     lang = await get_user_language(user_id)
     is_admin = await is_admin_user(user_id)
-    if not is_admin and await block_if_pending_payment(event, user_id):
-        return
+    if not is_admin:
+        if await block_if_pending_payment(event, user_id):
+            return
+        if await block_active_subscription_purchase(event, user_id, lang):
+            return
     await show_fixed_tariffs(event, user_id, lang, is_admin=is_admin, plan_prefix="renew")
 
 
@@ -10232,11 +11765,11 @@ async def cmd_renew_choose_custom(event: CallbackQuery, **kwargs):
     user_id = get_event_user_id(event) or 0
     if not await is_admin_user(user_id) and await block_if_pending_payment(event, user_id):
         return
-    await cmd_custom_start(event, is_renewal=True)
+    await cmd_custom_start(event)
 
 
 @router.callback_query(F.data == "custom:start")
-async def cmd_custom_start(event: CallbackQuery, *, is_renewal: bool = False, **kwargs):
+async def cmd_custom_start(event: CallbackQuery, **kwargs):
     user_id = get_event_user_id(event) or 0
     lang = await get_user_language(user_id)
     is_admin = await is_admin_user(user_id)
@@ -10246,18 +11779,8 @@ async def cmd_custom_start(event: CallbackQuery, *, is_renewal: bool = False, **
         if await block_if_pending_payment(event, user_id):
             return
         await db.add_user(user_id)
-        user_data = await db.get_user_by_any_id(user_id)
-        if not (user_data or {}).get("is_mate"):
-            state = await ensure_subscription_state(
-                user_id, notify_user_about_cleanup=True, lang=lang
-            )
-            if (
-                not is_renewal
-                and state.get("status") == "active"
-                and not is_expiring_soon(state, Config.EXPIRY_ALERT_DAYS)
-            ):
-                await show_active_subscription_guard(event)
-                return
+        if await block_active_subscription_purchase(event, user_id, lang):
+            return
 
     text = translate(lang, "texts.buy_custom_title")
     text += translate(lang, "texts.buy_custom_hint") + "\n\n"
@@ -10594,18 +12117,18 @@ async def cmd_custom_choose_payment_method(event: CallbackQuery, state: FSMConte
         return
 
     methods = []
-    if Config.YOOMONEY_WALLET:
-        methods.append(
-            {
-                "text": translate(lang, "buttons.payment_method_yoomoney"),
-                "callback_data": f"custom:pay_yoomoney:{uid}",
-            }
-        )
     if Config.PAYMENT_CARD_NUMBER:
         methods.append(
             {
                 "text": translate(lang, "buttons.payment_method_p2p"),
                 "callback_data": f"custom:pay_p2p:{uid}",
+            }
+        )
+    if Config.YOOMONEY_WALLET:
+        methods.append(
+            {
+                "text": translate(lang, "buttons.payment_method_yoomoney"),
+                "callback_data": f"custom:pay_yoomoney:{uid}",
             }
         )
 
@@ -10628,7 +12151,10 @@ async def cmd_custom_choose_payment_method(event: CallbackQuery, state: FSMConte
             await cmd_custom_show_p2p(event, state, **kwargs)
         return
 
-    keyboard = [methods, [{"text": translate(lang, "buttons.cancel"), "callback_data": "cancel"}]]
+    keyboard = [
+        methods,
+        [{"text": translate(lang, "buttons.cancel"), "callback_data": "cancel"}],
+    ]
     await smart_answer(
         event,
         translate(lang, "texts.choose_payment_method"),
@@ -10851,7 +12377,7 @@ async def cmd_custom_confirm_payment(event: CallbackQuery, state: FSMContext, **
             show_alert=True,
         )
         return
-    owner_data = await db.get_user_by_any_id(get_event_user_id(event) or 0)
+    owner_data = await db.find_user_by_any_id(get_event_user_id(event) or 0)
     owner_ids = _id_candidate_set(
         get_event_user_id(event),
         to_int(owner_data.get("user_id"), 0) if owner_data else 0,
@@ -10862,12 +12388,9 @@ async def cmd_custom_confirm_payment(event: CallbackQuery, state: FSMContext, **
             show_alert=True,
         )
         return
-    if not await is_admin_user(uid):
-        st = await ensure_subscription_state(uid, notify_user_about_cleanup=True)
-        if st.get("status") == "active" and not is_expiring_soon(st, Config.EXPIRY_ALERT_DAYS):
-            await state.clear()
-            await show_active_subscription_guard(event)
-            return
+    if not await is_admin_user(uid) and await block_active_subscription_purchase(event, uid):
+        await state.clear()
+        return
     data = await state.get_data()
     traffic = to_int(data.get("custom_traffic_gb"), 0)
     ip = to_int(data.get("custom_ip_limit"), 0)
@@ -10982,23 +12505,20 @@ async def cmd_custom_confirm_payment(event: CallbackQuery, state: FSMContext, **
 
 @router.callback_query(F.data.startswith("custom:"))
 async def cmd_custom_unknown(event: CallbackQuery, state: FSMContext, **kwargs):
-    if not await ensure_custom_tariff_access(event, state):
-        return
     known_prefixes = [
+        "custom:start",
+        "custom:collect",
         "custom:show_offer:",
         "custom:choose_payment_method:",
         "custom:pay_yoomoney:",
         "custom:pay_p2p:",
-        "custom:confirm_payment:test:",
-        "custom:confirm_payment:yoomoney:",
-        "custom:confirm_payment:p2p:",
+        "custom:confirm_payment:",
         "custom:loc:",
+        "custom:locations_done",
     ]
     if any(event.data.startswith(prefix) for prefix in known_prefixes):
-        await event.answer(
-            translate(Config.DEFAULT_LANGUAGE, "texts.request_processing_error"),
-            show_alert=True,
-        )
+        return
+    if not await ensure_custom_tariff_access(event, state):
         return
     await event.answer(
         translate(Config.DEFAULT_LANGUAGE, "texts.custom_tariff_unknown_command"),
@@ -11008,26 +12528,27 @@ async def cmd_custom_unknown(event: CallbackQuery, state: FSMContext, **kwargs):
 
 @router.callback_query(F.data.startswith("buy:"))
 async def cmd_buy_plan(event: CallbackQuery, **kwargs):
-    await open_plan_offer(event, is_renewal=False)
+    if event.data in ("buy:choose_custom", "buy:choose_fixed"):
+        return
+    await open_plan_offer(event)
 
 
 @router.callback_query(F.data.startswith("renew:"))
 async def cmd_renew_plan(event: CallbackQuery, **kwargs):
-    await open_plan_offer(event, is_renewal=True)
+    if event.data in ("renew:choose_custom", "renew:choose_fixed"):
+        return
+    await open_plan_offer(event)
 
 
-async def open_plan_offer(event: CallbackQuery, *, is_renewal: bool) -> None:
+async def open_plan_offer(event: CallbackQuery) -> None:
     user_id = get_event_user_id(event) or 0
     lang = await get_user_language(user_id)
     if not await is_admin_user(user_id) and await block_if_pending_partner_application(
         event, user_id
     ):
         return
-        if not is_renewal:
-            st = await ensure_subscription_state(user_id, notify_user_about_cleanup=True)
-            if st.get("status") == "active" and not is_expiring_soon(st, Config.EXPIRY_ALERT_DAYS):
-                await show_active_subscription_guard(event)
-                return
+    if await block_active_subscription_purchase(event, user_id, lang):
+        return
     plan_id = (event.data or "").split(":", 1)[1]
     plan, error = get_purchasable_catalog_plan(plan_id)
     if not plan:
@@ -11184,7 +12705,14 @@ async def cmd_test_plan(event: CallbackQuery, **kwargs: Any) -> None:
 async def cmd_trial_plan(event: CallbackQuery, **kwargs):
     user_id = get_event_user_id(event) or 0
     user_lang = await get_user_language(user_id)
-    plan_id = event.data.split(":", 1)[1] if ":" in event.data else "trial"
+    default_trial = get_trial_plan()
+    plan_id = (
+        event.data.split(":", 1)[1]
+        if ":" in event.data
+        else str(default_trial.get("id") or "")
+        if default_trial
+        else ""
+    )
     plan = get_by_id(plan_id)
     if not plan or not plan.get("active", True) or not is_trial_plan(plan):
         await event.answer(
@@ -11200,7 +12728,7 @@ async def cmd_trial_plan(event: CallbackQuery, **kwargs):
             await show_active_subscription_guard(event)
             return
         await db.add_user(user_id)
-        user = await db.get_user_by_any_id(user_id) or {}
+        user = await db.find_user_by_any_id(user_id) or {}
         if user.get("trial_used") or user.get("has_subscription"):
             text = translate(user_lang, "texts.trial_already_used_or_has_subscription")
             keyboard = kb(
@@ -11209,12 +12737,6 @@ async def cmd_trial_plan(event: CallbackQuery, **kwargs):
                         {
                             "text": translate(user_lang, "buttons.my_subscription"),
                             "callback_data": "mysub",
-                        }
-                    ],
-                    [
-                        {
-                            "text": translate(user_lang, "buttons.search_user"),
-                            "callback_data": "debug_search_user",
                         }
                     ],
                     [
@@ -11288,18 +12810,18 @@ async def cmd_choose_payment_method(event: CallbackQuery, **kwargs):
         return
 
     methods = []
-    if Config.YOOMONEY_WALLET:
-        methods.append(
-            {
-                "text": translate(lang, "buttons.payment_method_yoomoney"),
-                "callback_data": f"pay_yoomoney:{plan_id}:{uid}",
-            }
-        )
     if Config.PAYMENT_CARD_NUMBER:
         methods.append(
             {
                 "text": translate(lang, "buttons.payment_method_p2p"),
                 "callback_data": f"pay_p2p:{plan_id}:{uid}",
+            }
+        )
+    if Config.YOOMONEY_WALLET:
+        methods.append(
+            {
+                "text": translate(lang, "buttons.payment_method_yoomoney"),
+                "callback_data": f"pay_yoomoney:{plan_id}:{uid}",
             }
         )
 
@@ -11316,7 +12838,10 @@ async def cmd_choose_payment_method(event: CallbackQuery, **kwargs):
             await cmd_show_p2p_payment(event, **kwargs)
         return
 
-    keyboard = [methods, [{"text": translate(lang, "buttons.cancel"), "callback_data": "cancel"}]]
+    keyboard = [
+        methods,
+        [{"text": translate(lang, "buttons.cancel"), "callback_data": "cancel"}],
+    ]
     await smart_answer(
         event,
         translate(lang, "texts.choose_payment_method"),
@@ -11534,9 +13059,7 @@ async def cmd_confirm_payment(event: CallbackQuery, **kwargs: Any) -> None:
     if not plan:
         await event.answer(error, show_alert=True)
         return
-    st = await ensure_subscription_state(uid, notify_user_about_cleanup=True)
-    if st.get("status") == "active" and not is_expiring_soon(st, Config.EXPIRY_ALERT_DAYS):
-        await show_active_subscription_guard(event)
+    if await block_active_subscription_purchase(event, uid, lang):
         return
     price = to_float(plan.get("price_rub", 0), 0.0)
     trust = await db.get_trust_score(uid)
@@ -11579,15 +13102,15 @@ async def cmd_mysub(event: CallbackQuery, **kwargs):
     panel_types = Features.available_panel_types()
 
     if await is_admin_user(user_id):
-        user_data = await db.get_user_by_any_id(user_id)
+        user_data = await db.find_user_by_any_id(user_id)
         if not user_data:
             await db.add_user(user_id, force=True)
-            user_data = await db.get_user_by_any_id(user_id)
+            user_data = await db.find_user_by_any_id(user_id)
         if user_data:
             internal_id = user_data.get("user_id", 0)
             if not user_data.get("has_subscription") or not user_data.get("vpn_url"):
                 await _ensure_admin_subscription(internal_id)
-                user_data = await db.get_user_by_any_id(user_id)
+                user_data = await db.find_user_by_any_id(user_id)
         admin_vpn_url = str(user_data.get("vpn_url", "") or "") if user_data else ""
         admin_sub_url = (
             build_subscription_url(admin_vpn_url) if panel_types["main"] and admin_vpn_url else ""
@@ -11636,7 +13159,7 @@ async def cmd_mysub(event: CallbackQuery, **kwargs):
         await smart_answer(event, text, reply_markup=keyboard, delete_origin=True)
         return
 
-    user_data = await db.get_user_by_any_id(user_id)
+    user_data = await db.find_user_by_any_id(user_id)
     if user_data and user_data.get("is_mate"):
         mate_expiry = user_data.get("mate_expiry", "")
         mate_nickname = user_data.get("mate_nickname", "")
@@ -11694,21 +13217,31 @@ async def cmd_mysub(event: CallbackQuery, **kwargs):
 
     state = await ensure_subscription_state(user_id, notify_user_about_cleanup=False)
     status = state.get("status")
-    user_data = await db.get_user_by_any_id(user_id)
+    user_data = await db.find_user_by_any_id(user_id)
 
     if status in ("expired", "traffic_exhausted", "missing_on_panel") and state.get(
         "cleanup_success"
     ):
+        trust_kwargs = {
+            "trust_before": _cleanup_trust_value(state.get("cleanup_trust_before")),
+            "trust_after": _cleanup_trust_value(state.get("cleanup_trust_after")),
+            "trust_delta": to_int(state.get("cleanup_trust_delta"), 0),
+        }
+        if (
+            status == "traffic_exhausted"
+            and to_int((user_data or {}).get("traffic_disabled"), 0) == 1
+        ):
+            cleanup_text = build_subscription_traffic_suspend_message(
+                _next_traffic_reset_date(user_data, resolve_user_plan(user_data)),
+                lang=lang,
+                **trust_kwargs,
+            )
+        else:
+            cleanup_text = build_subscription_cleanup_message(status, lang=lang, **trust_kwargs)
         await smart_answer(
             event,
-            build_subscription_cleanup_message(
-                status,
-                trust_before=to_int(state.get("cleanup_trust_before"), 0),
-                trust_after=to_int(state.get("cleanup_trust_after"), 0),
-                trust_delta=to_int(state.get("cleanup_trust_delta"), 0),
-                lang=lang,
-            ),
-            reply_markup=inactive_subscription_actions_keyboard(),
+            cleanup_text,
+            reply_markup=inactive_subscription_actions_keyboard(lang),
             delete_origin=True,
         )
         return
@@ -11849,7 +13382,7 @@ async def cmd_mysub(event: CallbackQuery, **kwargs):
             }
         ],
     ]
-    if status == "active":
+    if status != "active" or is_expiring_soon(state, Config.EXPIRY_ALERT_DAYS):
         rows.insert(
             0,
             [
@@ -11933,7 +13466,7 @@ async def cmd_ref(event: CallbackQuery, **kwargs):
             delete_origin=True,
         )
         return
-    user_data = await db.get_user_by_any_id(user_id)
+    user_data = await db.find_user_by_any_id(user_id)
     db_uid = user_data.get("user_id", 0) if user_data else 0
     total = await db.count_referrals(db_uid)
     paid = await db.count_referrals_paid(db_uid)
@@ -11965,7 +13498,7 @@ async def cmd_become_partner(event: CallbackQuery, **kwargs):
     user_id = get_event_user_id(event) or 0
     lang = await get_user_language(user_id)
     await db.add_user(user_id)
-    user_data = await db.get_user_by_any_id(user_id)
+    user_data = await db.find_user_by_any_id(user_id)
     if user_data and user_data.get("is_mate"):
         await smart_answer(
             event,
@@ -12022,7 +13555,7 @@ async def cmd_partner_start_application(event: CallbackQuery, state: FSMContext,
     user_id = get_event_user_id(event) or 0
     lang = await get_user_language(user_id)
     await db.add_user(user_id)
-    user_data = await db.get_user_by_any_id(user_id)
+    user_data = await db.find_user_by_any_id(user_id)
     if user_data and user_data.get("is_mate"):
         await smart_answer(
             event,
@@ -12446,7 +13979,7 @@ async def process_partner_bonus_value_msg(message: Message, state: FSMContext):
 async def cmd_partner_dashboard(event: CallbackQuery, **kwargs):
     user_id = get_event_user_id(event) or 0
     lang = await get_user_language(user_id)
-    user_data = await db.get_user_by_any_id(user_id)
+    user_data = await db.find_user_by_any_id(user_id)
     if not user_data or not user_data.get("is_mate"):
         await smart_answer(
             event,
@@ -12505,7 +14038,7 @@ async def cmd_partner_dashboard(event: CallbackQuery, **kwargs):
 async def partner_renew(event: CallbackQuery, **kwargs):
     user_id = get_event_user_id(event) or 0
     lang = await get_user_language(user_id)
-    user_data = await db.get_user_by_any_id(user_id)
+    user_data = await db.find_user_by_any_id(user_id)
     if not user_data or not user_data.get("is_mate"):
         await smart_answer(
             event,
@@ -12554,7 +14087,18 @@ async def partner_renew_confirm(event: CallbackQuery, **kwargs):
     except (ValueError, TypeError):
         await event.answer(translate(lang, "texts.invalid_period"), show_alert=True)
         return
-    user_data = await db.get_user_by_any_id(user_id)
+    if not Config.PARTNER_MIN_PERIOD_MONTHS <= months <= Config.PARTNER_MAX_PERIOD_MONTHS:
+        await event.answer(
+            translate(
+                lang,
+                "texts.partner_period_out_of_range",
+                min_months=Config.PARTNER_MIN_PERIOD_MONTHS,
+                max_months=Config.PARTNER_MAX_PERIOD_MONTHS,
+            ),
+            show_alert=True,
+        )
+        return
+    user_data = await db.find_user_by_any_id(user_id)
     if not user_data or not user_data.get("is_mate"):
         await smart_answer(
             event,
@@ -12595,7 +14139,7 @@ async def cmd_partner_withdraw(event: CallbackQuery, state: FSMContext, **kwargs
     lang = await get_user_language(user_id)
     if not await is_admin_user(user_id) and await block_if_pending_payment(event, user_id):
         return
-    user_data = await db.get_user_by_any_id(user_id)
+    user_data = await db.find_user_by_any_id(user_id)
     if not user_data or not user_data.get("is_mate"):
         await smart_answer(
             event,
@@ -12636,7 +14180,7 @@ async def _partner_withdrawal_parse_amount(user_id: int, lang: str, raw: str) ->
         amount = float(str(raw).replace(",", ".").strip())
     except (ValueError, TypeError):
         return 0.0, "texts.partner_invalid_amount"
-    user_data = await db.get_user_by_any_id(user_id)
+    user_data = await db.find_user_by_any_id(user_id)
     balance = to_float(user_data.get("mate_balance"), 0.0) if user_data else 0.0
     if amount <= 0:
         return 0.0, "texts.amount_must_be_positive"
@@ -13058,7 +14602,6 @@ async def _create_partner_vpn_client(
         limit_ip=0,
         total_gb=0,
         days=days,
-        tg_id=uid,
         inbound_ids=inbound_ids,
         sub_id=partner_sub_id,
     )
@@ -13069,7 +14612,6 @@ async def _create_partner_vpn_client(
             limit_ip=0,
             total_gb=0,
             days=days,
-            tg_id=uid,
             inbound_ids=inbound_ids,
             sub_id=partner_sub_id,
         )
@@ -13106,7 +14648,7 @@ async def _handle_partner_new_accept(event: CallbackQuery, op: dict[str, Any], u
     bonus_type = str(op.get("bonus_type", ""))
     bonus_value = to_int(op.get("bonus_value", 0))
     sanitized = sanitize_mate_nickname_or_uid(nickname, f"user{uid}")
-    existing = await db.get_user_by_any_id(uid)
+    existing = await db.find_user_by_any_id(uid)
     ref_code = await _resolve_partner_ref_code(uid, sanitized, existing)
     if not await finalize_partner_operation(
         op.get("operation_id", ""),
@@ -13199,7 +14741,7 @@ async def _handle_partner_renewal_accept(
     months = to_int(op.get("period_months", 0)) or to_int(op.get("months", 0))
     if months <= 0:
         months = 1
-    user_data = await db.get_user_by_any_id(uid)
+    user_data = await db.find_user_by_any_id(uid)
     if not user_data or not user_data.get("is_mate"):
         await finalize_partner_operation(
             op.get("operation_id", ""),
@@ -13231,6 +14773,7 @@ async def _handle_partner_renewal_accept(
             show_alert=True,
         )
         return
+    invalidate_expiry_alert_cache(uid, to_int(user_data.get("user_id"), uid))
     async with get_subscription_lock(to_int(user_data.get("user_id", uid), uid)):
         if user_data.get("vpn_url"):
             extended = await panel.extend_client_expiry(
@@ -13245,6 +14788,7 @@ async def _handle_partner_renewal_accept(
             mate_expiry=new_expiry.strftime("%d.%m.%Y"),
             expiry_sub_datatime=new_expiry.replace(hour=23, minute=59, second=59).isoformat(),
             expiry_alert_sent=0,
+            low_traffic_alert_sent=0,
         )
     with suppress(Exception):
         await safe_send_message(
@@ -13305,7 +14849,7 @@ async def _handle_partner_withdrawal_accept(
             show_alert=True,
         )
         return
-    user_data = await db.get_user_by_any_id(uid)
+    user_data = await db.find_user_by_any_id(uid)
     balance = to_float(user_data.get("mate_balance", 0), 0) if user_data else 0.0
     if amount > balance or not await db.debit_partner_balance(uid, amount):
         await event.answer(
@@ -13418,7 +14962,7 @@ async def check_partner_expiry_notifications() -> None:
 
     async def process_partner(uid: int) -> None:
         async with semaphore:
-            user_data = await db.get_user_by_any_id(uid)
+            user_data = await db.find_user_by_any_id(uid)
             if not user_data:
                 return
 
@@ -13582,19 +15126,9 @@ async def cmd_pay_await(event: CallbackQuery, **kwargs):
                 tg_id = to_int(user_data.get("telegram_id", 0), 0)
         text = build_pending_payment_text(p, tg_id=tg_id)
         markup = build_pending_payment_keyboard(pid)
-        try:
-            if isinstance(event, Message):
-                await event.answer(text, reply_markup=markup)
-            elif isinstance(event, CallbackQuery) and event.message:
-                await event.message.answer(text, reply_markup=markup)
-        except TelegramBadRequest as e:
-            if "MESSAGE_TOO_LONG" in str(e):
-                logger.warning(f"Платёж {pid} слишком длинный, пропускаем")
-                continue
-            logger.error(f"Ошибка отправки платежа {pid}: {e}")
-            continue
-        except Exception as e:  # noqa: BLE001
-            logger.error(f"Ошибка отправки платежа {pid}: {e}")
+        ok = await smart_answer(event, text, reply_markup=markup)
+        if not ok:
+            logger.error(f"Не удалось отправить платёж {pid}")
             continue
 
 
@@ -13650,6 +15184,7 @@ async def cmd_pay_await_accept(event: CallbackQuery, **kwargs):
         )
         return
     uid = resolved.telegram_id
+    internal_uid = resolved.internal_user_id
     user_data = resolved.user_data
 
     if plan_type == "test":
@@ -13661,21 +15196,21 @@ async def cmd_pay_await_accept(event: CallbackQuery, **kwargs):
     ref_by = user_data.get("ref_by") if user_data else None
     ref_rewarded = user_data.get("ref_rewarded") if user_data else None
     bonus_for_user = Config.REF_BONUS_DAYS if ref_by and not ref_rewarded else 0
-    trust_before = await db.get_trust_score(uid)
-    st = await get_subscription_state(uid)
+    trust_before = await db.get_trust_score(internal_uid)
+    st = await get_subscription_state(internal_uid)
     if st.get("status") == "active":
         vpn_url = await renew_subscription(
-            uid, plan, extra_days=bonus_for_user, paid_amount=paid_amount
+            internal_uid, plan, extra_days=bonus_for_user, paid_amount=paid_amount
         )
     else:
         vpn_url = await create_subscription(
-            uid, plan, extra_days=bonus_for_user, paid_amount=paid_amount
+            internal_uid, plan, extra_days=bonus_for_user, paid_amount=paid_amount
         )
     if vpn_url:
-        trust_after = await db.get_trust_score(uid)
+        trust_after = await db.get_trust_score(internal_uid)
         trust_delta = trust_after - trust_before
         trust_line = build_trust_change_line(trust_delta, trust_before, trust_after)
-        await db.set_has_subscription(uid)
+        await db.set_has_subscription(internal_uid)
         finalized = await finalize_claimed_payment_or_alert(event, payment_id, "accept", "accepted")
         if not finalized:
             return
@@ -13695,7 +15230,7 @@ async def cmd_pay_await_accept(event: CallbackQuery, **kwargs):
             if bonus_for_user > 0
             else ""
         )
-        user_lang = await get_user_language(uid)
+        user_lang = await get_user_language(internal_uid)
         setup_keyboard = build_setup_keyboard(user_lang)
         with suppress(Exception):
             await notify_user(
@@ -13719,7 +15254,7 @@ async def cmd_pay_await_accept(event: CallbackQuery, **kwargs):
                 ),
                 reply_markup=setup_keyboard,
             )
-        await grant_referral_bonus(uid, to_int(ref_by, 0), ref_rewarded, paid_amount)
+        await grant_referral_bonus(internal_uid, to_int(ref_by, 0), ref_rewarded, paid_amount)
         await event.answer(
             translate(
                 Config.DEFAULT_LANGUAGE,
@@ -13752,10 +15287,10 @@ async def cmd_pay_await_accept(event: CallbackQuery, **kwargs):
 
 
 async def _issue_confirmed_admin_test_subscription(
-    uid: int, plan: dict[str, Any], user_lang: str
+    uid: int, plan: dict[str, Any], user_lang: str, internal_user_id: int
 ) -> str | None:
     test_sub_id = await create_subscription(
-        uid,
+        internal_user_id,
         plan,
         plan_suffix=translate(user_lang, "texts.test_plan_suffix"),
         earn_trust=False,
@@ -13788,8 +15323,10 @@ async def _issue_admin_test_subscription(
     internal_user_id: int,
     plan: dict[str, Any],
 ) -> None:
-    user_lang = await get_user_language(uid)
-    test_sub_id = await _issue_confirmed_admin_test_subscription(uid, plan, user_lang)
+    user_lang = await get_user_language(internal_user_id)
+    test_sub_id = await _issue_confirmed_admin_test_subscription(
+        uid, plan, user_lang, internal_user_id
+    )
     if not test_sub_id:
         await rollback_claimed_payment(
             event,
@@ -13922,7 +15459,7 @@ async def process_ban_reason(event: Message, state: FSMContext, **kwargs):
         await smart_answer(event, translate(lang, "texts.user_not_found"))
         return
 
-    user_data = await db.get_user_by_any_id(internal_uid)
+    user_data = await db.find_user_by_any_id(internal_uid)
     telegram_id = to_int((user_data or {}).get("telegram_id"), internal_uid)
     success = await db.ban_user_by_uid(internal_uid, reason=reason)
     if not success:
@@ -14014,7 +15551,7 @@ async def process_unban_reason(event: Message, state: FSMContext, **kwargs):
         await smart_answer(event, translate(lang, "texts.user_not_found"))
         return
 
-    user_data = await db.get_user_by_any_id(internal_uid)
+    user_data = await db.find_user_by_any_id(internal_uid)
     telegram_id = to_int((user_data or {}).get("telegram_id"), internal_uid)
     success = await db.unban_user_by_uid(internal_uid)
     if not success:
@@ -14220,10 +15757,12 @@ async def _show_broadcast_confirm(event: Message | CallbackQuery, state: FSMCont
         ]
     )
 
-    if isinstance(event, CallbackQuery):
-        await smart_answer(event, text, reply_markup=keyboard, delete_origin=True)
-    else:
-        await event.answer(text, reply_markup=keyboard)
+    await smart_answer(
+        event,
+        text,
+        reply_markup=keyboard,
+        delete_origin=isinstance(event, CallbackQuery),
+    )
     await state.set_state(BroadcastState.waiting_for_confirm)
 
 
@@ -14377,6 +15916,12 @@ def debug_main_keyboard(lang: str) -> InlineKeyboardMarkup:
             {
                 "text": translate(lang, "buttons.reset_menu"),
                 "callback_data": "debug_reset",
+            },
+        ],
+        [
+            {
+                "text": translate(lang, "buttons.csv_editor"),
+                "callback_data": "debug_csv_editor",
             },
         ],
         [
@@ -14626,6 +16171,7 @@ async def cmd_debug_search_user(event: CallbackQuery, state: FSMContext, **kwarg
         return
     lang = await get_lang(event)
     await state.set_state(SearchUserState.waiting_for_query)
+    await state.update_data(search_scope_owner_uid=0)
     await smart_answer(
         event,
         translate(lang, "texts.search_user_prompt"),
@@ -14727,7 +16273,17 @@ async def process_search_user(event: Message, state: FSMContext, **kwargs):
     with suppress(ValueError, TypeError):
         query_int = int(query_str)
 
-    if query_int is None:
+    scope_uid = to_int((await state.get_data()).get("search_scope_owner_uid"), 0)
+    if scope_uid:
+        users = await _search_in_co_owner_tree(query_str, query_int, scope_uid)
+    elif query_int is None:
+        users = []
+    else:
+        users = await db.smart_lookup(query_int)
+        if not users:
+            users = await db.search_users(query_str)
+
+    if not users:
         try:
             await event.answer(
                 translate(
@@ -14742,24 +16298,6 @@ async def process_search_user(event: Message, state: FSMContext, **kwargs):
         await state.clear()
         return
 
-    users = await db.smart_lookup(query_int)
-    if not users:
-        users = await db.search_users(query_str)
-        if not users:
-            try:
-                await event.answer(
-                    translate(
-                        lang,
-                        "texts.search_user_not_found",
-                        query=query_str,
-                    ),
-                    reply_markup=main_menu_keyboard(lang),
-                )
-            except Exception as e:  # noqa: BLE001
-                logger.warning(f"Ошибка отправки ответа (search_user_not_found 2): {e}")
-            await state.clear()
-            return
-
     text = translate(lang, "texts.search_user_result", count=len(users))
     for u in users:
         match_type = u.pop("_match_type", "text") if "_match_type" in u else "text"
@@ -14772,6 +16310,889 @@ async def process_search_user(event: Message, state: FSMContext, **kwargs):
     except Exception:
         logger.exception("Ошибка отправки результата поиска")
     await state.clear()
+
+
+# --- Поиск совладельца и редактор БД из CSV ---
+class CsvEditorState(StatesGroup):
+    waiting_for_file = State()
+
+
+CSV_COLUMNS: tuple[str, ...] = ("user_id", *Database.USER_COLUMN_DEFS.keys())
+CSV_BOOL_COLUMNS: frozenset[str] = frozenset(
+    {
+        "banned",
+        "has_subscription",
+        "trial_used",
+        "expiry_alert_sent",
+        "cleanup_notification_sent",
+        "low_traffic_alert_sent",
+        "traffic_disabled",
+        "ref_rewarded",
+        "ref_bonus_given",
+        "is_coowner",
+        "is_mate",
+    }
+)
+CSV_INT_COLUMNS: frozenset[str] = frozenset(
+    {
+        "telegram_id",
+        "web_id",
+        "trust_score",
+        "ip_limit",
+        "traffic_gb",
+        "extra_sub_gb",
+        "ref_by",
+        "co_owner_ref_by",
+        "bonus_days_pending",
+        "mate_followers",
+        "mate_avg_reach",
+        "mate_period_months",
+        "mate_bonus_value",
+        "discount_percent",
+    }
+)
+CSV_FLOAT_COLUMNS: frozenset[str] = frozenset(
+    {
+        "mate_balance",
+        "mate_commission_total",
+        "daily_traffic_gb",
+        "total_traffic_gb",
+    }
+)
+CSV_TEXT_SEARCH_FIELDS: tuple[str, ...] = (
+    "user_id",
+    "telegram_id",
+    "username",
+    "web_login",
+    "ref_code",
+    "vpn_url",
+    "mate_nickname",
+    "mate_ref_link_code",
+)
+CSV_TRUE_VALUES: frozenset[str] = frozenset({"1", "true", "yes", "y", "on", "да", "+"})
+CSV_FALSE_VALUES: frozenset[str] = frozenset({"0", "false", "no", "n", "off", "нет", "-"})
+CSV_NEW_UID_MARKERS: frozenset[str] = frozenset({"", "new", "none"})
+CSV_NULL_MARKERS: frozenset[str] = frozenset({"null", "none"})
+CSV_MAX_FILE_BYTES: int = 5 * 1024 * 1024
+CSV_MAX_ROWS: int = 500
+CSV_COOWNER_FORBIDDEN_COLUMNS: frozenset[str] = frozenset(
+    {
+        "web_id",
+        "is_coowner",
+        "coowner_code",
+        "co_owner_ref_by",
+        "is_mate",
+        "mate_nickname",
+        "mate_social_links",
+        "mate_followers",
+        "mate_avg_reach",
+        "mate_period_months",
+        "mate_bonus_type",
+        "mate_bonus_value",
+        "mate_ref_link_code",
+        "mate_subscription_id",
+        "mate_expiry",
+        "mate_balance",
+        "mate_commission_total",
+        "mate_withdrawal_requests",
+        "mate_status",
+        "session_token",
+        "session_expires_at",
+        "session_created_at",
+        "password_hash",
+        "discount_percent",
+        "admin_test_sub_id",
+        "admin_test_expiry",
+    }
+)
+
+
+async def _load_full_users(user_ids: list[int]) -> dict[int, dict[str, Any]]:
+    result: dict[int, dict[str, Any]] = {}
+    unique_ids = sorted({uid for uid in user_ids if uid > 0})
+    for start in range(0, len(unique_ids), 400):
+        for user in await db.get_users_by_ids(unique_ids[start : start + 400]):
+            uid = to_int(user.get("user_id"), 0)
+            if uid:
+                result[uid] = user
+    return result
+
+
+async def _co_owner_allowed_uids(owner_uid: int) -> set[int]:
+    tree = await collect_co_owner_tree(owner_uid)
+    return {to_int(user.get("user_id"), 0) for user, _ in tree} - {0}
+
+
+async def _search_in_co_owner_tree(
+    query_str: str, query_int: int | None, owner_uid: int
+) -> list[dict[str, Any]]:
+    allowed = sorted(await _co_owner_allowed_uids(owner_uid))
+    if not allowed:
+        return []
+    users_by_id = await _load_full_users(allowed)
+    query = query_str.strip().lower()
+    matches: list[dict[str, Any]] = []
+    for uid in allowed:
+        user = users_by_id.get(uid)
+        if not user:
+            continue
+        match_type = ""
+        if query_int is not None:
+            if uid == query_int:
+                match_type = "user_id"
+            elif to_int(user.get("telegram_id"), 0) == query_int:
+                match_type = "telegram_id"
+        if not match_type and query:
+            for field in CSV_TEXT_SEARCH_FIELDS:
+                if query in str(user.get(field) or "").lower():
+                    match_type = "text"
+                    break
+        if match_type:
+            item = dict(user)
+            item["_match_type"] = match_type
+            matches.append(item)
+    return matches[:CO_OWNER_SEARCH_RESULTS_LIMIT]
+
+
+@router.callback_query(F.data == "co_owner_search_user")
+@log_error
+async def cmd_co_owner_search_user(event: CallbackQuery, state: FSMContext, **kwargs: Any) -> None:
+    lang = await get_lang(event)
+    owner = await db.find_user_by_any_id(get_event_user_id(event) or 0)
+    if not owner or not owner.get("is_coowner"):
+        await smart_answer(
+            event,
+            translate(lang, "texts.not_a_co_owner"),
+            reply_markup=main_menu_keyboard(lang),
+            delete_origin=True,
+        )
+        return
+    await state.set_state(SearchUserState.waiting_for_query)
+    await state.update_data(search_scope_owner_uid=to_int(owner.get("user_id"), 0))
+    await smart_answer(
+        event,
+        translate(lang, "texts.search_user_prompt"),
+        reply_markup=cancel_only_keyboard(lang),
+        delete_origin=True,
+    )
+
+
+def _csv_default(column: str) -> Any:
+    definition = Database.USER_COLUMN_DEFS.get(column, "")
+    match = re.search(r"DEFAULT\s+('[^']*'|[^\s]+)", definition)
+    if not match:
+        return None
+    default_value = match.group(1)
+    if default_value.startswith("'"):
+        return default_value[1:-1]
+    if default_value == "FALSE":
+        return 0
+    if default_value == "CURRENT_TIMESTAMP":
+        return datetime.now(UTC).isoformat()
+    if re.fullmatch(r"-?\d+", default_value):
+        return int(default_value)
+    if re.fullmatch(r"-?\d+\.\d+", default_value):
+        return float(default_value)
+    return default_value
+
+
+def _csv_parse_date(value: Any, *, allow_empty: bool = False) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return "" if allow_empty else datetime.now(UTC).isoformat()
+    if text.lower() == "now":
+        return datetime.now(UTC).isoformat()
+    try:
+        datetime.fromisoformat(text)
+        return text
+    except ValueError:
+        pass
+    for pattern in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(text, pattern).replace(tzinfo=UTC).isoformat()
+        except ValueError:
+            continue
+    raise ValueError(f"datetime: {text}")
+
+
+def _csv_parse_value(column: str, raw: str) -> Any:
+    value = str(raw or "").strip()
+    if column == "join_date":
+        return _csv_parse_date(value)
+    if column in {"expiry_sub_datatime", "traffic_reset_at", "daily_traffic_date"}:
+        return _csv_parse_date(value, allow_empty=True)
+    if column == "vpn_url" and value.lower() in CSV_REGEN_MARKERS:
+        return value.lower()
+    if value.lower() in CSV_NULL_MARKERS:
+        if column in {"ref_code", "ref_by"}:
+            return None
+        if column in CSV_BOOL_COLUMNS or column in CSV_INT_COLUMNS:
+            return 0
+        if column in CSV_FLOAT_COLUMNS:
+            return 0.0
+        return ""
+    if column in CSV_BOOL_COLUMNS:
+        lowered = value.lower()
+        if lowered in CSV_TRUE_VALUES:
+            return 1
+        if lowered in CSV_FALSE_VALUES:
+            return 0
+        raise ValueError(f"boolean: {value}")
+    if column in CSV_INT_COLUMNS:
+        if not value:
+            return None if column == "ref_by" else 0
+        try:
+            return int(value)
+        except ValueError as exc:
+            try:
+                number = float(value.replace(",", "."))
+            except ValueError:
+                raise ValueError(f"integer: {value}") from exc
+            if not number.is_integer():
+                raise ValueError(f"integer: {value}") from exc
+            return int(number)
+    if column in CSV_FLOAT_COLUMNS:
+        if not value:
+            return 0.0
+        try:
+            return float(value.replace(",", "."))
+        except ValueError as exc:
+            raise ValueError(f"number: {value}") from exc
+    return value or _csv_default(column)
+
+
+def _csv_parse_servers(raw: Any) -> list[str]:
+    value = str(raw or "").strip()
+    if not value:
+        return []
+    try:
+        parsed = json.loads(value)
+        if isinstance(parsed, list):
+            return [str(item).strip() for item in parsed if str(item).strip()]
+    except (TypeError, ValueError):
+        pass
+    return [part.strip() for part in re.split(r"[,\s]+", value) if part.strip()]
+
+
+def _csv_normalize_language(values: dict[str, Any]) -> None:
+    language = str(values.get("language") or "").strip()
+    if language and language not in LANGUAGES:
+        raise ValueError(f"language: {language}")
+    values["language"] = language or Config.DEFAULT_LANGUAGE
+
+
+def _csv_normalize_servers(values: dict[str, Any]) -> None:
+    servers = _csv_parse_servers(values.get("plan_servers"))
+    normalized_servers: list[str] = []
+    for code in servers:
+        location = get_location_by_code(code)
+        if not location:
+            raise ValueError(f"server: {code}")
+        canonical = str(location.get("code") or code)
+        if canonical not in normalized_servers:
+            normalized_servers.append(canonical)
+    values["plan_servers"] = json.dumps(normalized_servers, ensure_ascii=False) if servers else ""
+
+
+def _csv_normalize_subscription(values: dict[str, Any], *, regen: bool) -> None:
+    vpn_value = str(values.get("vpn_url") or "").strip()
+    if vpn_value and not (regen and vpn_value.lower() in CSV_REGEN_MARKERS):
+        normalized_vpn = normalize_sub_id(vpn_value)
+        if not normalized_vpn:
+            raise ValueError(f"vpn_url: {vpn_value}")
+        values["vpn_url"] = normalized_vpn
+
+    sub_id = str(values.get("subscription_id") or "").strip()
+    plan_text = str(values.get("plan_text") or "").strip()
+    plan = (
+        find_plan_by_id_any(sub_id)
+        or find_plan_by_name_any(plan_text)
+        or find_plan_by_name_any(sub_id)
+    )
+    if not plan:
+        return
+    canonical_id = str(plan.get("id") or "")
+    canonical_name = str(plan.get("name") or "")
+    if canonical_id and (not sub_id or sub_id not in {canonical_id, canonical_name}):
+        values["subscription_id"] = canonical_id
+    if canonical_name and (not plan_text or plan_text not in {canonical_id, canonical_name}):
+        values["plan_text"] = canonical_name
+
+
+def _csv_normalize_withdrawals(values: dict[str, Any]) -> None:
+    withdrawals = values.get("mate_withdrawal_requests")
+    if withdrawals in (None, ""):
+        values["mate_withdrawal_requests"] = "[]"
+        return
+    try:
+        parsed = json.loads(str(withdrawals))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("mate_withdrawal_requests") from exc
+    if not isinstance(parsed, list):
+        raise TypeError("mate_withdrawal_requests")
+    values["mate_withdrawal_requests"] = json.dumps(parsed, ensure_ascii=False)
+
+
+def _csv_normalize_values(values: dict[str, Any], *, regen: bool) -> None:
+    _csv_normalize_language(values)
+    _csv_normalize_servers(values)
+    _csv_normalize_subscription(values, regen=regen)
+    _csv_normalize_withdrawals(values)
+
+
+def _csv_days_from_expiry(raw: Any, plan: dict[str, Any] | None) -> int:
+    value = str(raw or "").strip()
+    expiry: datetime | None = None
+    if value:
+        try:
+            expiry = datetime.fromisoformat(value)
+        except ValueError:
+            try:
+                expiry = datetime.strptime(value, "%Y-%m-%d %H:%M:%S").replace(tzinfo=UTC)
+            except ValueError:
+                expiry = None
+    if expiry is not None:
+        if expiry.tzinfo is None:
+            expiry = expiry.replace(tzinfo=UTC)
+        days = (expiry - datetime.now(UTC)).days
+        if days > 0:
+            return min(days, 36500)
+    return max(1, to_int(plan.get("duration_days"), 30) if plan else 30)
+
+
+async def _csv_regen_sub_id(uid: int, values: dict[str, Any], user: dict[str, Any]) -> str | None:
+    email = get_user_panel_email(uid, user)
+    existing_client = await panel.get_client_by_email(email)
+    if existing_client:
+        existing_sub_id = normalize_sub_id(existing_client.get("subId") or "")
+        if existing_sub_id:
+            return existing_sub_id
+    plan = find_plan_by_id_any(str(values.get("subscription_id") or "")) or (
+        find_plan_by_name_any(str(values.get("plan_text") or ""))
+    )
+    servers = _csv_parse_servers(values.get("plan_servers")) or get_plan_servers(plan)
+    inbound_ids = await panel.get_matching_inbound_ids(servers)
+    if not inbound_ids:
+        logger.error(f"CSV regen: нет доступных inbound для UID {uid}")
+        return None
+    candidate = f"csv_{uid}_{secrets.token_hex(5)}"
+    client = await panel.create_client(
+        email=email,
+        limit_ip=max(0, to_int(values.get("ip_limit"), 0)),
+        total_gb=max(0, to_int(values.get("traffic_gb"), 0)),
+        days=_csv_days_from_expiry(values.get("expiry_sub_datatime"), plan),
+        servers=servers,
+        inbound_ids=inbound_ids,
+        sub_id=candidate,
+    )
+    sub_id = normalize_sub_id(client.get("subId") if client else "") or None
+    if sub_id:
+        logger.info(f"CSV regen: создан sub_id {sub_id} для UID {uid}")
+    return sub_id
+
+
+def _csv_link_lines(uid: int, sub_id: str) -> list[str]:
+    lines: list[str] = []
+    sub_url = build_subscription_url(sub_id)
+    json_url = build_json_subscription_url(sub_id)
+    if sub_url:
+        lines.append(f"{uid} - {sub_url}")
+    if json_url:
+        lines.append(f"{uid} - {json_url} [JSON]")
+    return lines
+
+
+@router.callback_query(F.data.in_({"debug_csv_editor", "co_owner_csv_editor"}))
+@log_error
+async def cmd_csv_editor(event: CallbackQuery, state: FSMContext, **kwargs: Any) -> None:
+    lang = await get_lang(event)
+    owner_uid = 0
+    if event.data == "co_owner_csv_editor":
+        owner = await db.find_user_by_any_id(get_event_user_id(event) or 0)
+        if not owner or not owner.get("is_coowner"):
+            await smart_answer(
+                event,
+                translate(lang, "texts.not_a_co_owner"),
+                reply_markup=main_menu_keyboard(lang),
+                delete_origin=True,
+            )
+            return
+        owner_uid = to_int(owner.get("user_id"), 0)
+    elif not await ensure_admin_access(event):
+        return
+    await state.set_state(CsvEditorState.waiting_for_file)
+    await state.update_data(csv_owner_uid=owner_uid)
+    await smart_answer(
+        event,
+        translate(lang, "texts.csv_editor_prompt"),
+        reply_markup=kb(
+            [
+                [
+                    {
+                        "text": translate(lang, "buttons.csv_template"),
+                        "callback_data": "csv_template",
+                    }
+                ],
+                [
+                    {
+                        "text": translate(lang, "buttons.cancel"),
+                        "callback_data": "cancel",
+                    }
+                ],
+            ]
+        ),
+        delete_origin=True,
+    )
+
+
+def _csv_cell(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, (list, dict)):
+        return json.dumps(value, ensure_ascii=False)
+    return str(value)
+
+
+@router.callback_query(F.data == "csv_template")
+@log_error
+async def cmd_csv_template(event: CallbackQuery, **kwargs: Any) -> None:
+    user_id = get_event_user_id(event) or 0
+    owner = await db.find_user_by_any_id(user_id)
+    admin = await is_admin_user(user_id)
+    if not (admin or (owner and owner.get("is_coowner"))):
+        await event.answer(
+            translate(Config.DEFAULT_LANGUAGE, "texts.admin_only_feature"),
+            show_alert=True,
+        )
+        return
+    chat_id = event.message.chat.id if event.message else user_id
+    if not chat_id:
+        return
+    lang = await get_lang(event)
+    if admin:
+        rows = await db.get_all_users()
+    else:
+        owner_uid = to_int(owner.get("user_id"), 0)
+        allowed_uids = await _co_owner_allowed_uids(owner_uid)
+        rows = list((await _load_full_users(sorted(allowed_uids))).values())
+        rows.sort(key=lambda item: to_int(item.get("user_id"), 0))
+    output = StringIO()
+    writer = csv.writer(output, lineterminator="\n")
+    writer.writerow(CSV_COLUMNS)
+    for user in rows:
+        writer.writerow([_csv_cell(user.get(column)) for column in CSV_COLUMNS])
+    await event.bot.send_document(
+        chat_id,
+        BufferedInputFile(output.getvalue().encode("utf-8"), filename="users.csv"),
+        caption=translate(lang, "texts.csv_template_caption"),
+    )
+    with suppress(Exception):
+        await event.answer()
+
+
+@router.message(CsvEditorState.waiting_for_file, F.document)
+@log_error
+async def process_csv_editor_file(event: Message, state: FSMContext, **kwargs: Any) -> None:
+    lang = await get_lang(event)
+    owner_uid = to_int((await state.get_data()).get("csv_owner_uid"), 0)
+    document = event.document
+    if document.file_size and document.file_size > CSV_MAX_FILE_BYTES:
+        await smart_answer(
+            event,
+            translate(
+                lang,
+                "texts.csv_error_file_size",
+                limit=round(CSV_MAX_FILE_BYTES / 1024 / 1024),
+            ),
+            reply_markup=main_menu_keyboard(lang),
+        )
+        await state.clear()
+        return
+    if not (document.file_name or "").lower().endswith(".csv"):
+        await smart_answer(
+            event,
+            translate(lang, "texts.csv_error_file_type"),
+            reply_markup=main_menu_keyboard(lang),
+        )
+        await state.clear()
+        return
+    try:
+        buffer = BytesIO()
+        await event.bot.download(document.file_id, destination=buffer)
+        content = buffer.getvalue().decode("utf-8-sig")
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"CSV editor: не удалось прочитать файл: {e}")
+        await smart_answer(
+            event,
+            translate(lang, "texts.csv_error_encoding"),
+            reply_markup=main_menu_keyboard(lang),
+        )
+        await state.clear()
+        return
+    try:
+        table = [row for row in csv.reader(StringIO(content)) if any(cell.strip() for cell in row)]
+    except csv.Error:
+        table = []
+    if not table:
+        await smart_answer(
+            event,
+            translate(lang, "texts.csv_error_empty"),
+            reply_markup=main_menu_keyboard(lang),
+        )
+        await state.clear()
+        return
+    header = [cell.strip().lstrip("\ufeff") for cell in table[0]]
+    expected = set(CSV_COLUMNS)
+    missing = ["user_id"] if "user_id" not in header else []
+    extra = [column for column in header if column not in expected]
+    duplicates = sorted({column for column in header if header.count(column) > 1})
+    if missing or extra or duplicates:
+        await smart_answer(
+            event,
+            translate(
+                lang,
+                "texts.csv_error_header",
+                missing=html.escape(", ".join(missing) or "-"),
+                extra=html.escape(", ".join(extra) or "-"),
+                duplicates=html.escape(", ".join(duplicates) or "-"),
+            ),
+            reply_markup=main_menu_keyboard(lang),
+        )
+        await state.clear()
+        return
+    if len(table) - 1 > CSV_MAX_ROWS:
+        await smart_answer(
+            event,
+            translate(lang, "texts.csv_error_rows_limit", limit=CSV_MAX_ROWS),
+            reply_markup=main_menu_keyboard(lang),
+        )
+        await state.clear()
+        return
+
+    indices = {column: index for index, column in enumerate(header)}
+    present_columns = set(header)
+
+    def csv_cell(cells: list[str], column: str) -> str | None:
+        index = indices.get(column)
+        if index is None:
+            return None
+        return cells[index] if index < len(cells) else ""
+
+    allowed_uids = await _co_owner_allowed_uids(owner_uid) if owner_uid else set()
+    max_uid = await db.get_max_user_id()
+    explicit_uids: list[int] = []
+    for cells in table[1:]:
+        raw_uid = str(csv_cell(cells, "user_id") or "").strip()
+        if raw_uid.lower() not in CSV_NEW_UID_MARKERS:
+            with suppress(ValueError):
+                uid = int(raw_uid)
+                if uid > 0:
+                    explicit_uids.append(uid)
+    existing_by_uid = await _load_full_users(explicit_uids)
+    operations: list[dict[str, Any]] = []
+    errors: list[str] = []
+    seen_uids: dict[int, int] = {}
+    seen_telegram: dict[int, int] = {}
+    seen_logins: dict[str, int] = {}
+    seen_sub_ids: dict[str, int] = {}
+
+    def add_error(line_no: int, key: str, **kwargs: Any) -> None:
+        safe_kwargs = {name: html.escape(str(value)) for name, value in kwargs.items()}
+        errors.append(
+            translate(lang, "texts.csv_error_row", row=line_no)
+            + " "
+            + translate(lang, key, **safe_kwargs)
+        )
+
+    for line_no, cells in enumerate(table[1:], start=2):
+        if len(cells) > len(header):
+            add_error(
+                line_no,
+                "texts.csv_error_columns_count",
+                expected=len(header),
+                got=len(cells),
+            )
+            continue
+        raw_row = {column: csv_cell(cells, column) for column in CSV_COLUMNS}
+        uid_raw = str(raw_row["user_id"] or "").strip()
+        is_new_marker = uid_raw.lower() in CSV_NEW_UID_MARKERS
+        explicit_uid: int | None = None
+        if not is_new_marker:
+            try:
+                explicit_uid = int(uid_raw)
+                if explicit_uid <= 0:
+                    raise ValueError
+            except ValueError:
+                add_error(line_no, "texts.csv_error_uid_invalid", value=uid_raw[:40])
+                continue
+            if explicit_uid in seen_uids:
+                add_error(line_no, "texts.csv_error_duplicate_uid")
+                continue
+            seen_uids[explicit_uid] = line_no
+
+        existing = existing_by_uid.get(explicit_uid) if explicit_uid else None
+        is_new = is_new_marker or existing is None
+        if explicit_uid is not None and not existing and explicit_uid <= max_uid:
+            add_error(line_no, "texts.csv_error_uid_deleted", uid=explicit_uid)
+            continue
+        if owner_uid and existing:
+            if await is_admin_user(to_int(existing.get("telegram_id"), 0)):
+                add_error(line_no, "texts.csv_error_admin")
+                continue
+            if to_int(existing.get("user_id"), 0) not in allowed_uids:
+                add_error(line_no, "texts.csv_error_not_owner")
+                continue
+
+        values: dict[str, Any] = {}
+        invalid = False
+        for column in CSV_COLUMNS:
+            if column == "user_id" or column not in present_columns:
+                continue
+            try:
+                values[column] = _csv_parse_value(column, str(raw_row[column] or ""))
+            except (TypeError, ValueError):
+                add_error(
+                    line_no,
+                    "texts.csv_error_field_invalid",
+                    field=column,
+                    value=str(raw_row[column] or "")[:40],
+                )
+                invalid = True
+                break
+        if invalid:
+            continue
+
+        vpn_raw = str(raw_row.get("vpn_url") or "").strip()
+        regen = vpn_raw.lower() in CSV_REGEN_MARKERS
+        try:
+            _csv_normalize_values(values, regen=regen)
+        except (TypeError, ValueError) as exc:
+            add_error(
+                line_no,
+                "texts.csv_error_normalize",
+                field=str(exc)[:60],
+                value=vpn_raw[:40],
+            )
+            continue
+
+        effective = {
+            column: values.get(
+                column, existing.get(column) if existing is not None else _csv_default(column)
+            )
+            for column in CSV_COLUMNS
+            if column != "user_id"
+        }
+
+        if owner_uid:
+            for column in sorted(CSV_COOWNER_FORBIDDEN_COLUMNS):
+                if is_new and column == "co_owner_ref_by":
+                    continue
+                current = existing.get(column) if existing else _csv_default(column)
+                if effective.get(column) != current:
+                    add_error(line_no, "texts.csv_error_forbidden_field", field=column)
+                    invalid = True
+                    break
+            if invalid:
+                continue
+            provided_ref = effective.get("ref_by")
+            if not is_new and provided_ref not in (None, 0, "", owner_uid):
+                add_error(line_no, "texts.csv_error_ref_by")
+                continue
+            provided_owner = effective.get("co_owner_ref_by")
+            if not is_new and provided_owner not in (None, 0, "", owner_uid):
+                add_error(line_no, "texts.csv_error_co_owner_ref_by")
+                continue
+            values["ref_by"] = owner_uid
+            values["co_owner_ref_by"] = owner_uid
+            effective["ref_by"] = owner_uid
+            effective["co_owner_ref_by"] = owner_uid
+
+        effective_vpn = str(effective.get("vpn_url") or "").strip()
+        subscription_id = str(effective.get("subscription_id") or "").strip()
+        expiry = str(effective.get("expiry_sub_datatime") or "").strip()
+        if not to_int(effective.get("has_subscription"), 0) and (
+            subscription_id or expiry or effective_vpn
+        ):
+            add_error(line_no, "texts.csv_error_subscription_extra")
+            continue
+        if to_int(effective.get("has_subscription"), 0) and not (
+            subscription_id and effective_vpn and expiry
+        ):
+            add_error(line_no, "texts.csv_error_subscription_missing")
+            continue
+        if (
+            to_int(effective.get("banned"), 0)
+            and not str(effective.get("ban_reason") or "").strip()
+        ):
+            add_error(line_no, "texts.csv_error_ban_reason")
+            continue
+        if (
+            to_int(effective.get("is_coowner"), 0)
+            and not str(effective.get("coowner_code") or "").strip()
+        ):
+            add_error(line_no, "texts.csv_error_coowner_code")
+            continue
+
+        telegram_id = to_int(effective.get("telegram_id"), 0)
+        if telegram_id:
+            previous = seen_telegram.get(telegram_id)
+            if previous:
+                add_error(line_no, "texts.csv_error_duplicate_telegram", uid=previous)
+                continue
+            seen_telegram[telegram_id] = explicit_uid or line_no
+        login = str(effective.get("web_login") or "").strip().lower()
+        if login:
+            previous_login = seen_logins.get(login)
+            if previous_login:
+                add_error(line_no, "texts.csv_error_duplicate_web_login", uid=previous_login)
+                continue
+            seen_logins[login] = explicit_uid or line_no
+        sub_id = "" if regen else normalize_sub_id(effective_vpn)
+        if sub_id:
+            previous_sub = seen_sub_ids.get(sub_id)
+            if previous_sub:
+                add_error(line_no, "texts.csv_error_duplicate_sub", uid=previous_sub)
+                continue
+            seen_sub_ids[sub_id] = explicit_uid or line_no
+        if telegram_id and await is_admin_user(telegram_id):
+            add_error(line_no, "texts.csv_error_admin")
+            continue
+
+        conflict = await db.find_csv_conflict(effective, exclude_uid=explicit_uid or 0)
+        if conflict:
+            add_error(line_no, "texts.csv_error_db_conflict", field=conflict)
+            continue
+
+        operations.append(
+            {
+                "row": line_no,
+                "uid": explicit_uid,
+                "is_new": is_new,
+                "regen": regen,
+                "values": values,
+                "effective": effective,
+                "existing": existing,
+            }
+        )
+
+    if errors:
+        await smart_answer(
+            event,
+            translate(lang, "texts.csv_result_errors", items="\n".join(errors[:20])),
+            reply_markup=main_menu_keyboard(lang),
+        )
+        await state.clear()
+        return
+
+    updated = 0
+    created = 0
+    regenerated = 0
+    result_lines: list[str] = []
+    apply_errors: list[str] = []
+    for operation in operations:
+        values = dict(operation["values"])
+        effective = dict(operation["effective"])
+        uid = to_int(operation["uid"], 0)
+        is_new = bool(operation["is_new"])
+        regen = bool(operation["regen"])
+        if is_new:
+            payload = dict(effective)
+            payload.update(values)
+            if regen:
+                payload["vpn_url"] = ""
+            created_uid = await db.insert_csv_user(payload, explicit_uid=uid or None)
+            if not created_uid:
+                apply_errors.append(
+                    translate(lang, "texts.csv_error_row", row=operation["row"])
+                    + " "
+                    + translate(lang, "texts.csv_error_write_failed")
+                )
+                continue
+            uid = created_uid
+            created += 1
+            if regen:
+                new_sub_id = await _csv_regen_sub_id(uid, values, {**values, "user_id": uid})
+                if not new_sub_id:
+                    await db.delete_user(uid)
+                    created -= 1
+                    apply_errors.append(
+                        translate(lang, "texts.csv_error_row", row=operation["row"])
+                        + " "
+                        + translate(lang, "texts.csv_error_regen_failed")
+                    )
+                    continue
+                values["vpn_url"] = new_sub_id
+                if not await db.update_user(uid, vpn_url=new_sub_id, force=True):
+                    apply_errors.append(
+                        translate(lang, "texts.csv_error_row", row=operation["row"])
+                        + " "
+                        + translate(lang, "texts.csv_error_write_failed")
+                    )
+                    continue
+        else:
+            if regen:
+                new_sub_id = await _csv_regen_sub_id(uid, values, operation["existing"] or values)
+                if not new_sub_id:
+                    apply_errors.append(
+                        translate(lang, "texts.csv_error_row", row=operation["row"])
+                        + " "
+                        + translate(lang, "texts.csv_error_regen_failed")
+                    )
+                    continue
+                values["vpn_url"] = new_sub_id
+            if values and not await db.update_user(uid, force=True, **values):
+                apply_errors.append(
+                    translate(lang, "texts.csv_error_row", row=operation["row"])
+                    + " "
+                    + translate(lang, "texts.csv_error_write_failed")
+                )
+                continue
+            updated += 1
+        if regen:
+            regenerated += 1
+            result_lines.extend(_csv_link_lines(uid, values["vpn_url"]))
+        invalidate_expiry_alert_cache(to_int(effective.get("telegram_id"), 0), uid)
+
+    if updated or created:
+        try:
+            report = await normalize_all_subscriptions_with_retry()
+            logger.info(f"CSV editor: нормализация подписок после редактирования БД: {report}")
+        except Exception:
+            logger.exception("CSV editor: ошибка нормализации подписок после редактирования БД")
+
+    summary = translate(
+        lang,
+        "texts.csv_result_header",
+        updated=updated,
+        created=created,
+        regenerated=regenerated,
+        errors=len(apply_errors),
+    )
+    if apply_errors:
+        summary += "\n\n" + translate(
+            lang, "texts.csv_result_errors", items="\n".join(apply_errors[:20])
+        )
+    summary += "\n\n" + (
+        "\n".join(result_lines) if result_lines else translate(lang, "texts.csv_result_no_links")
+    )
+    await smart_answer(event, summary, reply_markup=main_menu_keyboard(lang))
+    await state.clear()
+
+
+@router.message(CsvEditorState.waiting_for_file)
+@log_error
+async def process_csv_editor_non_file(event: Message, state: FSMContext, **kwargs: Any) -> None:
+    lang = await get_lang(event)
+    text = event.text or ""
+    if is_cancel_text(text, lang):
+        await state.clear()
+        await cmd_start(event, state)
+        return
+    await smart_answer(
+        event,
+        translate(lang, "texts.csv_editor_prompt"),
+        reply_markup=main_menu_keyboard(lang),
+    )
 
 
 # --- Режим тех. работ ---
@@ -15124,7 +17545,7 @@ async def cmd_debug_view_abuse_user(event: CallbackQuery, **kwargs):
     if uid <= 0:
         await event.answer(translate(lang, "texts.invalid_id"), show_alert=True)
         return
-    user = await db.get_user_by_any_id(uid)
+    user = await db.find_user_by_any_id(uid)
     if not user:
         await event.answer(
             translate(lang, "texts.user_not_found_alert"),
@@ -15180,7 +17601,7 @@ async def cmd_debug_clear_abuse(event: CallbackQuery, **kwargs):
     if raw_id <= 0:
         await event.answer(translate(lang, "texts.invalid_id"), show_alert=True)
         return
-    user = await db.get_user_by_any_id(raw_id)
+    user = await db.find_user_by_any_id(raw_id)
     if not user:
         await event.answer(translate(lang, "texts.user_not_found_alert"), show_alert=True)
         return
@@ -15353,7 +17774,7 @@ async def process_trust_amount(event: Message, state: FSMContext, **kwargs):
         )
         return
     delta = amount if action == "add" else -amount
-    user_data = await db.get_user_by_any_id(uid)
+    user_data = await db.find_user_by_any_id(uid)
     tg_id = user_data.get("telegram_id", 0) if user_data else 0
     tg_id_str = format_tg_suffix(tg_id)
     result = await db.add_trust_score(uid, delta)
@@ -15505,7 +17926,7 @@ async def process_delete_sub_confirm(event: Message, state: FSMContext, **kwargs
     back_to = str(data.get(_DEBUG_RETURN_KEY) or "debug_subscription")
     await state.clear()
     result = await cleanup_subscription(uid, "admin_deleted", notify_user_about_cleanup=True)
-    user_data = await db.get_user_by_any_id(uid)
+    user_data = await db.find_user_by_any_id(uid)
     ident = user_ident(uid, to_int((user_data or {}).get("telegram_id"), 0))
     if result["success"]:
         text = translate(lang, "texts.delete_subscription_success", **ident)
@@ -15585,7 +18006,7 @@ async def confirm_remove_partner_handler(event: CallbackQuery, state: FSMContext
     await state.clear()
 
     await _deactivate_partner(uid, "manual")
-    user_data = await db.get_user_by_any_id(uid)
+    user_data = await db.find_user_by_any_id(uid)
     tg_id = to_int(user_data.get("telegram_id", 0), 0) if user_data else 0
     tg_id_str = format_tg_suffix(tg_id)
     text = translate(lang, "texts.remove_partner_success", user_id=uid, tg_id=tg_id_str)
@@ -15684,7 +18105,7 @@ async def process_add_traffic_gb(event: Message, state: FSMContext, **kwargs):
         )
         return
 
-    user = await db.get_user_by_any_id(uid)
+    user = await db.find_user_by_any_id(uid)
     if not user:
         await smart_answer(
             event,
@@ -15709,6 +18130,9 @@ async def process_add_traffic_gb(event: Message, state: FSMContext, **kwargs):
 
     base_email = build_base_email(internal_uid)
     panel_ok = await panel.add_client_traffic(base_email, gb)
+    if panel_ok and to_int(user.get("traffic_disabled"), 0) == 1:
+        with suppress(Exception):
+            await panel.set_client_enabled(base_email, False)
     if tg_id > 0:
         user_lang = await get_user_language(tg_id)
         with suppress(Exception):
@@ -15805,7 +18229,7 @@ async def process_compensate_days(event: Message, state: FSMContext, **kwargs):
         processed = 0
         notified = 0
         for tg_id in uid_list:
-            user = await db.get_user_by_any_id(tg_id)
+            user = await db.find_user_by_any_id(tg_id)
             if not user:
                 continue
             if not await db.add_bonus_days_pending(tg_id, days):
@@ -15839,7 +18263,7 @@ async def process_compensate_days(event: Message, state: FSMContext, **kwargs):
     else:
         uid: int = int(data.get("compensate_user_id", 0))
         if uid <= 0:
-            user_data = await db.get_user_by_any_id(uid)
+            user_data = await db.find_user_by_any_id(uid)
             tg_id = to_int(user_data.get("telegram_id", 0), 0) if user_data else 0
             tg_id_str = format_tg_suffix(tg_id)
             await smart_answer(
@@ -15850,7 +18274,7 @@ async def process_compensate_days(event: Message, state: FSMContext, **kwargs):
             )
             return
 
-        user = await db.get_user_by_any_id(uid)
+        user = await db.find_user_by_any_id(uid)
         if not user:
             await smart_answer(
                 event,
@@ -15973,7 +18397,7 @@ async def process_change_web_login_new(event: Message, state: FSMContext, **kwar
     try:
         success = await db.change_web_login(uid, val)
         if success:
-            user_data = await db.get_user_by_any_id(uid)
+            user_data = await db.find_user_by_any_id(uid)
             tg_id = to_int(user_data.get("telegram_id", 0), 0) if user_data else 0
             tg_id_str = format_tg_suffix(tg_id)
             await smart_answer(
@@ -16070,7 +18494,7 @@ async def process_change_password_new(event: Message, state: FSMContext, **kwarg
         hashed = hash_password(val)
         success = await db.change_password(uid, hashed)
         if success:
-            user_data = await db.get_user_by_any_id(uid)
+            user_data = await db.find_user_by_any_id(uid)
             tg_id = to_int(user_data.get("telegram_id", 0), 0) if user_data else 0
             tg_id_str = format_tg_suffix(tg_id)
             await smart_answer(
@@ -16279,8 +18703,9 @@ async def cmd_debug_manual_issue_mode(event: CallbackQuery, state: FSMContext, *
         + "\n\n"
         + build_fixed_tariffs_text(plans, lang=lang)
     )
-    await event.answer(
-        truncate(body),
+    await smart_answer(
+        event,
+        body,
         reply_markup=kb(
             [
                 [
@@ -16294,6 +18719,7 @@ async def cmd_debug_manual_issue_mode(event: CallbackQuery, state: FSMContext, *
             ]
             + _debug_back_rows(lang, back_to)
         ),
+        delete_origin=True,
     )
 
 
@@ -16336,7 +18762,8 @@ async def cmd_debug_manual_issue_plan(event: CallbackQuery, state: FSMContext, *
         return
     await state.update_data(manual_issue_plan=plan_id)
     await state.set_state(ManualIssueState.waiting_for_confirm)
-    await event.answer(
+    await smart_answer(
+        event,
         translate(
             lang,
             "texts.manual_issue_confirm",
@@ -16349,6 +18776,7 @@ async def cmd_debug_manual_issue_plan(event: CallbackQuery, state: FSMContext, *
         reply_markup=_debug_yes_no_keyboard(
             lang, "debug_manual_issue_confirm", "debug_manual_issue_cancel"
         ),
+        delete_origin=True,
     )
 
 
@@ -16417,6 +18845,10 @@ async def cmd_debug_manual_issue_confirm(event: CallbackQuery, state: FSMContext
             back_to,
         )
         return
+    if mode == "new":
+        ref_code = await db.ensure_ref_code_by_user_id(internal_uid)
+        if ref_code:
+            logger.info(f"Ручная выдача: ref_code {ref_code} создан для UID {internal_uid}")
     await _debug_notify_user(
         tg_id, "texts.manual_issue_notification", plan_name=plan.get("name", plan_id)
     )
@@ -17012,6 +19444,7 @@ async def cmd_debug_full_reset_confirm(event: CallbackQuery, state: FSMContext, 
         mate_withdrawal_requests="[]",
         expiry_alert_sent=0,
         cleanup_notification_sent=0,
+        low_traffic_alert_sent=0,
     )
     if not ok:
         await _debug_finish(
@@ -17141,7 +19574,10 @@ async def process_delete_account_confirm(event: Message, state: FSMContext, **kw
                 f"удаление строки прервано (нормализатор повторит попытку)"
             )
             await _debug_finish(
-                event, lang, translate(lang, "texts.delete_account_fail", **ident), back_to
+                event,
+                lang,
+                translate(lang, "texts.delete_account_fail", **ident),
+                back_to,
             )
             return
     await db.clear_referrals_of(internal_uid)
@@ -17236,7 +19672,7 @@ async def normalize_all_subscriptions_with_retry(
                         )
                         if await _ensure_admin_subscription(uid):
                             iter_changes += 1
-                            user = (await db.get_user_by_any_id(uid)) or user
+                            user = (await db.find_user_by_any_id(uid)) or user
                         else:
                             report["errors"] += 1
                             logger.warning(
@@ -17458,6 +19894,11 @@ async def normalize_all_subscriptions_with_retry(
                                 report["panel_errors"] += 1
 
                         if not client.get("enable"):
+                            if to_int(user.get("traffic_disabled"), 0) == 1:
+                                logger.info(
+                                    f"  ⏸ Клиент {email} отключён за трафик, включение пропущено"
+                                )
+                                continue
                             logger.info(f"  🔓 Включаем отключённого клиента: {email}")
                             client["enable"] = True
                             payload = panel._client_payload_for_update(client)
@@ -17518,7 +19959,7 @@ async def normalize_all_subscriptions_with_retry(
                         curr_ip = to_int(user.get("ip_limit"), 0)
                         curr_gb = to_float(user.get("traffic_gb"), 0.0)
 
-                        fresh_user = await db.get_user_by_any_id(uid)
+                        fresh_user = await db.find_user_by_any_id(uid)
                         if fresh_user:
                             plan_ip = to_int(fresh_user.get("ip_limit"), curr_ip)
                             plan_gb = to_float(fresh_user.get("traffic_gb"), curr_gb)
@@ -17710,7 +20151,6 @@ async def normalize_all_subscriptions_with_retry(
                                     total_gb=restore_gb_total,
                                     days=restore_days,
                                     servers=plan_servers,
-                                    tg_id=uid,
                                     sub_id=db_sub_id,
                                     inbound_ids=inbound_ids,
                                 )
@@ -17805,6 +20245,141 @@ async def check_expired_subscriptions() -> None:
             await asyncio.sleep(60)
 
 
+def _traffic_reset_anchor_ms(user: dict[str, Any], plan: dict[str, Any] | None) -> int:
+    stored = str(user.get("traffic_reset_at") or "").strip()
+    if stored:
+        try:
+            stored_dt = datetime.fromisoformat(stored)
+        except ValueError:
+            stored_dt = None
+        if stored_dt:
+            if stored_dt.tzinfo is None:
+                stored_dt = stored_dt.replace(tzinfo=UTC)
+            return max(0, int(stored_dt.timestamp() * 1000))
+    expiry_raw = str(user.get("expiry_sub_datatime") or "").strip()
+    if not expiry_raw:
+        return 0
+    try:
+        expiry_dt = datetime.fromisoformat(expiry_raw)
+    except ValueError:
+        return 0
+    if expiry_dt.tzinfo is None:
+        expiry_dt = expiry_dt.replace(tzinfo=UTC)
+    duration_days = to_int((plan or {}).get("duration_days"), 30)
+    reset_dt = expiry_dt - timedelta(days=duration_days)
+    return max(0, int(reset_dt.timestamp() * 1000))
+
+
+async def _process_traffic_cycle(uid: int) -> bool:
+    user = await db.find_user_by_any_id(uid)
+    if not user:
+        return False
+    subscription_id = str(user.get("subscription_id") or "").strip()
+    excluded_ids = {
+        PARTNER_PLAN_ID,
+        CO_OWNER_PLAN_ID,
+        "custom",
+        Config.ADMIN_SUB_ID or "Admin",
+    }
+    if subscription_id in excluded_ids or user.get("admin_test_sub_id"):
+        return False
+    plan = resolve_user_plan(user)
+    if not plan or not is_new_tariff_plan(plan):
+        return False
+    if not find_plan_by_id_any(subscription_id):
+        return False
+    state = await get_subscription_state(uid)
+    status = state.get("status")
+    traffic_disabled = to_int(user.get("traffic_disabled"), 0) == 1
+    if status != "active" and not (status == "traffic_exhausted" and traffic_disabled):
+        return False
+    traffic_gb = max(0.0, to_float(state.get("traffic_gb"), 0.0))
+    if traffic_gb <= 0:
+        return False
+    now = datetime.now(UTC)
+    now_ms = int(now.timestamp() * 1000)
+    internal_uid = to_int(user.get("user_id"), uid)
+    base_email = get_user_panel_email(internal_uid, user)
+    if traffic_disabled:
+        with suppress(Exception):
+            await panel.set_client_enabled(base_email, False)
+    reset_interval_ms = TRAFFIC_RESET_DAYS * SECONDS_IN_DAY * 1000
+    reset_ms = _traffic_reset_anchor_ms(user, plan)
+    if reset_ms <= 0:
+        await db.set_traffic_reset_at(uid, now.isoformat())
+        await db.set_low_traffic_alert_sent(uid, False)
+        reset_ms = now_ms
+    if now_ms - reset_ms >= reset_interval_ms:
+        if await panel.reset_client_traffic(base_email):
+            reenabled = True
+            if traffic_disabled:
+                reenabled = await panel.set_client_enabled(base_email, True)
+                if not reenabled:
+                    logger.warning(f"Не удалось явно включить клиента после сброса: {base_email}")
+            if reenabled:
+                if traffic_disabled:
+                    await db.set_traffic_disabled(uid, False)
+                    lang = await get_user_language(uid)
+                    with suppress(Exception):
+                        await notify_user(
+                            uid, translate(lang, "texts.subscription_traffic_restored")
+                        )
+                await db.set_traffic_reset_at(uid, now.isoformat())
+            await db.set_low_traffic_alert_sent(uid, False)
+            logger.info(f"Трафик сброшен по 30-дневному циклу: uid={uid}, {base_email}")
+        else:
+            logger.warning(f"Не удалось сбросить трафик: uid={uid}, {base_email}")
+        return True
+    if traffic_disabled:
+        return True
+    if to_int(user.get("low_traffic_alert_sent"), 0) == 1:
+        return True
+    used_gb = max(0.0, to_float(state.get("used_gb"), 0.0))
+    remaining = traffic_gb - used_gb
+    if not 0 < remaining < LOW_TRAFFIC_ALERT_GB:
+        return True
+    next_reset = datetime.fromtimestamp((reset_ms + reset_interval_ms) / 1000, tz=UTC)
+    lang = await get_user_language(uid)
+    text = translate(
+        lang,
+        "texts.subscription_low_traffic",
+        remaining_gb=f"{remaining:.1f}",
+        reset_date=format_payment_time(next_reset.isoformat()),
+    )
+    if await notify_user(uid, text):
+        await db.set_low_traffic_alert_sent(uid, True)
+        logger.info(f"Уведомление о низком трафике отправлено: uid={uid}")
+    return True
+
+
+@log_error
+async def check_traffic_reset_and_low_balance() -> None:
+    if Config.TARIFF_MODE != "new":
+        return
+    await asyncio.sleep(20)
+    semaphore = asyncio.Semaphore(10)
+
+    async def _check(uid: int) -> bool:
+        async with semaphore:
+            try:
+                return await _process_traffic_cycle(uid)
+            except Exception as e:  # noqa: BLE001
+                logger.error(f"Ошибка проверки трафика {uid}: {type(e).__name__}: {e}")
+                return False
+
+    while True:
+        try:
+            subscribed = await db.get_subscribed_user_ids()
+            results = await asyncio.gather(
+                *[_check(uid) for uid in subscribed], return_exceptions=True
+            )
+            processed = sum(1 for r in results if r and not isinstance(r, BaseException))
+            logger.info(f"Проверка трафика: {len(subscribed)} подписок, обработано {processed}")
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Ошибка в check_traffic_reset_and_low_balance: {type(e).__name__}: {e}")
+        await asyncio.sleep(SECONDS_IN_DAY)
+
+
 async def recreate_subscription_for_user(user_id: int, user: dict[str, Any]) -> bool:
     try:
         if is_partner_grant(user):
@@ -17865,7 +20440,7 @@ async def _run_traffic_abuse_check() -> None:
             if await is_admin_user(uid):
                 continue
 
-            user = await db.get_user_by_any_id(uid)
+            user = await db.find_user_by_any_id(uid)
             if not user:
                 continue
 
@@ -18083,7 +20658,10 @@ class SSLUpdateTask:
 
             def _connect() -> paramiko.SSHClient:
                 client = paramiko.SSHClient()
-                client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                client.load_system_host_keys()
+                with suppress(OSError):
+                    client.load_host_keys(os.path.expanduser("~/.ssh/known_hosts"))
+                client.set_missing_host_key_policy(paramiko.RejectPolicy())
                 if Config.SSH_PASSWORD:
                     client.connect(
                         Config.SSH_HOST,
@@ -18120,7 +20698,6 @@ class SSLUpdateTask:
             await asyncio.sleep(5)
             commands = [
                 "/etc/init.d/nginx stop",
-                "/etc/init.d/nginx stop",
                 "x-ui",
                 "20",
                 "6",
@@ -18135,7 +20712,7 @@ class SSLUpdateTask:
             ]
             for cmd in commands:
                 shell.send(cmd + "\n")
-                await asyncio.sleep(15)
+                await asyncio.sleep(20)
             await asyncio.sleep(10)
             shell.close()
             shell = None
@@ -18363,6 +20940,8 @@ async def _build_profile_response(user: dict[str, Any]) -> dict[str, Any]:
         "web_auth_method": str(user.get("web_auth_method", "") or "") or None,
         "is_admin": await is_admin_user(to_int(user.get("telegram_id"), 0)),
         "is_mate": is_partner,
+        "is_coowner": bool(user.get("is_coowner")),
+        "coowner_code": str(user.get("coowner_code", "") or ""),
         "mate_balance": to_float(user.get("mate_balance", 0), 0.0),
         "mate_commission_total": to_float(user.get("mate_commission_total", 0), 0.0),
         "mate_status": str(user.get("mate_status", "") or ""),
@@ -18397,13 +20976,76 @@ def spawn_tracked_task(coro: Any) -> asyncio.Task[Any]:
 class WebRegisterRequest(BaseModel):
     web_login: str = Field(min_length=3, max_length=64)
     password: str = Field(min_length=Config.PASSWORD_MIN_LENGTH, max_length=128)
-    tg_id: int | None = Field(default=None, gt=0)
     ref_code: str | None = Field(default=None, max_length=32)
 
 
 class WebLoginRequest(BaseModel):
     web_login: str = Field(min_length=1, max_length=64)
     password: str = Field(min_length=1, max_length=128)
+
+
+class CoOwnerProfileResponse(BaseModel):
+    uid: int
+    nickname: str
+    telegram_id: int
+    ref_code: str
+    telegram_link: str
+    web_link: str
+    subscription_id: str
+    vpn_url: str
+    expiry: str
+    commission_percent: int
+
+
+class CoOwnerLinkResponse(BaseModel):
+    ref_code: str
+    telegram_link: str
+    web_link: str
+
+
+class CoOwnerUserItem(BaseModel):
+    user_id: int
+    telegram_id: int
+    join_date: str
+    username: str
+    has_subscription: bool
+    subscription_id: str
+    vpn_url: str
+    expiry_sub_datatime: str
+    ref_by: int
+
+
+class CoOwnerUsersResponse(BaseModel):
+    users: list[CoOwnerUserItem]
+    total: int
+
+
+class CoOwnerPaymentItem(BaseModel):
+    payment_id: str
+    uid: int
+    amount: float
+    status: str
+    method: str
+    timestamp: str
+    commission: float
+
+
+class CoOwnerPaymentsResponse(BaseModel):
+    payments: list[CoOwnerPaymentItem]
+    total: float
+    commission: float
+
+
+class CoOwnerStatsResponse(BaseModel):
+    total_invited: int
+    active_subscriptions: int
+    paid_users: int
+    revenue: float
+    commission: float
+    commission_percent: int
+    max_depth: int
+    traffic_gb: float
+    newest_join_date: str
 
 
 class WebPasswordChangeRequest(BaseModel):
@@ -18413,12 +21055,8 @@ class WebPasswordChangeRequest(BaseModel):
 
 class WebTelegramLinkRequest(BaseModel):
     tg_id: int = Field(gt=0)
-    password: str | None = Field(default=None, max_length=128)
-
-
-class TelegramLoginRequest(BaseModel):
-    tg_id: int = Field(gt=0)
     state: str = Field(min_length=16, max_length=128)
+    password: str | None = Field(default=None, max_length=128)
 
 
 PaymentMethod = Literal["card", "yoomoney", "manual"]
@@ -18428,15 +21066,6 @@ class CreateCheckoutRequest(BaseModel):
     plan_id: str
     method: PaymentMethod = "manual"
     custom_plan: dict[str, Any] | None = None
-
-
-class BanUserRequest(BaseModel):
-    reason: str = ""
-
-
-class BroadcastRequest(BaseModel):
-    message: str
-    target_user_ids: list[int] | None = None
 
 
 class CreateSubscriptionRequest(BaseModel):
@@ -18450,26 +21079,6 @@ class CreateSubscriptionRequest(BaseModel):
     servers: list[str] | None = None
 
 
-class AbuseClearRequest(BaseModel):
-    user_id: int
-    reason: str | None = ""
-
-
-class ExtendSubscriptionRequest(BaseModel):
-    user_id: int | None = None
-    days: int
-    reason: str | None = ""
-
-
-class CreateClientRequest(BaseModel):
-    user_id: int
-    email: str
-    limit_ip: int = 0
-    total_gb: int = 0
-    days: int = 30
-    inbound_ids: list[int] | None = None
-
-
 # --- Новые модели для API ---
 class CustomTariffRequest(BaseModel):
     traffic_gb: int
@@ -18478,37 +21087,11 @@ class CustomTariffRequest(BaseModel):
     servers: list[str] | None = None
 
 
-class ManualPaymentConfirmRequest(BaseModel):
-    payment_id: str
-    transaction_id: str | None = None
-    amount: float
-
-
-class BulkActionRequest(BaseModel):
-    user_ids: list[int]
-    action: str
-    reason: str | None = ""
-
-
-class PaymentVerifyRequest(BaseModel):
-    payment_id: str
-    status: str
-    admin_note: str | None = ""
-
-
 class DebugCleanupRequest(BaseModel):
     dry_run: bool = True
     cleanup_expired: bool = True
     cleanup_traffic_exhausted: bool = True
     cleanup_missing: bool = True
-
-
-class AdminTokenRequest(BaseModel):
-    admin_key: str = Field(min_length=1, max_length=256)
-
-
-class RefreshTokenRequest(BaseModel):
-    refresh_token: str = Field(min_length=1, max_length=4096)
 
 
 class BOT_FastAPI:
@@ -18571,17 +21154,7 @@ class BOT_FastAPI:
         @self.app.middleware("http")
         async def logging_middleware(request: Request, call_next: Callable) -> JSONResponse:
             start_time = time.time()
-            safe_path = re.sub(
-                r"(Bearer\s+)[A-Za-z0-9_-]{10,}",
-                r"\1***",
-                str(request.url),
-            )
-            safe_path = re.sub(
-                r"[?&](token|key|password|secret)=[^&]*",
-                r"\1=***",
-                safe_path,
-                flags=re.IGNORECASE,
-            )
+            safe_path = mask_url_secrets(str(request.url))
             logger.info(
                 f"HTTP {request.method} {safe_path} "
                 f"from={request.client.host if request.client else 'unknown'}"
@@ -18590,7 +21163,7 @@ class BOT_FastAPI:
             duration_ms = (time.time() - start_time) * 1000
             log_request(
                 request.method,
-                str(request.url),
+                safe_path,
                 status=response.status_code,
                 duration_ms=duration_ms,
             )
@@ -18611,6 +21184,16 @@ class BOT_FastAPI:
                 response.headers["Cache-Control"] = "no-store"
             return response
 
+        def _client_ip(request: Request) -> str:
+            fallback = request.client.host if request.client else "unknown"
+            if Config.TRUST_PROXY_COUNT <= 0:
+                return fallback
+            forwarded = request.headers.get("x-forwarded-for", "")
+            parts = [part.strip() for part in forwarded.split(",") if part.strip()]
+            if len(parts) <= Config.TRUST_PROXY_COUNT:
+                return fallback
+            return parts[len(parts) - Config.TRUST_PROXY_COUNT - 1] or fallback
+
         _api_request_times: dict[str, list[float]] = {}
         _API_RATE_LIMIT: int = Config.API_RATE_LIMIT
         _API_RATE_WINDOW: int = Config.API_RATE_WINDOW
@@ -18620,12 +21203,22 @@ class BOT_FastAPI:
         _health_request_times: dict[str, float] = {}
         _HEALTH_RATE_LIMIT_SEC: float = 1.0
         _HEALTH_RATE_LIMIT_MAX_ENTRIES: int = 10000
+        _RATE_LIMIT_MAX_KEYS: int = 10000
+
+        def _prune_rate_times(store: dict[str, list[float]], window: float, now: float) -> None:
+            if len(store) <= _RATE_LIMIT_MAX_KEYS:
+                return
+            cutoff = now - window
+            for ip, times in list(store.items()):
+                if not times or max(times) < cutoff:
+                    store.pop(ip, None)
+            if len(store) > _RATE_LIMIT_MAX_KEYS:
+                store.clear()
 
         _SENSITIVE_PATHS = (
             "/api/v1/subscription/create",
             "/api/v1/subscription/renew",
             "/api/v1/subscription/trial",
-            "/api/v1/payments/verify",
             "/api/v1/auth/telegram/start",
             "/api/v1/auth/telegram/link",
         )
@@ -18638,8 +21231,9 @@ class BOT_FastAPI:
             if not any(path.startswith(p) for p in _SENSITIVE_PATHS):
                 return await call_next(request)
 
-            client_ip = request.client.host if request.client else "unknown"
+            client_ip = _client_ip(request)
             now = time.time()
+            _prune_rate_times(_sensitive_request_times, _SENSITIVE_RATE_WINDOW, now)
 
             if client_ip not in _sensitive_request_times:
                 _sensitive_request_times[client_ip] = []
@@ -18666,7 +21260,7 @@ class BOT_FastAPI:
             request: Request, call_next: Callable
         ) -> JSONResponse:
             if request.url.path in ("/api/v1/health", "/api/v1/admin/health"):
-                client_ip = request.client.host if request.client else "unknown"
+                client_ip = _client_ip(request)
                 now = time.time()
                 last = _health_request_times.get(client_ip, 0)
                 if now - last < _HEALTH_RATE_LIMIT_SEC:
@@ -18687,7 +21281,7 @@ class BOT_FastAPI:
             return await call_next(request)
 
         @self.app.middleware("http")
-        async def rate_limit_middleware(request: Request, call_next: Callable) -> JSONResponse:
+        async def api_rate_limit_middleware(request: Request, call_next: Callable) -> JSONResponse:
             if request.url.path in (
                 "/docs",
                 "/redoc",
@@ -18697,8 +21291,9 @@ class BOT_FastAPI:
             ):
                 return await call_next(request)
 
-            client_ip = request.client.host if request.client else "unknown"
+            client_ip = _client_ip(request)
             now = time.time()
+            _prune_rate_times(_api_request_times, _API_RATE_WINDOW, now)
 
             recent = [
                 t for t in _api_request_times.get(client_ip, []) if now - t < _API_RATE_WINDOW
@@ -18719,7 +21314,7 @@ class BOT_FastAPI:
             return await call_next(request)
 
         @self.app.middleware("http")
-        async def tech_work_middleware(request: Request, call_next: Callable) -> JSONResponse:
+        async def api_tech_work_middleware(request: Request, call_next: Callable) -> JSONResponse:
             if not tech_work_service.is_enabled():
                 return await call_next(request)
 
@@ -18779,7 +21374,9 @@ class BOT_FastAPI:
                 return "public"
             user = await db.get_user_by_session_token(token)
             if user:
-                if await is_admin_user(to_int(user.get("telegram_id"), 0)):
+                if await is_admin_user(to_int(user.get("telegram_id"), 0)) or await is_admin_user(
+                    to_int(user.get("user_id"), 0)
+                ):
                     return "admin"
                 return str(user["user_id"])
             return None
@@ -18885,7 +21482,7 @@ class BOT_FastAPI:
                         str(get_location_by_code(s).get("label") or s) for s in servers
                     ]
                     result.append(item)
-                return JSONResponse(content={"tariffs": result})
+                return JSONResponse(content={"tariffs": result, "tariff_mode": Config.TARIFF_MODE})
             except Exception as e:  # noqa: BLE001
                 logger.error(f"api_get_tariffs: {e}")
                 return JSONResponse(
@@ -18910,7 +21507,7 @@ class BOT_FastAPI:
                             )
                         },
                     )
-                client_ip = request.client.host if request.client else "unknown"
+                client_ip = _client_ip(request)
                 lockout = _check_auth_lockout(web_login, client_ip)
                 if lockout is not None and lockout > 0:
                     return JSONResponse(
@@ -18951,7 +21548,7 @@ class BOT_FastAPI:
                         },
                     )
                 password_hash = hash_password(req.password)
-                user = await db.create_web_account(web_login, password_hash, req.tg_id)
+                user = await db.create_web_account(web_login, password_hash, None)
                 if not user:
                     return JSONResponse(
                         status_code=500,
@@ -18964,11 +21561,18 @@ class BOT_FastAPI:
                     )
                 await db.ensure_ref_code_by_user_id(user["user_id"])
                 if req.ref_code:
-                    ref_user = await db.get_user_by_ref_code(req.ref_code)
+                    ref_user = await db.get_user_by_coowner_code(req.ref_code)
+                    is_co_owner_link = ref_user is not None
+                    if not ref_user:
+                        ref_user = await db.get_user_by_ref_code(req.ref_code)
                     if ref_user and ref_user.get("user_id") != user["user_id"]:
-                        await db.set_ref_by(user["user_id"], ref_user.get("user_id"))
+                        referrer_uid = to_int(ref_user.get("user_id"), 0)
+                        if is_co_owner_link:
+                            await db.set_co_owner_ref_by(user["user_id"], referrer_uid)
+                        else:
+                            await db.set_ref_by(user["user_id"], referrer_uid)
                         logger.info(
-                            f"Пользователь {user['user_id']} приглашен рефералом {ref_user.get('user_id')} через веб-регистрацию"
+                            f"Пользователь {user['user_id']} приглашён UID {referrer_uid} через веб-регистрацию"
                         )
                 _clear_auth_failures(web_login, client_ip)
                 token = secrets.token_urlsafe(32)
@@ -19007,7 +21611,7 @@ class BOT_FastAPI:
             logger.info(f"API auth_login: web_login={req.web_login}")
             try:
                 web_login = req.web_login.strip()
-                client_ip = request.client.host if request.client else "unknown"
+                client_ip = _client_ip(request)
                 lockout = _check_auth_lockout(web_login, client_ip)
                 if lockout is not None and lockout > 0:
                     return JSONResponse(
@@ -19091,7 +21695,7 @@ class BOT_FastAPI:
             if await is_admin_user(to_int(user.get("telegram_id"), 0)):
                 try:
                     await _ensure_admin_subscription(user["user_id"])
-                    user = await db.get_user_by_any_id(user["user_id"]) or user
+                    user = await db.find_user_by_any_id(user["user_id"]) or user
                 except Exception as e:  # noqa: BLE001
                     logger.error(f"api_auth_me: _ensure_admin_subscription error: {e}")
             try:
@@ -19137,7 +21741,12 @@ class BOT_FastAPI:
                     },
                 )
             new_hash = hash_password(req.new_password)
-            await db.update_web_auth(user["user_id"], password_hash=new_hash)
+            updated = await db.update_web_auth(user["user_id"], password_hash=new_hash)
+            if not updated:
+                return JSONResponse(
+                    status_code=500,
+                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.update_failed")},
+                )
             await _notify_account_change(user["user_id"], "texts.password_changed_notification")
             return JSONResponse(
                 content={
@@ -19153,6 +21762,22 @@ class BOT_FastAPI:
             user, error = await _require_auth_user(credentials)
             if error:
                 return error
+            auth_state = await get_bot_auth_state(req.state)
+            if (
+                not auth_state
+                or auth_state.get("state_type") != "link"
+                or auth_state.get("session_token") != hash_session_token(credentials.credentials)
+            ):
+                return JSONResponse(
+                    status_code=403,
+                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.state_error")},
+                )
+            verified_tg_id = await consume_telegram_verification(req.state)
+            if verified_tg_id is None or verified_tg_id != req.tg_id:
+                return JSONResponse(
+                    status_code=403,
+                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.state_error")},
+                )
             if user.get("telegram_id", 0) and user["telegram_id"] != req.tg_id:
                 return JSONResponse(
                     status_code=403,
@@ -19172,9 +21797,6 @@ class BOT_FastAPI:
                         )
                     }
                 )
-            user, error = await _require_auth_user(credentials)
-            if error:
-                return error
             await db.reconcile_telegram_account(req.tg_id)
             if req.password and not verify_password(req.password, user.get("password_hash", "")):
                 return JSONResponse(
@@ -19186,28 +21808,12 @@ class BOT_FastAPI:
             existing = await db.get_user_by_any_id(req.tg_id)
             if existing and to_int(existing.get("user_id"), 0) != to_int(user.get("user_id"), 0):
                 if existing.get("web_id") and existing["web_id"] != user["web_id"]:
-                    await db.merge_accounts(user["user_id"], existing["user_id"])
-                    merged_user = await db.get_user_by_any_id(user["user_id"])
-                    if merged_user:
-                        user = merged_user
-                    await db.update_web_auth(user["user_id"], telegram_id=req.tg_id)
-                elif to_int(existing.get("telegram_id"), 0) == req.tg_id:
-                    await db.update_web_auth(
-                        existing["user_id"],
-                        web_id=user.get("web_id"),
-                        web_login=user.get("web_login"),
-                        password_hash=user.get("password_hash"),
-                        web_auth_method=user.get("web_auth_method"),
-                        session_token=user.get("session_token"),
-                        session_expires_at=user.get("session_expires_at"),
-                        session_created_at=user.get("session_created_at"),
-                        web_last_login=user.get("web_last_login"),
-                        web_registered_at=user.get("web_registered_at"),
-                    )
-                    await db.delete_user(user["user_id"])
-                    user = existing
+                    kept_id = await db.merge_accounts(user["user_id"], existing["user_id"])
                 else:
-                    await db.update_web_auth(user["user_id"], telegram_id=req.tg_id)
+                    kept_id = await db.merge_accounts(existing["user_id"], user["user_id"])
+                if kept_id:
+                    user = await db.get_user_by_id(kept_id) or user
+                await db.update_web_auth(user["user_id"], telegram_id=req.tg_id)
             elif to_int(user.get("telegram_id"), 0) != req.tg_id:
                 await db.update_web_auth(user["user_id"], telegram_id=req.tg_id)
             await db.cleanup_telegram_phantoms(req.tg_id, user["user_id"])
@@ -19220,7 +21826,7 @@ class BOT_FastAPI:
             try:
                 state = secrets.token_urlsafe(32)
                 success = await create_bot_auth_state(state, "web_login", ttl=300)
-                if not success or not BOT_USERNAME:
+                if not success or not Config.BOT_USERNAME:
                     return JSONResponse(
                         status_code=500,
                         content={
@@ -19230,7 +21836,7 @@ class BOT_FastAPI:
                             )
                         },
                     )
-                url = f"https://t.me/{BOT_USERNAME}?start=web_login_{state}"
+                url = f"https://t.me/{Config.BOT_USERNAME}?start=web_login_{state}"
                 return JSONResponse(content={"url": url, "state": state})
             except Exception as e:  # noqa: BLE001
                 logger.error(f"api_auth_telegram_start: {e}")
@@ -19258,7 +21864,7 @@ class BOT_FastAPI:
                 success = await create_bot_auth_state(
                     state, "link", ttl=300, session_token=credentials.credentials
                 )
-                if not success or not BOT_USERNAME:
+                if not success or not Config.BOT_USERNAME:
                     return JSONResponse(
                         status_code=500,
                         content={
@@ -19268,7 +21874,7 @@ class BOT_FastAPI:
                             )
                         },
                     )
-                url = f"https://t.me/{BOT_USERNAME}?start=web_link_{state}"
+                url = f"https://t.me/{Config.BOT_USERNAME}?start=web_link_{state}"
                 return JSONResponse(content={"url": url, "state": state})
             except Exception as e:  # noqa: BLE001
                 logger.error(f"api_auth_telegram_link_start: {e}")
@@ -19347,12 +21953,11 @@ class BOT_FastAPI:
         @self.app.post("/api/v1/admin/users/{user_id}/clear-abuse")
         async def api_clear_abuse(
             user_id: int,
-            req: AbuseClearRequest,
             admin: str = Depends(_require_admin),
         ) -> JSONResponse:
             logger.info(f"API admin clear_abuse: user_id={user_id}")
             try:
-                target_user = await db.get_user_by_any_id(user_id)
+                target_user = await db.find_user_by_any_id(user_id)
                 if not target_user:
                     return JSONResponse(
                         status_code=404,
@@ -19372,7 +21977,12 @@ class BOT_FastAPI:
                         },
                     )
                 internal_uid = target_user.get("user_id", user_id)
-                await db.update_user(internal_uid, force=True, abuse_status="")
+                await db.update_user(
+                    internal_uid,
+                    force=True,
+                    abuse_status="",
+                    low_traffic_alert_sent=0,
+                )
                 if target_user:
                     await safe_send_message(
                         bot,
@@ -19413,7 +22023,7 @@ class BOT_FastAPI:
                 )
             token = credentials.credentials
             session_user = await db.get_user_by_session_token(token)
-            if not session_user and not _is_admin_token(token):
+            if not session_user:
                 return JSONResponse(
                     status_code=401,
                     content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.invalid_session")},
@@ -19538,10 +22148,6 @@ class BOT_FastAPI:
                     "status": "pending",
                     "payment_method": method,
                 }
-                if user_id == 0:
-                    logger.warning(
-                        "api_create_checkout: pending payment created without authenticated user (user_id=0)"
-                    )
                 if custom_plan_data:
                     payment_data["custom_plan"] = custom_plan_data
                 added = await json_db.add_pending_for_user(user_id, payment_data)
@@ -19610,7 +22216,7 @@ class BOT_FastAPI:
             if await is_admin_user(to_int(user.get("telegram_id"), 0)):
                 try:
                     await _ensure_admin_subscription(user["user_id"])
-                    user = await db.get_user_by_any_id(user["user_id"]) or user
+                    user = await db.find_user_by_any_id(user["user_id"]) or user
                 except Exception as e:  # noqa: BLE001
                     logger.error(f"api_get_profile: _ensure_admin_subscription error: {e}")
             try:
@@ -19692,15 +22298,18 @@ class BOT_FastAPI:
                         "error": translate(Config.DEFAULT_LANGUAGE, "texts.admins_cannot_purchase")
                     },
                 )
-            if not telegram_id:
-                return JSONResponse(
-                    status_code=403,
-                    content={
-                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.link_telegram_for_trial")
-                    },
-                )
             try:
                 state = await ensure_subscription_state(user_id, notify_user_about_cleanup=True)
+                if is_traffic_suspended_state(state):
+                    return JSONResponse(
+                        status_code=409,
+                        content={
+                            "error": translate(
+                                Config.DEFAULT_LANGUAGE, "texts.traffic_suspended_guard"
+                            ),
+                            "state": state,
+                        },
+                    )
                 if state.get("status") == "active" and not is_expiring_soon(
                     state, Config.EXPIRY_ALERT_DAYS
                 ):
@@ -19755,7 +22364,7 @@ class BOT_FastAPI:
                         content={
                             "error": translate(
                                 Config.DEFAULT_LANGUAGE,
-                                "texts.link_telegram_for_trial",
+                                "texts.invalid_user_identifier",
                             )
                         },
                     )
@@ -19821,20 +22430,32 @@ class BOT_FastAPI:
                     content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.invalid_session")},
                 )
             _user_id = session_user["user_id"]
-            telegram_id = to_int(session_user.get("telegram_id"), 0)
-            if not telegram_id:
-                return JSONResponse(
-                    status_code=403,
-                    content={
-                        "error": translate(
-                            Config.DEFAULT_LANGUAGE,
-                            "texts.link_telegram_for_renewal",
-                        )
-                    },
-                )
             try:
+                renew_state = await ensure_subscription_state(
+                    _user_id, notify_user_about_cleanup=True
+                )
+                if is_traffic_suspended_state(renew_state):
+                    return JSONResponse(
+                        status_code=409,
+                        content={
+                            "error": translate(
+                                Config.DEFAULT_LANGUAGE, "texts.traffic_suspended_guard"
+                            ),
+                            "state": renew_state,
+                        },
+                    )
                 plan = get_by_id(req.plan_id)
-                if not plan or not plan.get("active", True):
+                if not plan:
+                    return JSONResponse(
+                        status_code=400,
+                        content={
+                            "error": translate(
+                                Config.DEFAULT_LANGUAGE,
+                                "texts.renew_plan_not_supported",
+                            )
+                        },
+                    )
+                if not plan.get("active", True):
                     return JSONResponse(
                         status_code=404,
                         content={
@@ -19947,6 +22568,7 @@ class BOT_FastAPI:
                         "error": translate(Config.DEFAULT_LANGUAGE, "texts.link_telegram_for_trial")
                     },
                 )
+            trial_claimed = False
             try:
                 if await is_active_subscription(user_id, notify_user_about_cleanup=True):
                     return JSONResponse(
@@ -19958,7 +22580,7 @@ class BOT_FastAPI:
                             )
                         },
                     )
-                plan = get_by_id("trial")
+                plan = get_trial_plan()
                 if not plan or not is_trial_plan(plan):
                     return JSONResponse(
                         status_code=404,
@@ -19968,7 +22590,7 @@ class BOT_FastAPI:
                             )
                         },
                     )
-                user = await db.get_user_by_any_id(telegram_id)
+                user = await db.get_user_by_id(user_id)
                 if user and (user.get("trial_used") or user.get("has_subscription")):
                     return JSONResponse(
                         status_code=409,
@@ -19979,14 +22601,24 @@ class BOT_FastAPI:
                             )
                         },
                     )
+                if not await db.claim_trial(user_id):
+                    return JSONResponse(
+                        status_code=409,
+                        content={
+                            "error": translate(
+                                Config.DEFAULT_LANGUAGE,
+                                "texts.trial_already_used_or_has_subscription",
+                            )
+                        },
+                    )
+                trial_claimed = True
                 vpn_url = await create_subscription(
-                    telegram_id,
+                    user_id,
                     plan,
                     plan_suffix=translate(Config.DEFAULT_LANGUAGE, "texts.trial_plan_suffix"),
                     earn_trust=False,
                 )
                 if vpn_url:
-                    await db.mark_trial_used(telegram_id)
                     return JSONResponse(
                         content={
                             "message": "Trial subscription created",
@@ -19995,6 +22627,8 @@ class BOT_FastAPI:
                         },
                         status_code=201,
                     )
+                await db.release_trial_claim(user_id)
+                trial_claimed = False
                 return JSONResponse(
                     status_code=500,
                     content={
@@ -20005,6 +22639,8 @@ class BOT_FastAPI:
                     },
                 )
             except Exception as e:  # noqa: BLE001
+                if trial_claimed:
+                    await db.release_trial_claim(user_id)
                 logger.error(f"api_trial_subscription: {e}")
                 return JSONResponse(
                     status_code=500,
@@ -20192,13 +22828,23 @@ class BOT_FastAPI:
                     status_code=401,
                     content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.unauthorized")},
                 )
-            session_user = await db.get_user_by_session_token(credentials.credentials)
-            if not session_user:
+            if not _is_admin_token(credentials.credentials):
                 return JSONResponse(
-                    status_code=401,
-                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.invalid_session")},
+                    status_code=403,
+                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.admin_required")},
                 )
-            user_id = session_user["user_id"]
+            target_uid = to_int(req.get("user_id", 0), 0)
+            if target_uid <= 0:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.user_id_required")},
+                )
+            target_user = await db.resolve_internal_uid(target_uid)
+            if target_user <= 0:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.user_not_found")},
+                )
             try:
                 extra_gb = to_int(req.get("gb", 0), 0)
                 if extra_gb <= 0:
@@ -20208,7 +22854,7 @@ class BOT_FastAPI:
                             "error": translate(Config.DEFAULT_LANGUAGE, "texts.gb_must_be_positive")
                         },
                     )
-                await db.add_extra_traffic(user_id, extra_gb)
+                await db.add_extra_traffic(target_user, extra_gb)
                 return JSONResponse(
                     content={
                         "message": translate(
@@ -20388,6 +23034,17 @@ class BOT_FastAPI:
                     content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.invalid_session")},
                 )
             tg_id = to_int(session_user.get("telegram_id"), 0)
+            internal_uid = to_int(session_user.get("user_id"), 0)
+            if tg_id <= 0:
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "error": translate(
+                            Config.DEFAULT_LANGUAGE,
+                            "texts.partner_requires_telegram",
+                        )
+                    },
+                )
             if await is_admin_user(tg_id):
                 return JSONResponse(
                     status_code=403,
@@ -20455,7 +23112,7 @@ class BOT_FastAPI:
                         },
                     )
                 app_id = await db.add_partner_application(
-                    tg_id,
+                    internal_uid,
                     followers,
                     social_links,
                     nickname,
@@ -20465,7 +23122,7 @@ class BOT_FastAPI:
                 )
                 if app_id:
                     operation_id = await add_partner_operation(
-                        tg_id,
+                        internal_uid,
                         "partner_new",
                         {
                             "followers": followers,
@@ -20480,6 +23137,7 @@ class BOT_FastAPI:
                         },
                     )
                     if not operation_id:
+                        await db.update_user(internal_uid, mate_status="", force=True)
                         logger.warning(
                             f"api_partner_apply: заявка {app_id} без операции (user {tg_id})"
                         )
@@ -20666,7 +23324,7 @@ class BOT_FastAPI:
                     status_code=401,
                     content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.invalid_session")},
                 )
-            tg_id = to_int(session_user.get("telegram_id"), 0)
+            internal_uid = to_int(session_user.get("user_id"), 0)
             try:
                 if not bool(session_user.get("is_mate")):
                     return JSONResponse(
@@ -20707,8 +23365,9 @@ class BOT_FastAPI:
                             "error": translate(Config.DEFAULT_LANGUAGE, "texts.bank_required")
                         },
                     )
-                balance = to_float(session_user.get("mate_balance"), 0.0)
-                if amount > balance:
+                fresh_user = await db.get_user_by_id(internal_uid)
+                balance = to_float(fresh_user.get("mate_balance"), 0.0) if fresh_user else 0.0
+                if not await db.debit_partner_balance(internal_uid, amount):
                     return JSONResponse(
                         status_code=400,
                         content={
@@ -20720,19 +23379,21 @@ class BOT_FastAPI:
                         },
                     )
                 withdrawal_id = await db.add_partner_withdrawal_request(
-                    tg_id, amount, fio=fio, phone=phone, bank=bank
+                    internal_uid, amount, fio=fio, phone=phone, bank=bank
                 )
-                operation_id = await add_partner_operation(
-                    tg_id,
-                    "partner_withdrawal",
-                    {
-                        "amount": amount,
-                        "phone": phone,
-                        "fio": fio,
-                        "bank": bank,
-                    },
-                )
-                if operation_id:
+                operation_id = None
+                if withdrawal_id:
+                    operation_id = await add_partner_operation(
+                        internal_uid,
+                        "partner_withdrawal",
+                        {
+                            "amount": amount,
+                            "phone": phone,
+                            "fio": fio,
+                            "bank": bank,
+                        },
+                    )
+                if withdrawal_id and operation_id:
                     return JSONResponse(
                         content={
                             "message": translate(
@@ -20743,6 +23404,9 @@ class BOT_FastAPI:
                         },
                         status_code=201,
                     )
+                if withdrawal_id:
+                    await db.remove_partner_withdrawal_request(internal_uid, withdrawal_id)
+                await db.restore_partner_balance(internal_uid, amount)
                 return JSONResponse(
                     status_code=500,
                     content={
@@ -20762,6 +23426,9 @@ class BOT_FastAPI:
 
         @self.app.websocket("/ws/notifications/{user_id}")
         async def ws_notifications(websocket: WebSocket, user_id: str) -> None:
+            if tech_work_service.is_enabled():
+                await websocket.close(code=1013)
+                return
             token = websocket.query_params.get("token", "").strip()
             auth_header = websocket.headers.get("authorization", "")
             if auth_header.startswith(BEARER_PREFIX):
@@ -20774,7 +23441,10 @@ class BOT_FastAPI:
 
             internal_uid = to_int(session_user.get("user_id"), 0)
             telegram_uid = to_int(session_user.get("telegram_id"), 0)
-            if not internal_uid or user_id not in {str(internal_uid), str(telegram_uid)}:
+            if not internal_uid or user_id not in {
+                str(internal_uid),
+                str(telegram_uid),
+            }:
                 logger.warning("WS notifications: попытка подключения к чужому user_id")
                 await websocket.close(code=4003)
                 return
@@ -21051,8 +23721,10 @@ class BOT_FastAPI:
             return session_user, None
 
         @self.app.get("/api/v1/partner/channels")
-        async def api_partner_channels() -> JSONResponse:
-            session_user, error = await _require_partner_user()
+        async def api_partner_channels(
+            credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
+        ) -> JSONResponse:
+            session_user, error = await _require_partner_user(credentials)
             if error:
                 return error
             user_id = to_int(session_user.get("user_id"), 0)
@@ -21076,8 +23748,9 @@ class BOT_FastAPI:
         @self.app.post("/api/v1/partner/channels")
         async def api_add_partner_channel(
             req: dict[str, Any],
+            credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
         ) -> JSONResponse:
-            session_user, error = await _require_partner_user()
+            session_user, error = await _require_partner_user(credentials)
             if error:
                 return error
             user_id = to_int(session_user.get("user_id"), 0)
@@ -21127,8 +23800,9 @@ class BOT_FastAPI:
         @self.app.delete("/api/v1/partner/channels/{channel_id}")
         async def api_remove_partner_channel(
             channel_id: int,
+            credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
         ) -> JSONResponse:
-            session_user, error = await _require_partner_user()
+            session_user, error = await _require_partner_user(credentials)
             if error:
                 return error
             user_id = to_int(session_user.get("user_id"), 0)
@@ -21159,7 +23833,7 @@ class BOT_FastAPI:
                             "error": translate(Config.DEFAULT_LANGUAGE, "texts.channel_not_found")
                         },
                     )
-                success = await db.remove_partner_channel(channel_id)
+                success = await db.remove_partner_channel(channel_id, user_id)
                 if not success:
                     return JSONResponse(
                         status_code=500,
@@ -21189,31 +23863,55 @@ class BOT_FastAPI:
                 )
 
         @self.app.post("/api/v1/partner/channels/verify")
-        async def api_verify_partner_channels() -> JSONResponse:
-            _session_user, error = await _require_partner_user()
+        async def api_verify_partner_channels(
+            credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
+        ) -> JSONResponse:
+            session_user, error = await _require_partner_user(credentials)
             if error:
                 return error
+            if not bool(session_user.get("is_mate")):
+                return JSONResponse(
+                    status_code=403,
+                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.not_a_partner")},
+                )
+            if not bot:
+                return JSONResponse(
+                    status_code=503,
+                    content={
+                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.panel_unavailable")
+                    },
+                )
             try:
                 channels = await db.get_all_active_partner_channels()
-                verified = 0
                 total = len(channels)
-                for ch in channels:
+                user_id = to_int(session_user.get("user_id"), 0)
+                owned = [ch for ch in channels if to_int(ch.get("owner_user_id"), 0) == user_id]
+                verified = 0
+                for ch in owned:
                     ch_id = to_int(ch.get("channel_id"), 0)
-                    await db.update_partner_channel_status(
-                        ch_id,
-                        is_owner_verified=1,
-                        has_posting_rights=1,
-                        is_active=1,
-                        last_status="verified",
-                        last_error="",
-                    )
-                    verified += 1
-                return JSONResponse(
-                    content={
-                        "count": verified,
-                        "total": total,
-                    }
-                )
+                    if not ch_id:
+                        continue
+                    rights = await verify_channel_rights(bot, ch_id)
+                    if rights["ok"]:
+                        await db.update_partner_channel_status(
+                            ch_id,
+                            is_owner_verified=1,
+                            has_posting_rights=1,
+                            is_active=1,
+                            last_status="verified",
+                            last_error="",
+                        )
+                        verified += 1
+                    else:
+                        await db.update_partner_channel_status(
+                            ch_id,
+                            is_owner_verified=0,
+                            has_posting_rights=0,
+                            is_active=0,
+                            last_status="error",
+                            last_error=str(rights.get("error", ""))[:500],
+                        )
+                return JSONResponse(content={"count": verified, "total": total})
             except Exception as e:  # noqa: BLE001
                 logger.error(f"api_verify_partner_channels: {e}")
                 return JSONResponse(
@@ -21263,8 +23961,12 @@ class BOT_FastAPI:
                 failed = 0
                 for ch in channels:
                     ch_id = to_int(ch.get("channel_id"), 0)
+                    if not ch_id:
+                        failed += 1
+                        continue
                     try:
-                        await bot.send_message(ch_id, text)
+                        for part in split_long_text(text):
+                            await bot.send_message(ch_id, part)
                         sent += 1
                     except Exception as e:  # noqa: BLE001
                         logger.error(f"Autopost to channel {ch_id}: {e}")
@@ -21278,6 +23980,182 @@ class BOT_FastAPI:
                 )
             except Exception as e:  # noqa: BLE001
                 logger.error(f"api_partner_autopost: {e}")
+                return JSONResponse(
+                    status_code=500,
+                    content={
+                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
+                    },
+                )
+
+        async def _require_co_owner_user(
+            credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
+        ):
+            if not credentials:
+                return None, JSONResponse(
+                    status_code=401,
+                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.unauthorized")},
+                )
+            session_user = await db.get_user_by_session_token(credentials.credentials)
+            if not session_user:
+                return None, JSONResponse(
+                    status_code=401,
+                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.invalid_session")},
+                )
+            if not bool(session_user.get("is_coowner")):
+                return None, JSONResponse(
+                    status_code=403,
+                    content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.not_a_co_owner")},
+                )
+            return session_user, None
+
+        @self.app.get("/api/v1/co-owners/profile", response_model=CoOwnerProfileResponse)
+        async def api_co_owner_profile(
+            credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
+        ) -> JSONResponse:
+            owner, error = await _require_co_owner_user(credentials)
+            if error:
+                return error
+            code = str(owner.get("coowner_code") or "")
+            return JSONResponse(
+                content={
+                    "uid": to_int(owner.get("user_id"), 0),
+                    "nickname": co_owner_nickname(owner),
+                    "telegram_id": to_int(owner.get("telegram_id"), 0),
+                    "ref_code": code,
+                    "telegram_link": get_ref_link(code),
+                    "web_link": get_co_owner_web_link(code),
+                    "subscription_id": str(owner.get("subscription_id") or ""),
+                    "vpn_url": str(owner.get("vpn_url") or ""),
+                    "expiry": str(owner.get("expiry_sub_datatime") or ""),
+                    "commission_percent": Config.CO_OWNERS_COMMISSION_PERCENT,
+                }
+            )
+
+        @self.app.get("/api/v1/co-owners/stats", response_model=CoOwnerStatsResponse)
+        async def api_co_owner_stats(
+            credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
+        ) -> JSONResponse:
+            owner, error = await _require_co_owner_user(credentials)
+            if error:
+                return error
+            return JSONResponse(content=await build_co_owner_stats(owner))
+
+        @self.app.get("/api/v1/co-owners/users", response_model=CoOwnerUsersResponse)
+        async def api_co_owner_users(
+            credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
+            search: str | None = Query(None, max_length=64),
+        ) -> JSONResponse:
+            owner, error = await _require_co_owner_user(credentials)
+            if error:
+                return error
+            tree = await collect_co_owner_tree(to_int(owner.get("user_id"), 0))
+            if search and search.strip():
+                q = search.strip()
+                query_int = None
+                with suppress(ValueError, TypeError):
+                    query_int = int(q)
+                if query_int is None:
+                    tree = []
+                else:
+                    tree = [
+                        (user, depth)
+                        for user, depth in tree
+                        if to_int(user.get("user_id"), 0) == query_int
+                        or to_int(user.get("telegram_id"), 0) == query_int
+                    ]
+            items = []
+            for user, _depth in tree:
+                items.append(
+                    {
+                        "user_id": to_int(user.get("user_id"), 0),
+                        "telegram_id": to_int(user.get("telegram_id"), 0),
+                        "join_date": str(user.get("join_date") or ""),
+                        "username": str(user.get("username") or ""),
+                        "has_subscription": bool(user.get("has_subscription")),
+                        "subscription_id": str(user.get("subscription_id") or ""),
+                        "vpn_url": str(user.get("vpn_url") or ""),
+                        "expiry_sub_datatime": str(user.get("expiry_sub_datatime") or ""),
+                        "ref_by": to_int(user.get("ref_by"), 0),
+                    }
+                )
+            return JSONResponse(content={"users": items, "total": len(items)})
+
+        @self.app.get("/api/v1/co-owners/payments", response_model=CoOwnerPaymentsResponse)
+        async def api_co_owner_payments(
+            credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
+        ) -> JSONResponse:
+            owner, error = await _require_co_owner_user(credentials)
+            if error:
+                return error
+            tree = await collect_co_owner_tree(to_int(owner.get("user_id"), 0))
+            ids = {to_int(user.get("user_id"), 0) for user, _ in tree}
+            records = await co_owner_payments(ids)
+            percent = Config.CO_OWNERS_COMMISSION_PERCENT
+            items = []
+            for record in records:
+                amount = to_float(record.get("amount"), 0.0)
+                items.append(
+                    {
+                        "payment_id": str(record.get("payment_id") or ""),
+                        "uid": to_int(record.get("user_id"), 0),
+                        "amount": amount,
+                        "status": str(record.get("status") or ""),
+                        "method": str(record.get("payment_method") or ""),
+                        "timestamp": str(record.get("timestamp") or ""),
+                        "commission": round(amount * percent / 100, 2),
+                    }
+                )
+            total = round(sum(item["amount"] for item in items), 2)
+            return JSONResponse(
+                content={
+                    "payments": items,
+                    "total": total,
+                    "commission": round(sum(item["commission"] for item in items), 2),
+                }
+            )
+
+        @self.app.post("/api/v1/co-owners/link/rotate", response_model=CoOwnerLinkResponse)
+        async def api_co_owner_rotate_link(
+            credentials: HTTPAuthorizationCredentials | None = Depends(security),  # noqa: B008
+        ) -> JSONResponse:
+            owner, error = await _require_co_owner_user(credentials)
+            if error:
+                return error
+            uid = to_int(owner.get("user_id"), 0)
+            nickname = co_owner_nickname(owner)
+            code = await db.rotate_coowner_code(uid, nickname)
+            if not code:
+                return JSONResponse(
+                    status_code=500,
+                    content={
+                        "error": translate(Config.DEFAULT_LANGUAGE, "texts.internal_server_error")
+                    },
+                )
+            return JSONResponse(
+                content={
+                    "ref_code": code,
+                    "telegram_link": get_ref_link(code),
+                    "web_link": get_co_owner_web_link(code),
+                }
+            )
+
+        @self.app.post("/api/v1/admin/co-owners/reload")
+        async def api_admin_reload_co_owners(
+            admin: str = Depends(_require_admin),
+        ) -> JSONResponse:
+            try:
+                await reconcile_co_owners()
+                owners = Config.co_owners_map()
+                current = await db.get_co_owners()
+                return JSONResponse(
+                    content={
+                        "configured": len(owners),
+                        "active": len(current),
+                        "commission_percent": Config.CO_OWNERS_COMMISSION_PERCENT,
+                    }
+                )
+            except Exception as e:  # noqa: BLE001
+                logger.error(f"api_admin_reload_co_owners: {e}")
                 return JSONResponse(
                     status_code=500,
                     content={
@@ -21416,23 +24294,22 @@ class BOT_FastAPI:
         @self.app.get("/api/v1/users")
         async def api_admin_users(
             admin: str = Depends(_require_admin),
-            page: int = 1,
-            limit: int = 50,
+            page: int = Query(1, ge=1, le=10000),
+            limit: int = Query(50, ge=1, le=200),
             search: str | None = None,
+            co_owner: bool = Query(False),
         ) -> JSONResponse:
             try:
                 if search and search.strip():
-                    all_users = await db.search_users(search.strip())
-                    total = len(all_users)
-                    start = max(0, (page - 1) * limit)
-                    end = start + limit
-                    paginated = all_users[start:end]
+                    all_users = await db.search_users(search.strip(), id_only=True)
                 else:
                     all_users = await db.get_all_users()
-                    total = len(all_users)
-                    start = max(0, (page - 1) * limit)
-                    end = start + limit
-                    paginated = all_users[start:end]
+                if co_owner:
+                    all_users = [u for u in all_users if u.get("is_coowner")]
+                total = len(all_users)
+                start = max(0, (page - 1) * limit)
+                end = start + limit
+                paginated = all_users[start:end]
 
                 users = []
                 for u in paginated:
@@ -21442,6 +24319,13 @@ class BOT_FastAPI:
                             "telegram_id": u.get("telegram_id", 0),
                             "username": u.get("username") or "",
                             "join_date": u.get("join_date") or "",
+                            "plan_text": u.get("plan_text") or "",
+                            "subscription_id": u.get("subscription_id") or "",
+                            "vpn_url": u.get("vpn_url") or "",
+                            "expiry_sub_datatime": u.get("expiry_sub_datatime") or "",
+                            "ref_by": to_int(u.get("ref_by"), 0),
+                            "co_owner_ref_by": to_int(u.get("co_owner_ref_by"), 0),
+                            "is_coowner": 1 if u.get("is_coowner") else 0,
                             "has_subscription": 1 if u.get("has_subscription") else 0,
                             "is_mate": 1 if u.get("is_mate") else 0,
                             "language": u.get("language") or "ru",
@@ -21561,6 +24445,7 @@ class BOT_FastAPI:
                             "port": node.get("port"),
                             "scheme": node.get("scheme"),
                             "base_path": node.get("base_path") or node.get("basePath"),
+                            "panel_base": node.get("panel_base") or node.get("panelBase"),
                         }
                     )
 
@@ -21587,7 +24472,7 @@ class BOT_FastAPI:
             admin: str = Depends(_require_admin),
         ) -> JSONResponse:
             try:
-                target_user = await db.get_user_by_any_id(user_id)
+                target_user = await db.find_user_by_any_id(user_id)
                 if not target_user:
                     return JSONResponse(
                         status_code=404,
@@ -21639,7 +24524,7 @@ class BOT_FastAPI:
             admin: str = Depends(_require_admin),
         ) -> JSONResponse:
             try:
-                target_user = await db.get_user_by_any_id(user_id)
+                target_user = await db.find_user_by_any_id(user_id)
                 if not target_user:
                     return JSONResponse(
                         status_code=404,
@@ -21661,7 +24546,8 @@ class BOT_FastAPI:
                 delta = int(req.get("delta", 0))
                 current_ip = to_int(target_user.get("ip_limit"), 1)
                 new_ip = max(1, current_ip + delta)
-                success = await db.update_user(user_id, ip_limit=new_ip, force=True)
+                internal_uid = to_int(target_user.get("user_id"), 0)
+                success = await db.update_user(internal_uid, ip_limit=new_ip, force=True)
                 if not success:
                     return JSONResponse(
                         status_code=500,
@@ -21695,10 +24581,16 @@ class BOT_FastAPI:
         @self.app.exception_handler(HTTPException)
         async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
             logger.warning(f"HTTP exception: {exc.status_code} - {exc.detail}")
-            return JSONResponse(
-                status_code=exc.status_code,
-                content={"error": translate(Config.DEFAULT_LANGUAGE, "texts.bad_request")},
-            )
+            detail = exc.detail
+            if isinstance(detail, str):
+                message = detail
+            elif isinstance(detail, dict):
+                message = str(detail.get("error") or detail.get("message") or "")
+            else:
+                message = ""
+            if not message:
+                message = translate(Config.DEFAULT_LANGUAGE, "texts.bad_request")
+            return JSONResponse(status_code=exc.status_code, content={"error": message})
 
         @self.app.exception_handler(Exception)
         async def general_exception_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -21795,7 +24687,7 @@ async def main() -> None:
         try:
             me = await bot.get_me()
             set_bot_username(me.username or "")
-            logger.info(f"Бот авторизован как @{BOT_USERNAME}")
+            logger.info(f"Бот авторизован как @{Config.BOT_USERNAME}")
         except Exception as e:  # noqa: BLE001
             logger.warning(f"Не удалось получить информацию о боте: {e}")
             set_bot_username("")
@@ -21805,6 +24697,12 @@ async def main() -> None:
             logger.info("Админ-аккаунты и подписки проверены при запуске")
         except Exception as e:  # noqa: BLE001
             logger.warning(f"Не удалось проверить админ-аккаунты при запуске: {e}")
+
+        try:
+            await reconcile_co_owners()
+            logger.info("Реестр со-владельцев синхронизирован с CO_OWNERS")
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Не удалось синхронизировать со-владельцев при запуске: {e}")
 
         for admin_id in Config.ADMIN_USER_IDS:
             try:
@@ -21841,6 +24739,7 @@ async def main() -> None:
             background_tasks.append(asyncio.create_task(run_api()))
             logger.info(f"FastAPI сервер запущен на {Config.FASTAPI_HOST}:{Config.FASTAPI_PORT}")
             background_tasks.append(asyncio.create_task(check_expired_subscriptions()))
+            background_tasks.append(asyncio.create_task(check_traffic_reset_and_low_balance()))
             background_tasks.append(asyncio.create_task(check_traffic_abuse()))
             background_tasks.append(asyncio.create_task(cleanup_old_payments()))
             background_tasks.append(asyncio.create_task(check_partner_expiry_notifications()))

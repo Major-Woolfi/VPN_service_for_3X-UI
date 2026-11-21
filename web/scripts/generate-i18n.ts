@@ -1,4 +1,3 @@
-
 import { readdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 
@@ -36,11 +35,7 @@ async function main() {
     }
 
     const meta = data.meta as Record<string, unknown>;
-    if (
-      meta.code !== lang ||
-      typeof meta.name !== "string" ||
-      !meta.name.trim()
-    ) {
+    if (meta.code !== lang || typeof meta.name !== "string" || !meta.name.trim()) {
       throw new Error(`Translation metadata mismatch in ${filePath}`);
     }
 
@@ -56,25 +51,18 @@ import type { TranslationData } from "./i18n-types";
 
   i18nContent +=
     files
-      .map(
-        (lang) =>
-          `import ${lang} from "../../public/translations/${lang}.json";`,
-      )
+      .map((lang) => `import ${lang} from "../../public/translations/${lang}.json";`)
       .join("\n") + "\n\n";
 
   i18nContent += `// Все языки: ключ = имя файла без расширения
-export const LANGUAGES: Record<string, TranslationData> = { ${files.join(
-    ", ",
-  )} };
+export const LANGUAGES: Record<string, TranslationData> = { ${files.join(", ")} };
 export const SERVER_LANGUAGES: Record<string, TranslationData> = LANGUAGES;
 export const SERVER_languages: Record<string, TranslationData> = LANGUAGES;
 export const languages: Record<string, TranslationData> = LANGUAGES;
 `;
 
   writeFileSync(i18nOutputFile, i18nContent, "utf-8");
-  console.log(
-    `✅ Generated ${files.length} language imports: ${files.join(", ")}`,
-  );
+  console.log(`✅ Generated ${files.length} language imports: ${files.join(", ")}`);
 }
 
 main().catch((err) => {

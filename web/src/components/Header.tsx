@@ -11,8 +11,7 @@ export default function Header({ currentPage = "" }: { currentPage?: string }) {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const { t } = useLanguage();
-  const { publiclinks, authorizedlinks, adminlinks, contactlinks } =
-    useNavigation();
+  const { publiclinks, authorizedlinks, adminlinks, contactlinks } = useNavigation();
 
   useEffect(() => {
     const handler = () => {
@@ -70,11 +69,10 @@ export default function Header({ currentPage = "" }: { currentPage?: string }) {
         id="site-navigation"
         className={`side-nav ${menuOpen ? "open" : ""}`}
         aria-label={t("texts.nav_main_navigation")}
+        inert={!menuOpen}
       >
         <div className="side-nav-header">
-          <strong>
-            {process.env.NEXT_PUBLIC_VPN_NAME || t("texts.vpn_service")}
-          </strong>
+          <strong>{process.env.NEXT_PUBLIC_VPN_NAME || t("texts.vpn_service")}</strong>
           <button
             type="button"
             className="side-nav-close"
@@ -99,9 +97,7 @@ export default function Header({ currentPage = "" }: { currentPage?: string }) {
             </li>
           ))}
           <li className="nav-divider" aria-hidden="true" />
-          <li className="nav-section-header">
-            {t("texts.authorized_section")}
-          </li>
+          <li className="nav-section-header">{t("texts.authorized_section")}</li>
           {authorizedlinks.map((link) => (
             <li key={link.href}>
               <Link
@@ -122,12 +118,8 @@ export default function Header({ currentPage = "" }: { currentPage?: string }) {
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className={
-                      currentPage === link.href ? "nav-link-active" : ""
-                    }
-                    aria-current={
-                      currentPage === link.href ? "page" : undefined
-                    }
+                    className={currentPage === link.href ? "nav-link-active" : ""}
+                    aria-current={currentPage === link.href ? "page" : undefined}
                     onClick={() => setMenuOpen(false)}
                   >
                     {link.label}
@@ -139,9 +131,7 @@ export default function Header({ currentPage = "" }: { currentPage?: string }) {
           )}
           {contactlinks.length > 0 && (
             <>
-              <li className="nav-section-header">
-                {t("texts.contact_section")}
-              </li>
+              <li className="nav-section-header">{t("texts.contact_section")}</li>
               {contactlinks.map((social) => (
                 <li key={social.href}>
                   <a
@@ -161,24 +151,12 @@ export default function Header({ currentPage = "" }: { currentPage?: string }) {
 
       <button
         id="nav-overlay"
+        type="button"
         className={`overlay ${menuOpen ? "open" : ""}`}
         aria-label={t("texts.nav_close_menu")}
+        inert={!menuOpen}
         onClick={() => setMenuOpen(false)}
       />
     </>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-

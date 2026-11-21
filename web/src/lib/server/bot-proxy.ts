@@ -4,8 +4,9 @@ import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import type { SanitizedUser } from "../types";
+import { SESSION_COOKIE_NAME } from "../constants";
 
-export const SESSION_COOKIE_NAME = "vpn_token";
+export { SESSION_COOKIE_NAME };
 export const UPSTREAM_TIMEOUT_MS = 12_000;
 export const DEFAULT_SESSION_MAX_AGE = 30 * 24 * 60 * 60;
 export const MAX_REQUEST_BODY_BYTES = 2 * 1024 * 1024;
@@ -28,9 +29,7 @@ export function sanitizeApiPath(segments: string[]): string {
     } catch {
       continue;
     }
-    const segment = decoded
-      .replace(/[^A-Za-z0-9_.\-~]/g, "")
-      .replace(/\.{2,}/g, ".");
+    const segment = decoded.replace(/[^A-Za-z0-9_.\-~]/g, "").replace(/\.{2,}/g, ".");
     if (segment && segment !== "." && segment !== "..") {
       starts.push(segment);
     }
@@ -43,11 +42,7 @@ export function readSessionToken(request: NextRequest): string | null {
   return value && value.trim() ? value : null;
 }
 
-export function setSessionCookie(
-  response: NextResponse,
-  token: string,
-  maxAge: number,
-): void {
+export function setSessionCookie(response: NextResponse, token: string, maxAge: number): void {
   response.cookies.set(SESSION_COOKIE_NAME, token, {
     path: "/",
     httpOnly: true,
@@ -77,9 +72,7 @@ function extractUpstreamSession(
       : "");
   if (!setCookie) return null;
 
-  const match = new RegExp(
-    `(?:^|[;,]\\s*)${SESSION_COOKIE_NAME}=([^;,]*)`,
-  ).exec(setCookie);
+  const match = new RegExp(`(?:^|[;,]\\s*)${SESSION_COOKIE_NAME}=([^;,]*)`).exec(setCookie);
   if (!match) return null;
 
   let value: string;
@@ -91,17 +84,13 @@ function extractUpstreamSession(
   if (!value) return { clear: true };
 
   const maxAgeMatch = /(?:^|[;,]\s*)Max-Age=(-?\d+)/i.exec(setCookie);
-  const rawMaxAge = maxAgeMatch
-    ? Number(maxAgeMatch[1])
-    : DEFAULT_SESSION_MAX_AGE;
+  const rawMaxAge = maxAgeMatch ? Number(maxAgeMatch[1]) : DEFAULT_SESSION_MAX_AGE;
   if (rawMaxAge <= 0) return { clear: true };
 
   return { token: value, maxAge: rawMaxAge || DEFAULT_SESSION_MAX_AGE };
 }
 
-export async function readCappedResponseText(
-  response: Response,
-): Promise<string | null> {
+export async function readCappedResponseText(response: Response): Promise<string | null> {
   const declared = Number(response.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > MAX_UPSTREAM_RESPONSE_BYTES) {
     return null;
@@ -142,7 +131,7 @@ async function readUpstreamBody(response: Response): Promise<{
     return { data, isJson: true };
   }
   return {
-    data: text ? { Error: text } : { Error: response.statusText },
+    data: { Error: "bot_response_invalid" },
     isJson: false,
   };
 }
@@ -171,28 +160,20 @@ export async function proxyBotRequest(
   const headers: Record<string, string> = { Accept: "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
   if (options.contentType) headers["Content-Type"] = options.contentType;
-  const forwardedFor =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    request.headers.get("x-real-ip")?.trim();
-  if (forwardedFor) headers["X-Forwarded-For"] = forwardedFor;
 
   let upstream: Response;
   try {
-    upstream = await fetch(
-      `${getBotApiBase()}/api/v1${path}${options.search}`,
-      {
-        method: options.method,
-        headers,
-        body: options.body,
-        cache: "no-store",
-        redirect: "manual",
-        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-      },
-    );
+    upstream = await fetch(`${getBotApiBase()}/api/v1${path}${options.search}`, {
+      method: options.method,
+      headers,
+      body: options.body,
+      cache: "no-store",
+      redirect: "manual",
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    });
   } catch (err) {
     const timedOut =
-      err instanceof DOMException &&
-      (err.name === "TimeoutError" || err.name === "AbortError");
+      err instanceof DOMException && (err.name === "TimeoutError" || err.name === "AbortError");
     return {
       response: NextResponse.json(
         {
@@ -251,9 +232,7 @@ function parseBanReason(payload: unknown): string {
   return typeof reason === "string" ? reason : "";
 }
 
-export async function fetchServerProfileResult(
-  token: string,
-): Promise<ServerProfileResult> {
+export async function fetchServerProfileResult(token: string): Promise<ServerProfileResult> {
   const key = createHash("sha256").update(token).digest("hex");
   const cached = profileCache.get(key);
   if (cached && cached.expires > Date.now()) return cached.result;
@@ -267,9 +246,7 @@ export async function fetchServerProfileResult(
     });
     const payload = (await response.json().catch(() => null)) as unknown;
     const user =
-      response.ok && payload && typeof payload === "object"
-        ? (payload as SanitizedUser)
-        : null;
+      response.ok && payload && typeof payload === "object" ? (payload as SanitizedUser) : null;
     const result: ServerProfileResult = {
       user,
       status: response.status,
@@ -288,10 +265,6 @@ export async function fetchServerProfileResult(
   }
 }
 
-export async function fetchServerProfile(
-  token: string,
-): Promise<SanitizedUser | null> {
+export async function fetchServerProfile(token: string): Promise<SanitizedUser | null> {
   return (await fetchServerProfileResult(token)).user;
 }
-
-

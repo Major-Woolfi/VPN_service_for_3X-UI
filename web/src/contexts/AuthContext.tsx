@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import type { SanitizedUser } from "@/lib/types";
 import { clearStoredUser, getMe, logoutUser, writeStoredUser } from "@/lib/api";
@@ -16,8 +10,6 @@ interface AuthContextType {
   user: SanitizedUser | null;
   setUser: React.Dispatch<React.SetStateAction<SanitizedUser | null>>;
   loading: boolean;
-  isBanned: boolean;
-  banReason: string;
   login: () => Promise<SanitizedUser | null>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<SanitizedUser | null>;
@@ -35,13 +27,9 @@ export function AuthProvider({
   const router = useRouter();
   const [user, setUser] = useState<SanitizedUser | null>(initialUser);
   const loading = false;
-  const [isBanned, setIsBanned] = useState(false);
-  const [banReason, setBanReason] = useState("");
 
   const applyUser = useCallback((userData: SanitizedUser) => {
     setUser(userData);
-    setIsBanned(false);
-    setBanReason("");
     writeStoredUser(userData);
     if (userData.language) {
       syncLangFromDb(userData.language);
@@ -66,22 +54,12 @@ export function AuthProvider({
     return userData;
   }, [applyUser]);
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        setUser,
-        loading,
-        isBanned,
-        banReason,
-        login,
-        logout,
-        refreshUser,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+  const value = useMemo(
+    () => ({ user, setUser, loading, login, logout, refreshUser }),
+    [user, loading, login, logout, refreshUser],
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

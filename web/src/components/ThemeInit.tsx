@@ -14,6 +14,9 @@ export default function ThemeInit() {
             : "dark";
       document.documentElement.classList.remove("theme-dark", "theme-light");
       document.documentElement.classList.add(`theme-${theme}`);
+      document.documentElement.style.colorScheme = theme;
+      const colorSchemeMeta = document.querySelector<HTMLMetaElement>('meta[name="color-scheme"]');
+      if (colorSchemeMeta) colorSchemeMeta.content = theme;
     } catch {
       document.documentElement.classList.add("theme-dark");
     }
@@ -21,8 +24,3 @@ export default function ThemeInit() {
 
   return null;
 }
-
-
-
-
-

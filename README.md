@@ -9,7 +9,9 @@
 [🐛 Сообщить о баге](https://github.com/Major-Woolfi/VPN_service_for_3X-UI/issues/new) •
 [💡 Предложить идею](https://github.com/Major-Woolfi/VPN_service_for_3X-UI/discussions)
 
-> Советую также посмотреть тематические репозитории: [рабочие и стабильные конфигурации для XRay, панели 3X-UI и настройки клиентских приложений](https://github.com/Major-Woolfi/3X-UI-Configs) и [продвинутый бот-Inviter для пиара всеми способами](https://github.com/Major-Woolfi/Inviter)
+> Советую также посмотреть тематические репозитории:
+> [рабочие и стабильные конфигурации для XRay, панели 3X-UI и настройки клиентских приложений](https://github.com/Major-Woolfi/3X-UI-Configs)
+> и [продвинутый бот-Inviter для пиара всеми способами](https://github.com/Major-Woolfi/Inviter)
 
 ---
 
@@ -17,9 +19,13 @@
 
 ### Идея и концепция
 
-**VPN_service_for_3X-UI** - это проект, созданный для решения конкретной задачи: автоматизация, упрощение и удешивление VPN-бизнеса.
+**VPN_service_for_3X-UI** - это проект, созданный для решения конкретной задачи: автоматизация,
+упрощение и удешевление VPN-бизнеса.
 
-Проект разработан и поддерживается единственным владельцем и основателем VPN-сервиса Major Woolfi. Основная идея родилась из необходимости иметь бота для собственного VPN-проекта. Проект воплощает подход автоматизации, упрощения, ускорения и удешивления рутинных задач, что позволяет добиться максимально комфортной и быстрой работы.
+Проект разработан и поддерживается единственным владельцем и основателем VPN-сервиса Major Woolfi.
+Основная идея родилась из необходимости иметь бота для собственного VPN-проекта. Проект воплощает
+подход автоматизации, упрощения, ускорения и удешевления рутинных задач, что позволяет добиться
+максимально комфортной и быстрой работы.
 
 ### Полное описание
 
@@ -51,7 +57,8 @@
 
 #### Основное меню
 
-Главное меню бота (через `build_main_keyboard`) доступно всем пользователям. Владелец сервиса имеет доступ к функциям управления:
+Главное меню бота (через `build_main_keyboard`) доступно всем пользователям. Владелец сервиса имеет
+доступ к функциям управления:
 
 - **Купить** - покупка/продление подписки
 - **Моя подписка** - статус, трафик, VPN-ссылки (sub + JSON), продление
@@ -62,24 +69,47 @@
 - **Язык** - смена языка интерфейса (7 языков)
 - **Сайт** - ссылка на веб-интерфейс
 - **Поддержка** - ссылка на Telegram-чат поддержки
-- **Публичная оферта / Политика конфиденциальности / Условия ИПП** - юридические ссылки (для владельца: дополнительно "Ожидающие платежи", "Партнёрские заявки", "Инструменты отладки")
+- **Публичная оферта / Политика конфиденциальности / Условия ИПП** - юридические ссылки (для
+  владельца: дополнительно "Ожидающие платежи", "Партнёрские заявки", "Инструменты отладки")
 
 #### Подписки
 
 - **Бесплатный trial** - тестовая подписка автоматически создаётся при первом взаимодействии
-- **6 готовых тарифов**: Try!, Simple, Medium, Medium +, Premium, Unlimited (см. `bot/data/tarifs.json`)
-- **Кастомный тариф** - пошаговый мастер (4 шага): трафик (1-36500 ГБ), IP-лимит (1-30), срок (1-365 дней), локации (выбор из доступных inbound'ов). Цена рассчитывается по формуле: `total = base + GB × gb_coef + IP × D × ip_day_coef + ΣLOC × D`
+- **Готовые тарифы**: Try!, Simple, Medium, Unlimited; каталог выбирается через `TARIFF_MODE` в
+  `bot/.env`: `old` - `bot/data/tarifs.json` (по умолчанию), `new` - `bot/data/tarifs_new.json`
+- **Кастомный тариф** - пошаговый мастер (4 шага): трафик (1-36500 ГБ), IP-лимит (1-30), срок (1-365
+  дней), локации (выбор из доступных inbound'ов). Цена рассчитывается по формуле:
+  `total = base + GB × gb_coef + IP × D × ip_day_coef + ΣLOC × D`
 - **Продление** - обновление конфигурации с сохранением данных пользователя
-- **Удаление подписки** - очистка истекших/неактивных подписок (cleanup)
+- **Удаление подписки** - очистка истекших/неактивных подписок (cleanup). В режиме `new` при
+  исчерпании трафика подписка НЕ удаляется: клиент отключается на панели, штраф начисляется один
+  раз, включение происходит только после сброса трафика
+- **Общий список локаций** - `bot/data/servers.json`, используется обоими режимами тарифов
+- **Режим `new`** - все сервера доступны в каждом тарифе, трафик сбрасывается раз в 30 дней,
+  при остатке меньше 10 ГБ отправляется уведомление с датой следующего сброса. Точка отсчёта цикла
+  хранится в `users.traffic_reset_at` и обновляется после каждого сброса. Признак отключения за
+  трафик хранится в `users.traffic_disabled`. Объём тарифа показывается как `200 ГБ/мес`, срок
+  `360 дней` отображается как `1 год` (поддерживается и запись `duration_months: 12` в каталоге).
+  ID тарифов в двух каталогах не должны пересекаться, проверка выполняется при старте. Если во всех
+  платных тарифах `new` совпадают устройства или трафик, ограничение выводится одной строкой ниже
+  карточек перед списком доступных стран.
 
 #### VPN-конфиги
 
-- **Протоколы**: VLESS/REALITY (XRay 26.10.21+ с XHTTP-транспортом и REALITY-плагином)
-- **Файлы конфигураций**: все популярные клиенты собраны в [посте Telegram-канала](https://t.me/off_PhantomVPN/436)
+- **Протоколы**: VLESS/REALITY (XRay 26.11.9+ с XHTTP-транспортом и REALITY-плагином)
+- **Файлы конфигураций**: все популярные клиенты собраны в
+  [посте Telegram-канала](https://t.me/off_PhantomVPN/436)
 - **Настройка клиентов**:
-  - **INCY (рекомендуется)**: скачайте файл INCY для вашей ОС, откройте INCY, выберите \"Настройки\" -> \"Резервное копирование\" -> \"Выбрать файл\", укажите конфиг из поста, выберите \"Заменить\" и нажмите \"Применить\". Затем откройте \"Настройки\" -> \"Прокси по приложениям\", выберите все пророссийские приложения и вставьте подписку из бота @off_PhantomVPN_bot.
-  - **v2RayTun (устаревшее ядро, возможны проблемы)**: скачайте файл v2RayTun, откройте \"Настройки\" -> \"Настройки приложения\" -> \"Восстановление настроек\", выберите конфиг из поста. Затем откройте \"Настройки\" -> \"Маршрутизация\", выберите все пророссийские приложения и вставьте подписку из бота @off_PhantomVPN_bot.
-  - Для помощи с другим клиентом или дополнительной помощи по INCY и v2RayTun обращайтесь в поддержку @Phantom_OFFNET.
+  - **INCY (рекомендуется)**: скачайте файл INCY для вашей ОС, откройте INCY, выберите \"Настройки\"
+    -> \"Резервное копирование\" -> \"Выбрать файл\", укажите конфиг из поста, выберите \"Заменить\"
+    и нажмите \"Применить\". Затем откройте \"Настройки\" -> \"Прокси по приложениям\", выберите все
+    пророссийские приложения и вставьте подписку из бота @off_PhantomVPN_bot.
+  - **v2RayTun (устаревшее ядро, возможны проблемы)**: скачайте файл v2RayTun, откройте
+    \"Настройки\" -> \"Настройки приложения\" -> \"Восстановление настроек\", выберите конфиг из
+    поста. Затем откройте \"Настройки\" -> \"Маршрутизация\", выберите все пророссийские приложения
+    и вставьте подписку из бота @off_PhantomVPN_bot.
+  - Для помощи с другим клиентом или дополнительной помощи по INCY и v2RayTun обращайтесь в
+    поддержку @Phantom_OFFNET.
 
 #### Статистика трафика
 
@@ -88,26 +118,38 @@
 
 #### Платёжные системы
 
-- **Перевод на карту (P2P)** - оплата через `create-checkout` с возвратом `payment_details.card_number`, проверка вручную (рекомендуется писать в поддержку через 5-10 минут с чеком)
-- **ЮMoney (Быстрый платёж)** - оплата через `create-checkout` с возвратом `checkout_url` (YooMoney для некириллических языков, ЮMoney для RU/BE)
-- **Общий флоу**: `POST /api/v1/payments/create-checkout` → получает `payment_id`, `amount_rub`, `discount_percent`, `payment_details` (для карты) или `checkout_url` (для ЮMoney) → пользователь оплачивает → админ подтверждает через `POST /api/v1/payments/verify/{payment_id}` со `status=confirmed|rejected` (legacy `/confirm` и `/reject` deprecated)
+- **Перевод на карту (P2P)** - оплата через `create-checkout` с возвратом
+  `payment_details.card_number`, проверка вручную (рекомендуется писать в поддержку через 5-10 минут
+  с чеком)
+- **ЮMoney (Быстрый платёж)** - оплата через `create-checkout` с возвратом `checkout_url` (YooMoney
+  для некириллических языков, ЮMoney для RU/BE)
+- **Общий флоу**: `POST /api/v1/payments/create-checkout` возвращает `payment_id`, `amount_rub`,
+  `discount_percent` и `payment_details` (для карты) или `checkout_url` (для ЮMoney). Платёж
+  подтверждается администратором в боте.
 
 #### Очки доверия (Trust Score)
 
-- **Включение**: управляется параметром `TRUST_SCORE_ENABLED`; при значении `false` отключаются начисления, штрафы, скидки и управление очками через debug-меню
+- **Включение**: управляется параметром `TRUST_SCORE_ENABLED`; при значении `false` отключаются
+  начисления, штрафы, скидки и управление очками через debug-меню
 - **Начисление**: 5% от суммы платежа за каждую покупку (максимум 100 очков)
-- **Скидка**: `TRUST_SCORE_DISCOUNT_PERCENT_PER_POINT` процентов за каждое очко, автоматически применяется ко всем тарифам; итог ограничен 100%
+- **Скидка**: `TRUST_SCORE_DISCOUNT_PERCENT_PER_POINT` процентов за каждое очко, автоматически
+  применяется ко всем тарифам; итог ограничен 100%
 - **Штрафы**: -5 очков при исчерпании трафика, -10 при отклонённом платеже
 - **Бан**: обнуляет очки доверия до 0
-- **Настройка**: `TRUST_SCORE_ENABLED`, `TRUST_SCORE_MIN`, `TRUST_SCORE_MAX`, `TRUST_SCORE_EARN_PERCENT`, `TRUST_SCORE_DISCOUNT_PERCENT_PER_POINT`, `TRUST_SCORE_PENALTY_TRAFFIC_EXHAUSTED`, `TRUST_SCORE_PENALTY_PAYMENT_REJECTED` (в `.env`)
+- **Настройка**: `TRUST_SCORE_ENABLED`, `TRUST_SCORE_MIN`, `TRUST_SCORE_MAX`,
+  `TRUST_SCORE_EARN_PERCENT`, `TRUST_SCORE_DISCOUNT_PERCENT_PER_POINT`,
+  `TRUST_SCORE_PENALTY_TRAFFIC_EXHAUSTED`, `TRUST_SCORE_PENALTY_PAYMENT_REJECTED` (в `.env`)
 - **Управление админом**: добавление/убавление очков через debug-меню
 
 #### Партнёрская программа
 
 - **Реферальные ссылки** - ссылка для привлечения новых пользователей (бонус: +7 дней)
-- **Партнёрство** - заявка с указанием соцсетей (Telegram, YouTube, TikTok), минимум 1000 подписчиков (по умолчанию, настраивается через `PARTNER_MIN_FOLLOWERS` в `.env`)
-- **Личный кабинет партнёра**: баланс, статистика рефералов, вывод средств через СБП, бонусные дни (`PARTNER_BONUS_DAYS_MIN`-`PARTNER_BONUS_DAYS_MAX`) и очки доверия (`PARTNER_TRUST_POINTS_MIN`-`PARTNER_TRUST_POINTS_MAX`)
-- **Период партёрства**: `PARTNER_MIN_PERIOD_MONTHS`-`PARTNER_MAX_PERIOD_MONTHS` месяцев
+- **Партнёрство** - заявка с указанием соцсетей (Telegram, YouTube, TikTok), минимум 1000
+  подписчиков (по умолчанию, настраивается через `PARTNER_MIN_FOLLOWERS` в `.env`)
+- **Личный кабинет партнёра**: баланс, статистика рефералов, вывод средств через СБП, бонусные дни
+  (`PARTNER_BONUS_DAYS_MIN`-`PARTNER_BONUS_DAYS_MAX`) и очки доверия
+  (`PARTNER_TRUST_POINTS_MIN`-`PARTNER_TRUST_POINTS_MAX`)
+- **Период партнёрства**: `PARTNER_MIN_PERIOD_MONTHS`-`PARTNER_MAX_PERIOD_MONTHS` месяцев
 - **Комиссия**: `PARTNER_COMMISSION_PERCENT`% от суммы оплаты каждого привлечённого пользователя
 - **Управление ТГК каналами** (когда `PARTNER_NEW_AUTO_MODE=true`):
   - Привязка/отвязка каналов к партнёрской программе
@@ -120,22 +162,34 @@
 
 #### Уведомления
 
-- **Напоминание об окончании подписки** - за `EXPIRY_ALERT_DAYS` дней (по умолчанию 7; настраивается в `.env`)
-- **Рассылки** - администратор может отправить уведомление всем пользователям или только активным подписчикам
+- **Напоминание об окончании подписки** - за `EXPIRY_ALERT_DAYS` дней (по умолчанию 7; настраивается
+  в `.env`)
+- **Рассылки** - администратор может отправить уведомление всем пользователям или только активным
+  подписчикам
 
 #### Технические особенности
 
 - **Мультиязычность** - 7 языков (ru, en, de, pl, ja, zh, be)
 - **FSM** - 30+ состояний для многошаговых сценариев (покупка, вывод, отладка, верификация платежа)
-- **Фоновые задачи**: проверка подписок (`SUBSCRIPTION_CHECK_INTERVAL_SEC`, по умолчанию 3600 с), ежедневный ABUSE-скан (`TRAFFIC_ABUSE_CHECK_INTERVAL_SEC`, 86400 с), очистка старых платежей (`PAYMENT_CLEANUP_INTERVAL_SEC`, 259200 с), sync панелей 3X-UI, бэкапы БД, daily-статистика. Обработка платежа ограничена `PAYMENT_PROCESSING_TIMEOUT_SEC` (по умолчанию 900 с).
+- **Фоновые задачи**: проверка подписок (`SUBSCRIPTION_CHECK_INTERVAL_SEC`, по умолчанию 3600 с),
+  ежедневный ABUSE-скан (`TRAFFIC_ABUSE_CHECK_INTERVAL_SEC`, 86400 с), очистка старых платежей
+  (`PAYMENT_CLEANUP_INTERVAL_SEC`, 259200 с), sync панелей 3X-UI, бэкапы БД, daily-статистика.
+  Обработка платежа ограничена `PAYMENT_PROCESSING_TIMEOUT_SEC` (по умолчанию 900 с).
 - **3X-UI интеграция** - синхронизация клиентов/трафика, управление inbounds, health check панелей
-- **Отладочное меню** - cleanup подписок, удаление подписок пользователей, поиск по UID/TID, скан ABUSE, управление trust points, нормализация подписок, техработы, компенсация днями, добавление трафика
+- **Отладочное меню** - cleanup подписок, удаление подписок пользователей, поиск по UID/TID, скан
+  ABUSE, управление trust points, нормализация подписок, техработы, компенсация днями, добавление
+  трафика
 
 #### API
 
 - FastAPI REST API с session/Bearer-авторизацией
-- Эндпоинты: статистика (`/api/v1/stats/overview`, `/api/v1/stats/panel-status`), пользователи (`/api/v1/users`, `/api/v1/users/{user_id}`), платежи (`/api/v1/payments/pending`, `/api/v1/payments/verify/{payment_id}`), история платежей (`/api/v1/admin/payments/history`), выводы (`/api/v1/partner/withdraw`), панели (`/api/v1/admin/panel-status`), рассылки (`/api/v1/broadcast/send`). Legacy `/api/v1/payments/confirm/{payment_id}` и `/api/v1/payments/reject/{payment_id}` помечены deprecated; используйте `/api/v1/payments/verify/{payment_id}`.
-- API принимает session token, `BOT_API_KEY`, `BOT_ADMIN_KEY` или admin JWT в заголовке `Authorization: Bearer <token>`; session token действует 6 часов.
+- Эндпоинты (полный список в `bot/BOT_API-doc.json`): авторизация (`/api/v1/auth/*`), профиль и
+  подписки (`/api/v1/profile`, `/api/v1/subscription/*`), платежи
+  (`/api/v1/payments/create-checkout`), тарифы (`/api/v1/tariffs/*`), партнёры
+  (`/api/v1/partner/*`), со-владельцы (`/api/v1/co-owners/*`, `/api/v1/admin/co-owners/reload`),
+  админ (`/api/v1/admin/*`), статистика (`/api/v1/stats/*`).
+- API принимает session token, `BOT_API_KEY`, `BOT_ADMIN_KEY` или admin JWT в заголовке
+  `Authorization: Bearer <token>`; session token действует 6 часов.
 
 ### 🌐 Web
 
@@ -144,50 +198,60 @@
 Навигация (из `lib/navigation.ts`):
 
 - **Публичные страницы**: Главная, FAQ, ToS, Публичная оферта, Политика конфиденциальности, Партнёры
-- **Страницы для авторизованных**: Подписка, Личный кабинет, Клиент, Реферальная программа (скрыта для админов), Настройки
-- **Админ-страницы**: Health (`/admin/health`), Пользователи (`/admin/users`), Debug (`/admin/debug`)
+- **Страницы для авторизованных**: Подписка, Личный кабинет, Клиент, Реферальная программа (скрыта
+  для админов), Настройки, Со-владельцы
+- **Админ-страницы**: Health (`/admin/health`), Пользователи (`/admin/users`)
 - **Страницы с ограничениями**: Бан (`/banned`), Ошибка 404 (`/not-found`)
 
 #### Маршруты и их назначение
 
-| Маршрут | Описание |
-| --- | --- |
-| `/` | Главная: статистика сервиса, живой статус серверов (LiveStatusBar, NodeGrid), сетка тарифов (TariffGrid), список фич |
-| `/login` | Авторизация: логин/пароль или через Telegram (deep-link `start=web_login_<state>`) |
-| `/register` | Регистрация аккаунта |
-| `/subscribe` | Покупка/продление: выбор тарифа (6 готовых + кастомный), динамический расчёт цены, P2P на карту или ЮMoney (YooMoney) |
-| `/profile` | Личный кабинет: статус подписки, план, срок, трафик с прогресс-баром, очки доверия + скидка, VPN-ссылки (VLESS и JSON), кнопка "Настроить клиента" |
-| `/client` | Инструкции по настройке: VPN-ссылки и QR-коды для Android, iOS, Windows, macOS, Linux, Android TV, Router |
-| `/settings` | Настройки: язык (7 языков), тема (localStorage + auto-detected), смена пароля, привязка Telegram (через deep-link бота и API) |
-| `/qa` | FAQ: поиск, категории, раскрывающиеся вопросы (35 Q&A в 15 категориях) |
-| `/referral` | Реферальная программа: статистика, реферальная ссылка |
-| `/partner` | Партнёрская программа: заявка, личный кабинет, баланс, вывод |
-| `/offer` | Публичная оферта (на 7 языках) |
-| `/privacy` | Политика конфиденциальности (на 7 языках) |
-| `/tos` | Условия использования (на 7 языках) |
-| `/admin/health` | Админ: системное здоровье (статусы панелей, 3X-UI) |
-| `/admin/users` | Админ: список пользователей (пагинация, поиск), ABUSE-управление |
-| `/admin/debug` | Админ: инструменты отладки (cleanup подписок, поиск, ABUSE-скан) |
-| `/banned` | Бан-страница (для забаненных пользователей) |
-| `/payment` | Страница оплаты (перенаправление после выбора тарифа) |
-| `/subscription` | Редирект на `/subscribe` (для обратной совместимости) |
+| Маршрут         | Описание                                                                                                                                                                 |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `/`             | Главная: статистика сервиса, живой статус серверов (LiveStatusBar, NodeGrid), сетка тарифов (TariffGrid), список фич                                                     |
+| `/login`        | Авторизация: логин/пароль или через Telegram (deep-link `start=web_login_<state>`)                                                                                       |
+| `/register`     | Регистрация аккаунта                                                                                                                                                     |
+| `/subscribe`    | Покупка/продление: выбор тарифа (4 готовых + кастомный), динамический расчёт цены, P2P на карту или ЮMoney (YooMoney), ссылка на оплату создаётся кнопкой способа оплаты |
+| `/profile`      | Личный кабинет: статус подписки, план, срок, трафик с прогресс-баром, очки доверия + скидка, VPN-ссылки (VLESS и JSON), кнопка "Настроить клиента"                       |
+| `/client`       | Инструкции по настройке: VPN-ссылки и QR-коды для Android, iOS, Windows, macOS, Linux, Android TV, Router                                                                |
+| `/settings`     | Настройки: язык (7 языков), тема (localStorage + auto-detected), смена пароля, привязка Telegram (через deep-link бота и API)                                            |
+| `/qa`           | FAQ: поиск, категории, раскрывающиеся вопросы (48 Q&A в 8 категориях)                                                                                                    |
+| `/referral`     | Реферальная программа: статистика, реферальная ссылка                                                                                                                    |
+| `/partner`      | Партнёрская программа: заявка, личный кабинет, баланс, вывод                                                                                                             |
+| `/offer`        | Публичная оферта (на 7 языках)                                                                                                                                           |
+| `/privacy`      | Политика конфиденциальности (на 7 языках)                                                                                                                                |
+| `/tos`          | Условия использования (на 7 языках)                                                                                                                                      |
+| `/admin/health` | Админ: системное здоровье (статусы панелей, 3X-UI)                                                                                                                       |
+| `/admin/users`  | Админ: список пользователей (пагинация, поиск только по UID/TID), ABUSE-управление                                                                                       |
+| `/co-owners`    | Кабинет со-владельца: таблица пользователей с поиском по UID/TID и экспортом выбранных полей в CSV                                                                      |
+| `/co-owners/stats` | Кабинет со-владельца: дашборд статистики, профиль, платежи, ссылка                                                                                                     |
+| `/banned`       | Бан-страница (для забаненных пользователей)                                                                                                                              |
+| `/payment`      | Страница оплаты (перенаправление после выбора тарифа)                                                                                                                    |
+| `/subscription` | Редирект на `/subscribe` (для обратной совместимости)                                                                                                                    |
 
 #### Потоки данных
 
-1. **Авторизация**: сайт аутентифицируется через bot API (`/api/v1/auth/*`), токен хранится в httpOnly cookie. Вход через логин/пароль или Telegram (deep-link `start=web_login_<state>` в боте).
-2. **Подписка**: `/subscribe` → `getTariffs()` + `getLocations()` → выбор тарифа → `createCheckout()` для P2P или ЮMoney → подтверждение → `verifySubscription()`.
-3. **Кастомный тариф**: `getCustomTariffParams()` → пошаговый ввод (трафик, IP, дни, локации) → `generateCustomTariff()` → динамическая цена → оплата.
-4. **Профиль**: `getMe()` → статус подписки, трафик (`used_gb`/`traffic_gb`), trust_score, скидка. `getSubscriptionLink()` → VPN-ссылки (VLESS + JSON).
+1. **Авторизация**: сайт аутентифицируется через bot API (`/api/v1/auth/*`), токен хранится в
+   httpOnly cookie. Вход через логин/пароль или Telegram (deep-link `start=web_login_<state>` в
+   боте).
+2. **Подписка**: `/subscribe` → `getTariffs()` + `getLocations()` → выбор тарифа → выбор способа
+   оплаты вызывает `createCheckout()` (P2P или ЮMoney) → ссылка/реквизиты → подтверждение
+   администратором.
+3. **Кастомный тариф**: `getCustomTariffParams()` → пошаговый ввод (трафик, IP, дни, локации) →
+   `generateCustomTariff()` → динамическая цена → оплата.
+4. **Профиль**: `getMe()` → статус подписки, трафик (`used_gb`/`traffic_gb`), trust_score, скидка.
+   `getSubscriptionLink()` → VPN-ссылки (VLESS + JSON).
 
 #### Особенности веб-интерфейса
 
 - **SSR** - серверный рендеринг с i18n (`i18n-server.ts`)
 - **PWA** - манифест для установки веб-приложения
-- **Live статус серверов** - polling: health 10 с, panel status 5 с, Telegram auth 2 с; ссылка привязки Telegram в настройках проверяется каждые 3 с (NodeGrid, LiveStatusBar)
+- **Live статус серверов** - polling: health 10 с, panel status 5 с, Telegram auth 2 с; ссылка
+  привязки Telegram в настройках проверяется каждые 3 с (NodeGrid, LiveStatusBar)
 - **Тёмная/светлая тема** - localStorage + автоопределение системной темы (ThemeContext)
-- **Мультиязычность** - 7 языков с SSR, локализацией и синхронизацией между компонентами (LanguageContext)
+- **Мультиязычность** - 7 языков с SSR, локализацией и синхронизацией между компонентами
+  (LanguageContext)
 - **SEO** - sitemap.xml, robots.txt, Open Graph, Twitter Cards, JSON-LD, динамический sitemap
-- **Адаптивный дизайн** - TailwindCSS с компонентами для всех устройств
+- **Адаптивный дизайн** - CSS-переменные и `globals.css`, компоненты для всех устройств
 
 ---
 
@@ -200,24 +264,25 @@
     - Runtime - Python 3.13.9+ (возможно и старше, тестирование не проводилось)
     - Библиотеки из requirements.txt
     - 3X-UI 3.0.0+ (на сервере)
+    - XRay 26.11.9+ (на сервере)
     - Docker (для деплоя)
   - web
     - Runtime - Node.js 20+
     - Библиотеки из package.json
     - Nginx (для API, Reverse Proxy)
-- Железо (выделеное, минимум для запуска и корректной работы)
+- Железо (выделенное, минимум для запуска и корректной работы)
   - Суммарно
-    - CPU 1 ядро 1Ггц
-    - RAM 400 мб
-    - ROM 1 Гб
+    - CPU 1 ядро 1 ГГц
+    - RAM 400 МБ
+    - ROM 1 ГБ
   - bot
-    - CPU 1 ядро 1Ггц
-    - RAM 250 мб
-    - ROM 350 мб
+    - CPU 1 ядро 1 ГГц
+    - RAM 250 МБ
+    - ROM 350 МБ
   - web
-    - CPU 1 ядро 1Ггц
-    - RAM 150 мб
-    - ROM 650 мб
+    - CPU 1 ядро 1 ГГц
+    - RAM 150 МБ
+    - ROM 650 МБ
 
 ### Установка
 
@@ -229,8 +294,22 @@ cd VPN_service_for_3X-UI
 
 ### Конфигурация
 
-Настраивайте проект через файл конфигурации `.env`. Пример конфигурации можно найти в файлах `.env.example`.
-Настройка требуется как у bot, так и у web. Проверяйте согласованность конфигураций.
+Настраивайте проект через файл конфигурации `.env`. Пример конфигурации можно найти в файлах
+`.env.example`. Настройка требуется как у bot, так и у web. Проверяйте согласованность конфигураций.
+
+Ключи `TARIFFS_PATH`, `TARIFFS_NEW_PATH` и `SERVERS_PATH` задают расположение каталогов тарифов и
+общего списка локаций. Активный каталог выбирается ключом `TARIFF_MODE` (`old` по умолчанию).
+Файлы из `bot/data/` должны существовать на сервере до запуска бота.
+
+Все недостающие колонки (`low_traffic_alert_sent`, `traffic_reset_at`, `traffic_disabled`,
+`co_owner_ref_by`, `is_coowner`, `coowner_code` и другие) добавляются в существующую базу
+автоматически при подключении (`Database.init_db`). Скрипт `bot/migrate_coowners.py` остаётся
+ручным вариантом той же миграции и безопасен для повторного запуска.
+
+Поле `co_owner_ref_by` хранит UID совладельца, который привёл пользователя. Пользователи,
+приглашённые через обычную реферальную ссылку, наследуют это поле от пригласившего. Дерево
+совладельца, статистика и поиск строятся по `co_owner_ref_by`. При миграции старые связи
+восстанавливаются из `ref_by`.
 
 ### Проверка
 
@@ -238,6 +317,7 @@ cd VPN_service_for_3X-UI
 
 - [ ] Все зависимости установлены корректно
 - [ ] Файл конфигурации `.env` настроен правильно как в bot, так и в web
+- [ ] Файлы `tarifs.json`, `tarifs_new.json`, `servers.json` есть в `bot/data/`
 - [ ] 3X-UI установлен и работает корректно
 
 После запуска убедитесь, что:
@@ -252,8 +332,9 @@ cd VPN_service_for_3X-UI
 ```plaintext
 ├── bot/
 │  ├── data/
+│  │  ├── servers.json
 │  │  ├── tarifs.json
-│  │  └── ...
+│  │  └── tarifs_new.json
 │  ├── langs/
 │  │  ├── be.json
 │  │  ├── de.json
@@ -262,8 +343,8 @@ cd VPN_service_for_3X-UI
 │  │  ├── pl.json
 │  │  ├── ru.json
 │  │  └── zh.json
-│  ├── logs/
-│  │  └── ...
+│  ├── ssh/
+│  │  └── CH.key
 │  ├── .env
 │  ├── .env.example
 │  ├── 3X-UI_API-doc.json
@@ -271,20 +352,11 @@ cd VPN_service_for_3X-UI
 │  ├── deploy_bot.sh
 │  ├── Dockerfile
 │  ├── main.py
+│  ├── migrate_coowners.py
 │  └── requirements.txt
-├── deploy/
-│  └── Nginx-Proxy.conf
 ├── web/
 │  ├── public/
 │  │  ├── translations/
-│  │  │  ├── legal/
-│  │  │  │  ├── be.json
-│  │  │  │  ├── de.json
-│  │  │  │  ├── en.json
-│  │  │  │  ├── ja.json
-│  │  │  │  ├── pl.json
-│  │  │  │  ├── ru.json
-│  │  │  │  └── zh.json
 │  │  │  ├── be.json
 │  │  │  ├── de.json
 │  │  │  ├── en.json
@@ -292,68 +364,92 @@ cd VPN_service_for_3X-UI
 │  │  │  ├── pl.json
 │  │  │  ├── ru.json
 │  │  │  └── zh.json
-│  │  ├── icon.jpg
-│  │  └── manifest.json
+│  │  └── icon.jpg
 │  ├── scripts/
 │  │  └── generate-i18n.ts
 │  ├── src/
 │  │  ├── app/
 │  │  │  ├── admin/
-│  │  │  │  ├── debug/
-│  │  │  │  │  └── page.tsx
 │  │  │  │  ├── health/
 │  │  │  │  │  └── page.tsx
 │  │  │  │  ├── users/
 │  │  │  │  │  └── page.tsx
 │  │  │  │  └── page.tsx
 │  │  │  ├── api/
-│  │  │  │  └── admin/
-│  │  │  │     ├── abuse-users/
-│  │  │  │     │  └── route.ts
-│  │  │  │     ├── debug/
-│  │  │  │     │  ├── search/
-│  │  │  │     │  │  └── route.ts
-│  │  │  │     │  └── route.ts
-│  │  │  │     ├── health/
-│  │  │  │     │  └── route.ts
-│  │  │  │     ├── panel-status/
-│  │  │  │     │  └── route.ts
-│  │  │  │     └── users/
-│  │  │  │        ├── [user_id]/
-│  │  │  │        │  └── clear-abuse/
-│  │  │  │        │     └── route.ts
+│  │  │  │  ├── admin/
+│  │  │  │  │  ├── abuse-users/
+│  │  │  │  │  │  └── route.ts
+│  │  │  │  │  ├── health/
+│  │  │  │  │  │  └── route.ts
+│  │  │  │  │  ├── panel-status/
+│  │  │  │  │  │  └── route.ts
+│  │  │  │  │  └── users/
+│  │  │  │  │     ├── [user_id]/
+│  │  │  │  │     │  ├── clear-abuse/
+│  │  │  │  │     │  │  └── route.ts
+│  │  │  │  │     │  ├── ip-limit/
+│  │  │  │  │     │  │  └── route.ts
+│  │  │  │  │     │  └── message/
+│  │  │  │  │     │     └── route.ts
+│  │  │  │  │     └── route.ts
+│  │  │  │  ├── bot/
+│  │  │  │  │  └── [...path]/
+│  │  │  │  │     └── route.ts
+│  │  │  │  └── session/
+│  │  │  │     └── expired/
 │  │  │  │        └── route.ts
 │  │  │  ├── banned/
 │  │  │  │  └── page.tsx
 │  │  │  ├── client/
+│  │  │  │  ├── layout.tsx
 │  │  │  │  └── page.tsx
+│  │  │  ├── co-owners/
+│  │  │  │  ├── layout.tsx
+│  │  │  │  └── page.tsx
+│  │  │  ├── components/
+│  │  │  │  └── LegalDocumentPage.tsx
+│  │  │  ├── hooks/
+│  │  │  │  ├── useAdminAuth.ts
+│  │  │  │  └── useCopyToClipboard.ts
 │  │  │  ├── login/
+│  │  │  │  ├── layout.tsx
 │  │  │  │  └── page.tsx
 │  │  │  ├── manifest.json/
 │  │  │  │  └── route.ts
 │  │  │  ├── offer/
+│  │  │  │  ├── layout.tsx
 │  │  │  │  └── page.tsx
 │  │  │  ├── partner/
+│  │  │  │  ├── layout.tsx
 │  │  │  │  └── page.tsx
 │  │  │  ├── payment/
+│  │  │  │  ├── layout.tsx
 │  │  │  │  └── page.tsx
 │  │  │  ├── privacy/
+│  │  │  │  ├── layout.tsx
 │  │  │  │  └── page.tsx
 │  │  │  ├── profile/
+│  │  │  │  ├── components.tsx
+│  │  │  │  ├── layout.tsx
 │  │  │  │  └── page.tsx
 │  │  │  ├── qa/
 │  │  │  │  └── page.tsx
 │  │  │  ├── referral/
+│  │  │  │  ├── layout.tsx
 │  │  │  │  └── page.tsx
 │  │  │  ├── register/
+│  │  │  │  ├── layout.tsx
 │  │  │  │  └── page.tsx
 │  │  │  ├── settings/
+│  │  │  │  ├── layout.tsx
+│  │  │  │  └── page.tsx
+│  │  │  ├── subscription/
+│  │  │  │  ├── layout.tsx
 │  │  │  │  └── page.tsx
 │  │  │  ├── subscribe/
 │  │  │  │  └── page.tsx
-│  │  │  ├── subscription/
-│  │  │  │  └── page.tsx
 │  │  │  ├── tos/
+│  │  │  │  ├── layout.tsx
 │  │  │  │  └── page.tsx
 │  │  │  ├── error.tsx
 │  │  │  ├── favicon.ico
@@ -366,12 +462,16 @@ cd VPN_service_for_3X-UI
 │  │  ├── components/
 │  │  │  ├── AuthCallback.tsx
 │  │  │  ├── BackToTop.tsx
+│  │  │  ├── CopyableUrl.tsx
 │  │  │  ├── FaqList.tsx
 │  │  │  ├── Header.tsx
 │  │  │  ├── LiveStatusBar.tsx
 │  │  │  ├── NodeGrid.tsx
 │  │  │  ├── NodeStatus.tsx
+│  │  │  ├── SafeHTML.test.tsx
+│  │  │  ├── SafeHTML.tsx
 │  │  │  ├── ScrollAnimations.tsx
+│  │  │  ├── StatGrid.tsx
 │  │  │  ├── TariffGrid.tsx
 │  │  │  ├── TariffGridClient.tsx
 │  │  │  ├── ThemeInit.tsx
@@ -381,22 +481,30 @@ cd VPN_service_for_3X-UI
 │  │  │  ├── FeaturesContext.tsx
 │  │  │  ├── LanguageContext.tsx
 │  │  │  └── ThemeContext.tsx
-│  │  ├── data/
-│  │  │  └── legal.ts
-│  │  └── lib/
-│  │     ├── server/
-│  │     │  └── admin-proxy.ts
-│  │     ├── api.ts
-│  │     ├── i18n-generated.ts
-│  │     ├── i18n-server.ts
-│  │     ├── i18n-types.ts
-│  │     ├── i18n.ts
-│  │     ├── navigation.ts
-│  │     ├── structured-data.ts
-│  │     ├── types.ts
-│  │     └── validation.ts
+│  │  ├── lib/
+│  │  │  ├── server/
+│  │  │  │  ├── admin-proxy.ts
+│  │  │  │  ├── bot-data.ts
+│  │  │  │  ├── bot-proxy.ts
+│  │  │  │  ├── json-body.ts
+│  │  │  │  └── session.ts
+│  │  │  ├── api.ts
+│  │  │  ├── constants.ts
+│  │  │  ├── error.ts
+│  │  │  ├── i18n-generated.ts
+│  │  │  ├── i18n-server.test.ts
+│  │  │  ├── i18n-server.ts
+│  │  │  ├── i18n-types.ts
+│  │  │  ├── i18n.ts
+│  │  │  ├── locale.ts
+│  │  │  ├── navigation.ts
+│  │  │  ├── structured-data.ts
+│  │  │  └── types.ts
+│  │  └── middleware.ts
 │  ├── .env
 │  ├── .env.example
+│  ├── .prettierignore
+│  ├── .prettierrc
 │  ├── eslint.config.mjs
 │  ├── next.config.ts
 │  ├── package-lock.json
@@ -410,31 +518,39 @@ cd VPN_service_for_3X-UI
 
 ## 📊 Статистика проекта
 
-| Метрика | Значение |
-| --------- | ---------- |
-| ⭐ Stars | [![Stars](https://img.shields.io/github/stars/Major-Woolfi/VPN_service_for_3X-UI)](https://github.com/Major-Woolfi/VPN_service_for_3X-UI/stargazers) |
-| 🍴 Forks | [![Forks](https://img.shields.io/github/forks/Major-Woolfi/VPN_service_for_3X-UI)](https://github.com/Major-Woolfi/VPN_service_for_3X-UI/network/members) |
-| 🐛 Issues | [![Issues](https://img.shields.io/github/issues/Major-Woolfi/VPN_service_for_3X-UI)](https://github.com/Major-Woolfi/VPN_service_for_3X-UI/issues) |
+| Метрика         | Значение                                                                                                                                                                    |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ⭐ Stars        | [![Stars](https://img.shields.io/github/stars/Major-Woolfi/VPN_service_for_3X-UI)](https://github.com/Major-Woolfi/VPN_service_for_3X-UI/stargazers)                        |
+| 🍴 Forks        | [![Forks](https://img.shields.io/github/forks/Major-Woolfi/VPN_service_for_3X-UI)](https://github.com/Major-Woolfi/VPN_service_for_3X-UI/network/members)                   |
+| 🐛 Issues       | [![Issues](https://img.shields.io/github/issues/Major-Woolfi/VPN_service_for_3X-UI)](https://github.com/Major-Woolfi/VPN_service_for_3X-UI/issues)                          |
 | 👥 Contributors | [![Contributors](https://img.shields.io/github/contributors/Major-Woolfi/VPN_service_for_3X-UI)](https://github.com/Major-Woolfi/VPN_service_for_3X-UI/graphs/contributors) |
 
 ---
 
 ## 🤝 Контрибьюция
 
-Приветствуем любые вклад в проект! Перед созданием PR обязательно прочитай:
+Приветствуем любой вклад в проект! Перед созданием PR обязательно прочитай:
 
-- 📋 [CONTRIBUTING](https://github.com/Major-Woolfi/.github/blob/main/community/CONTRIBUTING.md) - правила участия
-- 💬 [CODE OF CONDUCT](https://github.com/Major-Woolfi/.github/blob/main/community/CODE_OF_CONDUCT.md) - кодекс поведения
-- 🐛 [ISSUE TEMPLATE](https://github.com/Major-Woolfi/.github/tree/main/community/ISSUES.md) - шаблоны багов и фич
-- 🔀 [PULL REQUEST TEMPLATE](https://github.com/Major-Woolfi/.github/blob/main/community/PULL_REQUEST_TEMPLATE.md) - требования к PR
+- 📋 [CONTRIBUTING](https://github.com/Major-Woolfi/.github/blob/main/community/CONTRIBUTING.md) -
+  правила участия
+- 💬 [CODE OF
+  CONDUCT](https://github.com/Major-Woolfi/.github/blob/main/community/CODE_OF_CONDUCT.md) -
+  кодекс поведения
+- 🐛 [ISSUE TEMPLATE](https://github.com/Major-Woolfi/.github/tree/main/community/ISSUES.md) -
+  шаблоны багов и фич
+- 🔀 [PULL REQUEST
+  TEMPLATE](https://github.com/Major-Woolfi/.github/blob/main/community/PULL_REQUEST_TEMPLATE.md) -
+  требования к PR
 
-Все общие правила хранятся в [репозитории `.github`](https://github.com/Major-Woolfi/.github) в папке `community`.
+Все общие правила хранятся в [репозитории `.github`](https://github.com/Major-Woolfi/.github) в
+папке `community`.
 
 ---
 
 ## 👤 Владелец и основатель
 
-VPN-сервис и проект `VPN_service_for_3X-UI` разработаны и поддерживаются единственным владельцем и основателем - Major Woolfi.
+VPN-сервис и проект `VPN_service_for_3X-UI` разработаны и поддерживаются единственным владельцем и
+основателем - Major Woolfi.
 
 ---
 

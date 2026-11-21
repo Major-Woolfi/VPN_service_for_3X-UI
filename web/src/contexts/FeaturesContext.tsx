@@ -2,8 +2,10 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
   type ReactNode,
 } from "react";
@@ -14,12 +16,11 @@ import type { FeaturesResponse } from "@/lib/types";
 interface FeaturesContextType {
   features: FeaturesResponse | null;
   loading: boolean;
-  Error: string | null;
+  error: string | null;
+  reload: () => void;
 }
 
-const FeaturesContext = createContext<FeaturesContextType | undefined>(
-  undefined,
-);
+const FeaturesContext = createContext<FeaturesContextType | undefined>(undefined);
 
 export function FeaturesProvider({
   children,
@@ -28,29 +29,28 @@ export function FeaturesProvider({
   children: ReactNode;
   initialFeatures?: FeaturesResponse | null;
 }) {
-  const [features, setFeatures] = useState<FeaturesResponse | null>(
-    initialFeatures,
-  );
+  const [features, setFeatures] = useState<FeaturesResponse | null>(initialFeatures);
   const [loading, setLoading] = useState(initialFeatures === null);
-  const [Error, setError] = useState<string | null>(null);
-
-  const initialSignature = initialFeatures
-    ? JSON.stringify(initialFeatures)
-    : "";
-  const [syncedSignature, setSyncedSignature] = useState(initialSignature);
-  if (initialSignature && initialSignature !== syncedSignature) {
-    setSyncedSignature(initialSignature);
-    setFeatures(initialFeatures);
-    setLoading(false);
-  }
+  const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    if (initialFeatures) return;
+    if (!initialFeatures) return;
+    setFeatures(initialFeatures);
+    setLoading(false);
+    setError(null);
+  }, [initialFeatures]);
+
+  useEffect(() => {
+    if (initialFeatures && reloadKey === 0) return;
     let cancelled = false;
     (async () => {
       try {
         const data = await getFeatures();
-        if (!cancelled) setFeatures(data);
+        if (!cancelled) {
+          setFeatures(data);
+          setError(null);
+        }
       } catch (err) {
         if (!cancelled) {
           setError(
@@ -66,13 +66,20 @@ export function FeaturesProvider({
     return () => {
       cancelled = true;
     };
-  }, [initialFeatures]);
+  }, [initialFeatures, reloadKey]);
 
-  return (
-    <FeaturesContext.Provider value={{ features, loading, Error }}>
-      {children}
-    </FeaturesContext.Provider>
+  const reload = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    setReloadKey((value) => value + 1);
+  }, []);
+
+  const value = useMemo(
+    () => ({ features, loading, error, reload }),
+    [features, loading, error, reload],
   );
+
+  return <FeaturesContext.Provider value={value}>{children}</FeaturesContext.Provider>;
 }
 
 export function useFeatures() {
@@ -82,6 +89,3 @@ export function useFeatures() {
   }
   return context;
 }
-
-
-

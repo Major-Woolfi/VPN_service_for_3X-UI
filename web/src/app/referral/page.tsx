@@ -5,6 +5,7 @@ import { StatGrid } from "@/components/StatGrid";
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getReferralStats } from "@/lib/api";
+import { getErrorMessage } from "@/lib/error";
 import type { ReferralStatsResponse } from "@/lib/types";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useRouter } from "next/navigation";
@@ -13,14 +14,18 @@ export default function ReferralPage() {
   const { loading: authLoading, user } = useAuth();
   const router = useRouter();
   const { t } = useLanguage();
-  const ErrorTextRef = useRef(t("texts.error"));
-  useEffect(() => {
-    ErrorTextRef.current = t("texts.error");
-  }, [t]);
   const [stats, setstats] = useState<ReferralStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [Error, setError] = useState("");
+  const copiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (copiedTimeoutRef.current) clearTimeout(copiedTimeoutRef.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (authLoading) return;
@@ -37,7 +42,7 @@ export default function ReferralPage() {
         const data = await getReferralStats();
         setstats(data);
       } catch (err) {
-        setError(String(err));
+        setError(getErrorMessage(err));
       } finally {
         setLoading(false);
       }
@@ -49,7 +54,8 @@ export default function ReferralPage() {
     try {
       await navigator.clipboard.writeText(stats.ref_link);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      if (copiedTimeoutRef.current) clearTimeout(copiedTimeoutRef.current);
+      copiedTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
     } catch {
       setError(t("texts.error"));
     }
@@ -58,16 +64,8 @@ export default function ReferralPage() {
   const tgBotUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME;
   const reflink =
     stats?.ref_link ||
-    (tgBotUsername
-      ? `https://t.me/${tgBotUsername}?start=${stats?.ref_code || ""}`
-      : "");
+    (tgBotUsername ? `https://t.me/${tgBotUsername}?start=${stats?.ref_code || ""}` : "");
   const bonusDays = stats?.bonus_days_per_paid ?? 0;
-
-  const shareUrl = reflink
-    ? `https://t.me/share/url?url=${encodeURIComponent(reflink)}&text=${encodeURIComponent(
-        t("texts.referral_program"),
-      )}`
-    : null;
 
   const statCards = stats
     ? [
@@ -142,9 +140,7 @@ export default function ReferralPage() {
           <div className="profile-header no-avatar">
             <div className="profile-info">
               <h1 className="profile-name">{t("texts.referral_program")}</h1>
-              <p className="profile-username">
-                {t("texts.referral_program_text")}
-              </p>
+              <p className="profile-username">{t("texts.referral_program_text")}</p>
             </div>
           </div>
 
@@ -171,17 +167,9 @@ export default function ReferralPage() {
                 >
                   {t("texts.referral_share_hint")}
                 </p>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "12px",
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                  }}
-                >
+                <div className="content-grid" style={{ alignItems: "center" }}>
                   <div
                     style={{
-                      flex: "1 1 240px",
                       padding: "12px",
                       background: "var(--bg-tertiary)",
                       borderRadius: "var(--radius-sm)",
@@ -199,21 +187,8 @@ export default function ReferralPage() {
                       disabled={!reflink}
                       style={{ whiteSpace: "nowrap" }}
                     >
-                      {copied
-                        ? t("buttons.copied")
-                        : t("buttons.referral_copy")}
+                      {copied ? t("buttons.copied") : t("buttons.referral_copy")}
                     </button>
-                    {shareUrl && (
-                      <a
-                        href={shareUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="button"
-                        style={{ whiteSpace: "nowrap" }}
-                      >
-                        {t("buttons.share_telegram")}
-                      </a>
-                    )}
                   </div>
                 </div>
               </div>
@@ -233,27 +208,3 @@ export default function ReferralPage() {
     </>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

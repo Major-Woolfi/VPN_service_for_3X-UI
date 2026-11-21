@@ -3,23 +3,18 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { useLanguage } from "@/contexts/LanguageContext";
-import {
-  pollTelegramAuth,
-  TELEGRAM_POLL_INTERVAL_MS,
-  TELEGRAM_POLL_TIMEOUT_MS,
-} from "@/lib/api";
+import { pollTelegramAuth, TELEGRAM_POLL_INTERVAL_MS, TELEGRAM_POLL_TIMEOUT_MS } from "@/lib/api";
 
-type AuthCallbackstatus = "idle" | "processing" | "Error";
+type AuthCallbackStatus = "idle" | "processing" | "error";
 
 export default function AuthCallback() {
   const { t } = useLanguage();
 
   const searchParams = useSearchParams();
   const state = searchParams?.get("state") || null;
-  const [status, setstatus] = useState<AuthCallbackstatus>(
-    state ? "processing" : "idle",
-  );
+  const [status, setStatus] = useState<AuthCallbackStatus>(state ? "processing" : "idle");
   const processedRef = useRef(false);
+  const inFlightRef = useRef(false);
 
   const resolveTarget = useCallback((authState: string | null) => {
     if (typeof window === "undefined") return "/profile";
@@ -36,7 +31,7 @@ export default function AuthCallback() {
           return saved;
         }
       } catch {
-
+        // sessionStorage может быть недоступен - используем /profile.
       }
     }
     return "/profile";
@@ -47,13 +42,24 @@ export default function AuthCallback() {
     processedRef.current = true;
 
     let cancelled = false;
+    const timers: {
+      interval?: ReturnType<typeof setInterval>;
+      timeout?: ReturnType<typeof setTimeout>;
+    } = {};
+    const stopPolling = () => {
+      if (timers.interval !== undefined) clearInterval(timers.interval);
+      if (timers.timeout !== undefined) clearTimeout(timers.timeout);
+    };
     const fail = (reason: string) => {
       if (cancelled) return;
-      setstatus("Error");
+      stopPolling();
+      setStatus("error");
       window.location.replace(`/login?reason=${reason}`);
     };
 
     const poll = async () => {
+      if (cancelled || inFlightRef.current) return;
+      inFlightRef.current = true;
       try {
         const res = await pollTelegramAuth(state);
         if (cancelled) return;
@@ -62,22 +68,23 @@ export default function AuthCallback() {
         } else if (res.status === "timeout" || res.status === "expired") {
           fail("auth_timeout");
         }
-      } catch {
-
+      } catch (err) {
+        if (!cancelled) {
+          console.error("Telegram auth polling failed", err);
+          fail("auth_error");
+        }
+      } finally {
+        inFlightRef.current = false;
       }
     };
 
     void poll();
-    const interval = setInterval(poll, TELEGRAM_POLL_INTERVAL_MS);
-    const timeout = setTimeout(() => {
-      clearInterval(interval);
-      fail("auth_timeout");
-    }, TELEGRAM_POLL_TIMEOUT_MS);
+    timers.interval = setInterval(() => void poll(), TELEGRAM_POLL_INTERVAL_MS);
+    timers.timeout = setTimeout(() => fail("auth_timeout"), TELEGRAM_POLL_TIMEOUT_MS);
 
     return () => {
       cancelled = true;
-      clearInterval(interval);
-      clearTimeout(timeout);
+      stopPolling();
     };
   }, [resolveTarget, state]);
 
@@ -85,6 +92,8 @@ export default function AuthCallback() {
 
   return (
     <div
+      role="status"
+      aria-live="polite"
       style={{
         position: "fixed",
         inset: 0,
@@ -94,23 +103,10 @@ export default function AuthCallback() {
         background: "var(--bg-primary)",
         color: "var(--text-primary)",
         fontSize: "14px",
-        zIndex: 9999,
+        zIndex: "var(--z-overlay)",
       }}
     >
-      {status === "processing"
-        ? t("texts.authenticating")
-        : t("texts.error")}
+      {status === "processing" ? t("texts.authenticating") : t("texts.auth_error")}
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-

@@ -2,7 +2,7 @@ import { MetadataRoute } from "next";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local";
-  const lastModified = "2026-11-02";
+  const lastModified = new Date().toISOString().slice(0, 10);
 
   const routes: Array<{
     url: string;

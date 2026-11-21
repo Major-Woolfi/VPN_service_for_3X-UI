@@ -8,7 +8,7 @@ type FaqItem = {
   question: string;
   answer: string;
   category: string;
-  ccategoryKey: string;
+  categoryKey: string;
 };
 
 type FaqCategory = {
@@ -23,7 +23,12 @@ export default function FaqList() {
   const [openId, setOpenId] = useState<string | null>(null);
 
   const allCategories = useMemo((): FaqCategory[] => {
-    const qaData = tObject("qa.category", lang) as Record<string, { title?: string; content?: Record<string, { question: string; answer: string }> }> | undefined;
+    const qaData = tObject("qa.category", lang) as
+      | Record<
+          string,
+          { title?: string; content?: Record<string, { question: string; answer: string }> }
+        >
+      | undefined;
     if (!qaData) return [];
 
     const categories: FaqCategory[] = [];
@@ -31,7 +36,10 @@ export default function FaqList() {
     for (const [categoryKey, categoryData] of Object.entries(qaData)) {
       if (!categoryData || typeof categoryData !== "object") continue;
 
-      const catData = categoryData as { title?: string; content?: Record<string, { question: string; answer: string }> };
+      const catData = categoryData as {
+        title?: string;
+        content?: Record<string, { question: string; answer: string }>;
+      };
       if (!catData.content) continue;
 
       const items: FaqItem[] = [];
@@ -42,7 +50,7 @@ export default function FaqList() {
             question: qData.question,
             answer: qData.answer,
             category: catData.title || categoryKey,
-            ccategoryKey: categoryKey,
+            categoryKey,
           });
         }
       }
@@ -69,8 +77,7 @@ export default function FaqList() {
         ...cat,
         items: cat.items.filter(
           (item) =>
-            item.question.toLowerCase().includes(q) ||
-            item.answer.toLowerCase().includes(q),
+            item.question.toLowerCase().includes(q) || item.answer.toLowerCase().includes(q),
         ),
       }))
       .filter((cat) => cat.items.length > 0);
@@ -101,6 +108,7 @@ export default function FaqList() {
       >
         <input
           type="text"
+          aria-label={t("texts.qa_search_placeholder")}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -108,7 +116,6 @@ export default function FaqList() {
           }}
           placeholder={t("texts.qa_search_placeholder")}
           className="faq-search-input"
-          aria-label={t("texts.qa_search_placeholder")}
         />
         <div className="faq-count">
           {t("texts.qa_show_count", {
@@ -130,10 +137,7 @@ export default function FaqList() {
             {category.items.map((item, index) => {
               const isOpen = openId === item.id;
               return (
-                <section
-                  key={item.id}
-                  className={`faq-item${isOpen ? " open" : ""}`}
-                >
+                <section key={item.id} className={`faq-item${isOpen ? " open" : ""}`}>
                   <button
                     type="button"
                     className="faq-question"
@@ -150,6 +154,7 @@ export default function FaqList() {
                       id={`faq-answer-${item.id}`}
                       className="faq-answer"
                       role="region"
+                      aria-hidden={!isOpen}
                     >
                       <div className="faq-answer-inner">
                         <p>{item.answer}</p>
@@ -165,12 +170,3 @@ export default function FaqList() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-

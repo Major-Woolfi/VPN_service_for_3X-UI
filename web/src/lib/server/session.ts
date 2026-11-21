@@ -2,10 +2,8 @@ import "server-only";
 
 import { cookies } from "next/headers";
 
-import {
-  SESSION_COOKIE_NAME,
-  fetchServerProfileResult,
-} from "./bot-proxy";
+import { fetchServerProfileResult } from "./bot-proxy";
+import { SESSION_COOKIE_NAME } from "../constants";
 import type { SanitizedUser } from "../types";
 
 export { SESSION_COOKIE_NAME };
@@ -42,7 +40,3 @@ export async function resolveServerSession(): Promise<ServerSessionState> {
     return { kind: "unavailable" };
   }
 }
-
-
-
-

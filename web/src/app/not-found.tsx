@@ -18,14 +18,12 @@ export default function NotFound() {
           </div>
           <div className="pinned-section fade-in">
             <div className="pinned-content">
-              <p
-                style={{ color: "var(--text-secondary)", marginBottom: "16px" }}
-              >
+              <p style={{ color: "var(--text-secondary)", marginBottom: "16px" }}>
                 {t("texts.not_found_text")}
               </p>
-<Link href="/" className="button">
-              {t("buttons.main")}
-            </Link>
+              <Link href="/" className="button">
+                {t("buttons.main")}
+              </Link>
             </div>
           </div>
         </div>
@@ -33,9 +31,3 @@ export default function NotFound() {
     </>
   );
 }
-
-
-
-
-
-

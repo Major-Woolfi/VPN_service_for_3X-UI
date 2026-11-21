@@ -4,12 +4,12 @@
       "bearerAuth": {
         "type": "http",
         "scheme": "bearer",
-        "description": "Session token, BOT_API_KEY, BOT_ADMIN_KEY, or admin JWT, sent as Authorization: Bearer <token>. Session tokens expire after 6 hours."
+        "description": "Session token, BOT_API_KEY, BOT_ADMIN_KEY, or admin JWT, sent as Authorization: Bearer <token>. Session tokens expire after 6 hours, admin JWT after 15 minutes."
       },
       "adminApiKey": {
         "type": "http",
         "scheme": "bearer",
-        "description": "BOT_ADMIN_KEY, sent as Authorization: Bearer <BOT_ADMIN_KEY>. Admin JWT from /api/v1/auth/admin/token is also accepted."
+        "description": "BOT_ADMIN_KEY, sent as Authorization: Bearer <BOT_ADMIN_KEY>. Admin JWT is also accepted."
       }
     },
     "schemas": {
@@ -23,10 +23,6 @@
           "password": {
             "description": "Пароль",
             "type": "string"
-          },
-          "tg_id": {
-            "description": "Telegram user ID (optional)",
-            "type": "integer"
           },
           "ref_code": {
             "description": "Реферальный код",
@@ -81,10 +77,19 @@
           "tg_id": {
             "description": "Telegram user ID to link",
             "type": "integer"
+          },
+          "state": {
+            "description": "Verification state created by /api/v1/auth/telegram/link-start and confirmed in Telegram",
+            "type": "string"
+          },
+          "password": {
+            "description": "Optional current web password",
+            "type": "string"
           }
         },
         "required": [
-          "tg_id"
+          "tg_id",
+          "state"
         ],
         "type": "object"
       },
@@ -290,22 +295,6 @@
         },
         "type": "object"
       },
-      "AbuseClearRequest": {
-        "type": "object",
-        "properties": {
-          "user_id": {
-            "type": "integer",
-            "description": "User ID to clear abuse status"
-          },
-          "reason": {
-            "type": "string",
-            "description": "Optional reason for clearing"
-          }
-        },
-        "required": [
-          "user_id"
-        ]
-      },
       "ErrorResponse": {
         "type": "object",
         "properties": {
@@ -332,6 +321,34 @@
           "join_date": {
             "type": "string",
             "description": "ISO date when user joined"
+          },
+          "subscription_id": {
+            "type": "string",
+            "description": "Current subscription ID"
+          },
+          "vpn_url": {
+            "type": "string",
+            "description": "Current subscription URL"
+          },
+          "plan_text": {
+            "type": "string",
+            "description": "Current subscription plan text"
+          },
+          "expiry_sub_datatime": {
+            "type": "string",
+            "description": "Subscription expiry date"
+          },
+          "ref_by": {
+            "type": "integer",
+            "description": "Internal user ID of the referrer"
+          },
+          "co_owner_ref_by": {
+            "type": "integer",
+            "description": "Internal user ID of the co-owner who invited this user"
+          },
+          "is_coowner": {
+            "type": "integer",
+            "description": "1 if user is a co-owner"
           },
           "has_subscription": {
             "type": "integer",
@@ -402,7 +419,8 @@
                 "type": "string"
               },
               "xray_version": {
-                "type": "string"
+                "type": "string",
+                "example": "26.11.9"
               },
               "panel_base": {
                 "type": "string"
@@ -433,7 +451,8 @@
                   "type": "string"
                 },
                 "xray_version": {
-                  "type": "string"
+                  "type": "string",
+                  "example": "26.11.9"
                 },
                 "address": {
                   "type": [
@@ -605,6 +624,149 @@
           "failed",
           "total"
         ]
+      },
+      "CoOwnerProfileResponse": {
+        "type": "object",
+        "description": "Co-owner profile and referral links.",
+        "properties": {
+          "uid": {"type": "integer"},
+          "nickname": {"type": "string"},
+          "telegram_id": {"type": "integer"},
+          "ref_code": {"type": "string"},
+          "telegram_link": {"type": "string"},
+          "web_link": {"type": "string"},
+          "subscription_id": {"type": "string"},
+          "vpn_url": {"type": "string"},
+          "expiry": {"type": "string"},
+          "commission_percent": {"type": "integer"}
+        },
+        "required": [
+          "uid",
+          "nickname",
+          "telegram_id",
+          "ref_code",
+          "telegram_link",
+          "web_link",
+          "subscription_id",
+          "vpn_url",
+          "expiry",
+          "commission_percent"
+        ]
+      },
+      "CoOwnerLinkResponse": {
+        "type": "object",
+        "description": "Rotated co-owner referral links.",
+        "properties": {
+          "ref_code": {"type": "string"},
+          "telegram_link": {"type": "string"},
+          "web_link": {"type": "string"}
+        },
+        "required": ["ref_code", "telegram_link", "web_link"]
+      },
+      "CoOwnerUser": {
+        "type": "object",
+        "description": "Invited user in the co-owner tree with the exact user fields shown in the web table.",
+        "properties": {
+          "user_id": {"type": "integer"},
+          "telegram_id": {"type": "integer"},
+          "join_date": {"type": "string"},
+          "username": {"type": "string"},
+          "has_subscription": {"type": "boolean"},
+          "subscription_id": {"type": "string"},
+          "vpn_url": {"type": "string"},
+          "expiry_sub_datatime": {"type": "string"},
+          "ref_by": {"type": "integer"}
+        },
+        "required": [
+          "user_id",
+          "telegram_id",
+          "join_date",
+          "username",
+          "has_subscription",
+          "subscription_id",
+          "vpn_url",
+          "expiry_sub_datatime",
+          "ref_by"
+        ]
+      },
+      "CoOwnerUsersResponse": {
+        "type": "object",
+        "properties": {
+          "users": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/CoOwnerUser"}
+          },
+          "total": {"type": "integer"}
+        },
+        "required": ["users", "total"]
+      },
+      "CoOwnerPayment": {
+        "type": "object",
+        "properties": {
+          "payment_id": {"type": "string"},
+          "uid": {"type": "integer"},
+          "amount": {"type": "number"},
+          "status": {"type": "string"},
+          "method": {"type": "string"},
+          "timestamp": {"type": "string"},
+          "commission": {
+            "type": "number",
+            "description": "Estimated commission for informational purposes only; not credited to a balance."
+          }
+        },
+        "required": [
+          "payment_id",
+          "uid",
+          "amount",
+          "status",
+          "method",
+          "timestamp",
+          "commission"
+        ]
+      },
+      "CoOwnerPaymentsResponse": {
+        "type": "object",
+        "properties": {
+          "payments": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/CoOwnerPayment"}
+          },
+          "total": {"type": "number"},
+          "commission": {
+            "type": "number",
+            "description": "Estimated commission for informational purposes only; not credited to a balance."
+          }
+        },
+        "required": ["payments", "total", "commission"]
+      },
+      "CoOwnerStatsResponse": {
+        "type": "object",
+        "description": "Aggregated metrics for the co-owner subtree.",
+        "properties": {
+          "total_invited": {"type": "integer"},
+          "active_subscriptions": {"type": "integer"},
+          "paid_users": {"type": "integer"},
+          "revenue": {"type": "number"},
+          "commission": {
+            "type": "number",
+            "description": "Estimated commission for informational purposes only; not credited to a balance."
+          },
+          "commission_percent": {"type": "integer"},
+          "max_depth": {"type": "integer"},
+          "traffic_gb": {"type": "number"},
+          "newest_join_date": {"type": "string"}
+        },
+        "required": [
+          "total_invited",
+          "active_subscriptions",
+          "paid_users",
+          "revenue",
+          "commission",
+          "commission_percent",
+          "max_depth",
+          "traffic_gb",
+          "newest_join_date"
+        ]
       }
     }
   },
@@ -621,13 +783,27 @@
           "WebSocket"
         ],
         "summary": "User notifications WebSocket",
-        "description": "WebSocket endpoint for real-time user notifications. Connect with user_id path parameter.",
+        "description": "WebSocket endpoint for real-time user notifications. Authentication is required: pass the session token in the `token` query parameter or in the `Authorization: Bearer <token>` header. The `user_id` path parameter must match the authenticated internal UID (the linked Telegram ID is also accepted).",
         "operationId": "ws_notifications",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "user_id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": false,
+            "description": "Session token; alternative to the Authorization header",
             "schema": {
               "type": "string"
             }
@@ -683,6 +859,7 @@
         "summary": "Health check",
         "description": "Public endpoint to check API availability. No authentication required.",
         "operationId": "get_health",
+        "security": [],
         "responses": {
           "200": {
             "description": "Response"
@@ -698,7 +875,9 @@
         "summary": "System statistics overview",
         "description": "System statistics: total users, subscribers, partners.",
         "operationId": "get_stats_overview",
+        "security": [],
         "responses": {
+          "200": {"description": "Successful response"},
           "500": {
             "description": "Internal server error"
           }
@@ -713,7 +892,9 @@
         "summary": "Panel status (public stats)",
         "description": "Public panel status information including server status and nodes. Returns only fields required for public rendering.",
         "operationId": "get_stats_panel_status",
+        "security": [],
         "responses": {
+          "200": {"description": "Successful response"},
           "500": {
             "description": "Internal server error"
           }
@@ -726,9 +907,11 @@
           "Tariffs"
         ],
         "summary": "Get all active tariffs",
-        "description": "Public endpoint. Returns all active tariffs from the catalog (tarifs.json).",
+        "description": "Public endpoint. Returns all active tariffs from the catalog selected by TARIFF_MODE (tarifs.json for old, tarifs_new.json for new) plus tariff_mode and the shared server locations list in every tariff.",
         "operationId": "get_tariffs",
+        "security": [],
         "responses": {
+          "200": {"description": "Successful response"},
           "500": {
             "description": "Internal server error"
           }
@@ -743,6 +926,7 @@
         "summary": "Регистрация по логину и паролю",
         "description": "Создание веб-аккаунта по логину и паролю.",
         "operationId": "register",
+        "security": [],
         "requestBody": {
           "content": {
             "application/json": {
@@ -777,6 +961,7 @@
         "summary": "Вход по логину и паролю",
         "description": "Аутентификация по логину и паролю. Возвращает токен сессии.",
         "operationId": "login",
+        "security": [],
         "requestBody": {
           "content": {
             "application/json": {
@@ -788,6 +973,7 @@
           "required": true
         },
         "responses": {
+          "200": {"description": "Successful response"},
           "429": {
             "description": "Too many requests"
           },
@@ -807,10 +993,11 @@
         "operationId": "get_me",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "responses": {
+          "200": {"description": "Successful response"},
           "401": {
             "description": "Unauthorized"
           },
@@ -833,10 +1020,11 @@
         "operationId": "logout",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "responses": {
+          "200": {"description": "Successful response"},
           "401": {
             "description": "Unauthorized"
           }
@@ -853,7 +1041,7 @@
         "operationId": "change_password",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "requestBody": {
@@ -867,6 +1055,7 @@
           "required": true
         },
         "responses": {
+          "200": {"description": "Successful response"},
           "400": {
             "description": "Bad request"
           },
@@ -886,7 +1075,7 @@
         "operationId": "link_telegram",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "requestBody": {
@@ -900,6 +1089,7 @@
           "required": true
         },
         "responses": {
+          "200": {"description": "Successful response"},
           "400": {
             "description": "Bad request"
           },
@@ -920,7 +1110,9 @@
         "summary": "Create Telegram login state",
         "description": "Create a one-time state token for bot-assisted login. State is valid for 5 minutes (TTL=300). Returns a Telegram deep-link URL to open in the bot.",
         "operationId": "create_telegram_login_state",
+        "security": [],
         "responses": {
+          "200": {"description": "Successful response"},
           "500": {
             "description": "Internal server error"
           }
@@ -937,10 +1129,11 @@
         "operationId": "create_telegram_link_state",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "responses": {
+          "200": {"description": "Successful response"},
           "401": {
             "description": "Unauthorized"
           },
@@ -958,6 +1151,7 @@
         "summary": "Check Telegram auth state status",
         "description": "Poll the status of a Telegram authentication state created by /api/v1/auth/telegram/start or /api/v1/auth/telegram/link-start.",
         "operationId": "telegram_auth_status",
+        "security": [],
         "parameters": [
           {
             "name": "state",
@@ -970,6 +1164,7 @@
           }
         ],
         "responses": {
+          "200": {"description": "Successful response"},
           "500": {
             "description": "Internal server error"
           }
@@ -982,9 +1177,11 @@
           "System"
         ],
         "summary": "Get feature flags and public configuration",
-        "description": "Returns public feature flags, available payment methods, and public links.",
+        "description": "Returns public feature flags (including tariff_mode: old|new), available payment methods, and public links.",
         "operationId": "get_config_features",
+        "security": [],
         "responses": {
+          "200": {"description": "Successful response"},
           "500": {
             "description": "Internal server error"
           }
@@ -998,13 +1195,14 @@
         ],
         "summary": "List users with abuse status",
         "description": "Returns all users that have a non-empty abuse_status field.",
-        "operationId": "getAbuseUsers",
+        "operationId": "get_abuse_users",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "responses": {
+          "200": {"description": "Successful response"},
           "200": {
             "description": "Response"
           },
@@ -1024,10 +1222,10 @@
         ],
         "summary": "Clear abuse status for a user",
         "description": "Resets the abuse_status field for the specified user, sends notification to user, and optionally recreates their subscription.",
-        "operationId": "clearAbuse",
+        "operationId": "clear_abuse",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "parameters": [
@@ -1041,17 +1239,8 @@
             }
           }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AbuseClearRequest"
-              }
-            }
-          }
-        },
         "responses": {
+          "200": {"description": "Successful response"},
           "401": {
             "description": "Unauthorized"
           },
@@ -1073,11 +1262,11 @@
           "Payments"
         ],
         "summary": "Create checkout",
-        "description": "Create a payment session. Generates a payment_id and returns a payment URL (Yoomoney) or card payment details. Price is recalculated server-side (trust discount applied, custom plan price computed from parameters). Order ID is unique per request.",
+        "description": "Create a payment session. Generates a payment_id and returns a payment URL (Yoomoney) or card payment details. Price is recalculated server-side (trust discount applied, custom plan price computed from parameters). Order ID is unique per request. Requires a user session token; the admin token is not accepted.",
         "operationId": "create_checkout",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "requestBody": {
@@ -1091,6 +1280,7 @@
           "required": true
         },
         "responses": {
+          "200": {"description": "Successful response"},
           "400": {
             "description": "Bad request"
           },
@@ -1116,10 +1306,11 @@
         "operationId": "get_profile",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "responses": {
+          "200": {"description": "Successful response"},
           "401": {
             "description": "Unauthorized"
           },
@@ -1142,7 +1333,7 @@
         "operationId": "change_language",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "requestBody": {
@@ -1165,6 +1356,7 @@
           }
         },
         "responses": {
+          "200": {"description": "Successful response"},
           "400": {
             "description": "Bad request"
           },
@@ -1187,7 +1379,7 @@
         "operationId": "create_subscription",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "requestBody": {
@@ -1232,7 +1424,7 @@
         "operationId": "renew_subscription",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "requestBody": {
@@ -1277,7 +1469,7 @@
         "operationId": "trial_subscription",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "responses": {
@@ -1305,11 +1497,11 @@
           "Subscriptions"
         ],
         "summary": "Test subscription (admin only)",
-        "description": "Creates a request for a test subscription for the administrator account. The request goes through the same approval flow as a regular payment: it is stored as a pending request (plan_type = \"test\") and the subscription is issued only after an administrator confirms it. Works for catalog plans and for a custom plan (plan_id = \"custom\" with custom_plan). The test subscription is stored separately from the canonical Admin subscription and never overwrites its sub_id.",
+        "description": "Immediately issues a test subscription for the authenticated administrator account. Works for catalog plans and for a custom plan (plan_id = \"custom\" with custom_plan). The test subscription is stored separately from the canonical Admin subscription and never overwrites its sub_id. Returns 200 with the subscription URL and payment_id equal to sub_id.",
         "operationId": "test_subscription",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "requestBody": {
@@ -1323,8 +1515,23 @@
           "required": true
         },
         "responses": {
-          "202": {
-            "description": "Accepted"
+          "200": {
+            "description": "Test subscription issued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {"type": "string"},
+                    "plan_name": {"type": "string"},
+                    "payment_id": {"type": "string"},
+                    "wait_admin": {"type": "boolean"},
+                    "url": {"type": "string"},
+                    "json_url": {"type": "string"}
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "Bad request"
@@ -1354,10 +1561,11 @@
         "operationId": "get_subscription_link",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "responses": {
+          "200": {"description": "Successful response"},
           "401": {
             "description": "Unauthorized"
           },
@@ -1380,7 +1588,7 @@
         "operationId": "add_extra_traffic",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "requestBody": {
@@ -1401,6 +1609,7 @@
           }
         },
         "responses": {
+          "200": {"description": "Successful response"},
           "400": {
             "description": "Bad request"
           },
@@ -1421,6 +1630,7 @@
         "summary": "Verify subscription by sub_id",
         "description": "Public endpoint to verify the validity of a subscription by subscription ID.",
         "operationId": "verify_subscription",
+        "security": [],
         "parameters": [
           {
             "name": "sub_id",
@@ -1433,6 +1643,7 @@
           }
         ],
         "responses": {
+          "200": {"description": "Successful response"},
           "500": {
             "description": "Internal server error"
           }
@@ -1445,9 +1656,11 @@
           "Tariffs"
         ],
         "summary": "Get available server locations",
-        "description": "Public endpoint. Returns a list of available server locations with flags and labels.",
+        "description": "Public endpoint. Returns a list of available server locations with flags and labels from the shared servers.json catalog.",
         "operationId": "get_locations",
+        "security": [],
         "responses": {
+          "200": {"description": "Successful response"},
           "500": {
             "description": "Internal server error"
           }
@@ -1462,7 +1675,9 @@
         "summary": "Public partner program information",
         "description": "Returns public partner program configuration: commission percent, requirements, terms URL, period limits, bonus days, and trust points.",
         "operationId": "get_partner_public_info",
+        "security": [],
         "responses": {
+          "200": {"description": "Successful response"},
           "500": {
             "description": "Internal server error"
           }
@@ -1479,10 +1694,11 @@
         "operationId": "get_partner_profile",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "responses": {
+          "200": {"description": "Successful response"},
           "401": {
             "description": "Unauthorized"
           },
@@ -1505,7 +1721,7 @@
         "operationId": "apply_partner",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "requestBody": {
@@ -1547,10 +1763,11 @@
         "operationId": "get_partner_pending_status",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "responses": {
+          "200": {"description": "Successful response"},
           "401": {
             "description": "Unauthorized"
           },
@@ -1570,7 +1787,7 @@
         "operationId": "partner_renew",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "requestBody": {
@@ -1612,7 +1829,7 @@
         "operationId": "partner_withdraw",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "requestBody": {
@@ -1682,7 +1899,7 @@
         "operationId": "generate_custom_tariff",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "requestBody": {
@@ -1724,7 +1941,7 @@
         "operationId": "get_custom_tariff_params",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "responses": {
@@ -1750,7 +1967,7 @@
         "operationId": "get_admin_users",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "parameters": [
@@ -1761,7 +1978,8 @@
             "schema": {
               "type": "integer",
               "default": 1,
-              "minimum": 1
+              "minimum": 1,
+              "maximum": 10000
             }
           },
           {
@@ -1772,7 +1990,26 @@
               "type": "integer",
               "default": 50,
               "minimum": 1,
-              "maximum": 1000
+              "maximum": 200
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Optional numeric UID or TID. Non-numeric values return no results.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "co_owner",
+            "in": "query",
+            "required": false,
+            "description": "Return only co-owner accounts when true.",
+            "schema": {
+              "type": "boolean",
+              "default": false
             }
           }
         ],
@@ -1809,10 +2046,11 @@
         "operationId": "get_partner_stats",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "responses": {
+          "200": {"description": "Successful response"},
           "401": {
             "description": "Unauthorized"
           },
@@ -1835,10 +2073,11 @@
         "operationId": "get_referrals_stats",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "responses": {
+          "200": {"description": "Successful response"},
           "401": {
             "description": "Unauthorized"
           },
@@ -1858,7 +2097,7 @@
         "operationId": "debug_cleanup",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "requestBody": {
@@ -1872,6 +2111,7 @@
           "required": true
         },
         "responses": {
+          "200": {"description": "Successful response"},
           "401": {
             "description": "Unauthorized"
           },
@@ -1894,7 +2134,7 @@
         "operationId": "admin_debug_search",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "parameters": [
@@ -1912,6 +2152,7 @@
           }
         ],
         "responses": {
+          "200": {"description": "Successful response"},
           "401": {
             "description": "Unauthorized"
           },
@@ -1934,10 +2175,11 @@
         "operationId": "get_admin_health",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "responses": {
+          "200": {"description": "Successful response"},
           "401": {
             "description": "Unauthorized"
           },
@@ -1960,7 +2202,7 @@
         "operationId": "get_admin_panel_status",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "responses": {
@@ -1996,7 +2238,7 @@
         "operationId": "send_admin_message",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "parameters": [
@@ -2027,6 +2269,7 @@
           }
         },
         "responses": {
+          "200": {"description": "Successful response"},
           "400": {
             "description": "Bad request"
           },
@@ -2055,7 +2298,7 @@
         "operationId": "change_ip_limit",
         "security": [
           {
-            "BearerAuth": []
+            "bearerAuth": []
           }
         ],
         "parameters": [
@@ -2086,6 +2329,7 @@
           }
         },
         "responses": {
+          "200": {"description": "Successful response"},
           "401": {
             "description": "Unauthorized"
           },
@@ -2102,6 +2346,40 @@
       }
     },
     "/api/v1/partner/channels": {
+      "get": {
+        "tags": [
+          "Partners"
+        ],
+        "summary": "List partner TG channels",
+        "description": "Returns Telegram channels bound to the authenticated partner.",
+        "operationId": "list_partner_channels",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerChannelList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      },
       "post": {
         "tags": [
           "Partners"
@@ -2271,6 +2549,155 @@
           }
         }
       }
+    },
+    "/api/v1/co-owners/profile": {
+      "get": {
+        "tags": ["Co-Owners"],
+        "summary": "Get co-owner profile and referral links",
+        "description": "Get co-owner profile and referral links.",
+        "operationId": "get_co_owner_profile",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/CoOwnerProfileResponse"}
+              }
+            }
+          },
+          "401": {"description": "Unauthorized"},
+          "403": {"description": "Forbidden"},
+          "500": {"description": "Internal server error"}
+        }
+      }
+    },
+    "/api/v1/co-owners/stats": {
+      "get": {
+        "tags": ["Co-Owners"],
+        "summary": "Get co-owner subtree statistics",
+        "description": "Get co-owner subtree statistics. Commission is an estimate only: it is not credited to any balance and no payout is performed.",
+        "operationId": "get_co_owner_stats",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/CoOwnerStatsResponse"}
+              }
+            }
+          },
+          "401": {"description": "Unauthorized"},
+          "403": {"description": "Forbidden"},
+          "500": {"description": "Internal server error"}
+        }
+      }
+    },
+    "/api/v1/co-owners/users": {
+      "get": {
+        "tags": ["Co-Owners"],
+        "summary": "List all users invited by the co-owner recursively",
+        "description": "List all users invited by the co-owner recursively with the exact user fields: user_id, telegram_id, join_date, username, has_subscription, subscription_id, vpn_url, expiry_sub_datatime and ref_by.",
+        "operationId": "get_co_owner_users",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Optional numeric UID or TID within the co-owner subtree. Non-numeric values return no results.",
+            "schema": {"type": "string", "maxLength": 64}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/CoOwnerUsersResponse"}
+              }
+            }
+          },
+          "401": {"description": "Unauthorized"},
+          "403": {"description": "Forbidden"},
+          "500": {"description": "Internal server error"}
+        }
+      }
+    },
+    "/api/v1/co-owners/payments": {
+      "get": {
+        "tags": ["Co-Owners"],
+        "summary": "List accepted payments in the co-owner subtree",
+        "description": "List accepted payments in the co-owner subtree. Commission values are estimates only and are not credited to a balance.",
+        "operationId": "get_co_owner_payments",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/CoOwnerPaymentsResponse"}
+              }
+            }
+          },
+          "401": {"description": "Unauthorized"},
+          "403": {"description": "Forbidden"},
+          "500": {"description": "Internal server error"}
+        }
+      }
+    },
+    "/api/v1/co-owners/link/rotate": {
+      "post": {
+        "tags": ["Co-Owners"],
+        "summary": "Rotate the co-owner referral code",
+        "description": "Rotate the co-owner referral code.",
+        "operationId": "rotate_co_owner_link",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/CoOwnerLinkResponse"}
+              }
+            }
+          },
+          "401": {"description": "Unauthorized"},
+          "403": {"description": "Forbidden"},
+          "500": {"description": "Internal server error"}
+        }
+      }
+    },
+    "/api/v1/admin/co-owners/reload": {
+      "post": {
+        "tags": ["Co-Owners", "Admin"],
+        "summary": "Reload CO_OWNERS registry",
+        "description": "Reload CO_OWNERS registry.",
+        "operationId": "admin_reload_co_owners",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "configured": {"type": "integer"},
+                    "active": {"type": "integer"},
+                    "commission_percent": {"type": "integer"}
+                  },
+                  "required": ["configured", "active", "commission_percent"]
+                }
+              }
+            }
+          },
+          "401": {"description": "Unauthorized"},
+          "403": {"description": "Forbidden"},
+          "500": {"description": "Internal server error"}
+        }
+      }
     }
   },
   "security": [
@@ -2319,6 +2746,10 @@
     {
       "name": "Partners",
       "description": "Partner program, applications, withdrawals"
+    },
+    {
+      "name": "Co-Owners",
+      "description": "Co-owner dashboard, invited users and payments"
     },
     {
       "name": "Referrals",

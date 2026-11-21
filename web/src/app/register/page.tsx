@@ -4,8 +4,8 @@ import Header from "@/components/Header";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { registerUser } from "@/lib/api";
+import { getErrorMessage } from "@/lib/error";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 function safeNextPath(): string {
@@ -13,13 +13,11 @@ function safeNextPath(): string {
   const params = new URLSearchParams(window.location.search);
   const next = params.get("next");
   if (next && next.startsWith("/") && !next.startsWith("//")) return next;
-  
-  
+
   return "/settings";
 }
 
 export default function RegisterPage() {
-  const router = useRouter();
   const { t } = useLanguage();
   const [web_login, setWebLogin] = useState("");
   const [password, setPassword] = useState("");
@@ -53,10 +51,9 @@ export default function RegisterPage() {
         password,
         ref_code: refCode || undefined,
       });
-      router.refresh();
-      router.replace(safeNextPath());
+      window.location.replace(safeNextPath());
     } catch (err) {
-      setError(String(err));
+      setError(getErrorMessage(err));
       setLoading(false);
     }
   };
@@ -78,24 +75,20 @@ export default function RegisterPage() {
               <div className="flex flex-col gap-4 mt-5">
                 {Error && <div className="error-message">{Error}</div>}
 
-                <form
-                  onSubmit={handlePasswordRegister}
-                  className="flex flex-col gap-3"
-                  noValidate
-                >
-                    <input
-                      type="text"
-                      placeholder={t("texts.web_login")}
-                      className="faq-search-input"
-                      value={web_login}
-                      onChange={(e) =>
-                        setWebLogin(e.target.value.replace(/[<>"'&]/g, ""))
-                      }
-                      autoComplete="username"
-                      required
-                    />
+                <form onSubmit={handlePasswordRegister} className="flex flex-col gap-3" noValidate>
+                  <input
+                    type="text"
+                    aria-label={t("texts.web_login")}
+                    placeholder={t("texts.web_login")}
+                    className="faq-search-input"
+                    value={web_login}
+                    onChange={(e) => setWebLogin(e.target.value.replace(/[<>"'&]/g, ""))}
+                    autoComplete="username"
+                    required
+                  />
                   <input
                     type="password"
+                    aria-label={t("texts.password")}
                     placeholder={t("texts.password")}
                     className="faq-search-input"
                     value={password}
@@ -105,6 +98,7 @@ export default function RegisterPage() {
                   />
                   <input
                     type="password"
+                    aria-label={t("texts.confirm_password")}
                     placeholder={t("texts.confirm_password")}
                     className="faq-search-input"
                     value={confirmPassword}
@@ -112,11 +106,7 @@ export default function RegisterPage() {
                     autoComplete="new-password"
                     required
                   />
-                  <button
-                    type="submit"
-                    className="button w-full"
-                    disabled={loading}
-                  >
+                  <button type="submit" className="button w-full" disabled={loading}>
                     {loading ? t("texts.waiting") : t("buttons.register")}
                   </button>
                 </form>
@@ -135,20 +125,3 @@ export default function RegisterPage() {
     </>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

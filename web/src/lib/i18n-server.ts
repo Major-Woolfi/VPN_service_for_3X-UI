@@ -15,6 +15,11 @@ export interface SiteCopy {
   legal: Record<LegalDocumentkey, LegalDocument>;
 }
 
+export interface PageSeo {
+  title: string;
+  description: string;
+}
+
 function getDefaultlanguage(): string {
   const configured = process.env.NEXT_PUBLIC_DEFAULT_LANGUAGE;
   if (configured && SERVER_languages[configured]) return configured;
@@ -30,10 +35,7 @@ function getDefaultlanguage(): string {
 const FALLBACK_LANG = getDefaultlanguage();
 const VPN_NAME = process.env.NEXT_PUBLIC_VPN_NAME || "vpn";
 
-function resolveNested(
-  obj: Record<string, unknown>,
-  path: string,
-): string | undefined {
+function resolveNested(obj: Record<string, unknown>, path: string): string | undefined {
   const pstarts = path.split(".");
   let current: unknown = obj;
   for (const part of pstarts) {
@@ -43,11 +45,7 @@ function resolveNested(
   return typeof current === "string" ? current : undefined;
 }
 
-function replacePlaceholders(
-  text: string,
-  params?: Record<string, string | number>,
-): string {
-
+function replacePlaceholders(text: string, params?: Record<string, string | number>): string {
   let result = text.replace(/\{vpnName\}/g, VPN_NAME);
   result = result.replace(/\{siteName\}/g, VPN_NAME);
 
@@ -61,10 +59,7 @@ function replacePlaceholders(
   return result;
 }
 
-function resolveTranslation(
-  data: TranslationData | undefined,
-  key: string,
-): string | undefined {
+function resolveTranslation(data: TranslationData | undefined, key: string): string | undefined {
   if (!data) return undefined;
 
   if (key.startsWith("buttons.")) {
@@ -75,6 +70,9 @@ function resolveTranslation(
   }
   if (key.startsWith("legal.")) {
     return resolveNested(data.legal || {}, key.replace("legal.", ""));
+  }
+  if (key.startsWith("seo.")) {
+    return resolveNested(data.seo || {}, key.replace("seo.", ""));
   }
   return undefined;
 }
@@ -87,9 +85,6 @@ export function tServer(
   const result =
     resolveTranslation(SERVER_languages[lang], key) ||
     resolveTranslation(SERVER_languages[FALLBACK_LANG], key) ||
-    Object.values(SERVER_languages).flatMap((l) => resolveTranslation(l, key)).find(
-      Boolean,
-    ) ||
     fallbackText(key);
 
   if (typeof result === "string") {
@@ -110,11 +105,8 @@ function getlanguageQuality(params: string[]): number | undefined {
   const qualityParam = params.find((param) => /^\s*q\s*=/i.test(param));
   if (!qualityParam) return 1;
 
-  const quality = Number(
-    qualityParam.slice(qualityParam.indexOf("=") + 1).trim(),
-  );
-  if (!Number.isFinite(quality) || quality <= 0 || quality > 1)
-    return undefined;
+  const quality = Number(qualityParam.slice(qualityParam.indexOf("=") + 1).trim());
+  if (!Number.isFinite(quality) || quality <= 0 || quality > 1) return undefined;
   return quality;
 }
 
@@ -139,10 +131,7 @@ export function detectlanguage(acceptlanguage?: string): string {
   return bestlanguage;
 }
 
-export function resolvelanguage(
-  cookieLang?: string,
-  acceptlanguage?: string,
-): string {
+export function resolvelanguage(cookieLang?: string, acceptlanguage?: string): string {
   if (cookieLang && SERVER_languages[cookieLang]) return cookieLang;
   return detectlanguage(acceptlanguage);
 }
@@ -160,10 +149,7 @@ function formatLegalDocument(doc: Partial<LegalDocument>): LegalDocument {
     sections: Array.isArray(doc.sections)
       ? doc.sections.map((section) => ({
           title: replacePlaceholders(section.title || ""),
-          content: replacePlaceholders(section.content || "").replace(
-            /\r?\n/g,
-            "<br>",
-          ),
+          content: replacePlaceholders(section.content || "").replace(/\r?\n/g, "<br>"),
         }))
       : [],
   };
@@ -180,10 +166,7 @@ function buildFallbackLegal(): Record<LegalDocumentkey, LegalDocument> {
 
 const FALLBACK_LEGAL = buildFallbackLegal();
 
-export function getServerLegalDocument(
-  lang: string,
-  key: LegalDocumentkey,
-): LegalDocument {
+export function getServerLegalDocument(lang: string, key: LegalDocumentkey): LegalDocument {
   const fallback = FALLBACK_LEGAL[key];
   const doc = SERVER_languages[lang]?.legal?.[key];
   if (!doc?.title) return fallback;
@@ -193,8 +176,7 @@ export function getServerLegalDocument(
     title: formatted.title || fallback.title,
     subtitle: formatted.subtitle || fallback.subtitle,
     effectiveDate: formatted.effectiveDate || fallback.effectiveDate,
-    sections:
-      formatted.sections.length > 0 ? formatted.sections : fallback.sections,
+    sections: formatted.sections.length > 0 ? formatted.sections : fallback.sections,
   };
 }
 
@@ -207,9 +189,7 @@ export function getServerSiteCopy(language?: string): SiteCopy {
     const value = resolveTranslation(data, key);
     if (value !== undefined) return replacePlaceholders(value);
     const fallbackValue = resolveTranslation(fallbackData, key);
-    return fallbackValue !== undefined
-      ? replacePlaceholders(fallbackValue)
-      : "";
+    return fallbackValue !== undefined ? replacePlaceholders(fallbackValue) : "";
   };
 
   return {
@@ -224,14 +204,21 @@ export function getServerSiteCopy(language?: string): SiteCopy {
   };
 }
 
+export function getServerPageSeo(language: string, page: string): PageSeo {
+  const lang = normalizeServerlanguage(language);
+  const data = SERVER_languages[lang];
+  const fallbackData = SERVER_languages[FALLBACK_LANG];
 
+  const pick = (suffix: string): string => {
+    const key = `seo.${page}.${suffix}`;
+    const value = resolveTranslation(data, key);
+    if (value !== undefined) return replacePlaceholders(value);
+    const fallbackValue = resolveTranslation(fallbackData, key);
+    return fallbackValue !== undefined ? replacePlaceholders(fallbackValue) : "";
+  };
 
-
-
-
-
-
-
-
-
-
+  return {
+    title: pick("title"),
+    description: pick("description"),
+  };
+}

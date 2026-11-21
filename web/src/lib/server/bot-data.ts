@@ -1,12 +1,8 @@
 import "server-only";
 
+import { cache } from "react";
 import { getBotApiBase, UPSTREAM_TIMEOUT_MS } from "./bot-proxy";
-import type {
-  FeaturesResponse,
-  StatsOverviewResponse,
-  Tariff,
-  TariffsResponse,
-} from "../types";
+import type { FeaturesResponse, StatsOverviewResponse, TariffsResponse } from "../types";
 
 const SERVER_TIMEOUT_MS = UPSTREAM_TIMEOUT_MS;
 
@@ -14,11 +10,7 @@ function describeError(err: unknown): string {
   if (err instanceof Error) {
     const cause = (err as { cause?: unknown }).cause;
     const reason =
-      cause instanceof Error
-        ? `: ${cause.message}`
-        : typeof cause === "string"
-          ? `: ${cause}`
-          : "";
+      cause instanceof Error ? `: ${cause.message}` : typeof cause === "string" ? `: ${cause}` : "";
     return `${err.message}${reason}`;
   }
   return String(err);
@@ -35,24 +27,24 @@ async function serverGet<T>(path: string): Promise<T> {
   return (await response.json()) as T;
 }
 
-export async function getTariffsServer(): Promise<Tariff[]> {
+export const getTariffsServer = cache(async (): Promise<TariffsResponse> => {
   try {
     const data = await serverGet<TariffsResponse>("/tariffs");
-    return data.tariffs || [];
+    return { tariffs: data.tariffs || [], tariff_mode: data.tariff_mode };
   } catch (err) {
     console.error(`[bot-data] не удалось получить /tariffs: ${describeError(err)}`);
-    return [];
+    return { tariffs: [] };
   }
-}
+});
 
-export async function getFeaturesServer(): Promise<FeaturesResponse | null> {
+export const getFeaturesServer = cache(async (): Promise<FeaturesResponse | null> => {
   try {
     return await serverGet<FeaturesResponse>("/config/features");
   } catch (err) {
     console.error(`[bot-data] не удалось получить /config/features: ${describeError(err)}`);
     return null;
   }
-}
+});
 
 export async function getStatsOverviewServer(): Promise<StatsOverviewResponse | null> {
   try {

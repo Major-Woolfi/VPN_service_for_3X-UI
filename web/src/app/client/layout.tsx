@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
-import { resolvelanguage } from "@/lib/i18n-server";
+import { getServerPageSeo, resolvelanguage } from "@/lib/i18n-server";
+import { getOpenGraphLocale } from "@/lib/locale";
 
 export async function generateMetadata(): Promise<Metadata> {
   const cookieStore = await cookies();
@@ -11,33 +12,27 @@ export async function generateMetadata(): Promise<Metadata> {
   );
   const siteName = process.env.NEXT_PUBLIC_VPN_NAME || "VPN Service";
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local";
+  const seo = getServerPageSeo(lang, "client");
 
   return {
-    title: "Настройка клиентов - " + siteName,
-    description: "Скачайте VPN-клиенты для любой платформы: Windows, macOS, Linux, iOS, Android, роутеры. Гайды по настройке INCY, v2RayTun, NekoBox, Shadowrocket.",
-    keywords: [
-      "vpn клиенты",
-      "скачать vpn клиент",
-      "настройка vpn клиента",
-      "incy vpn",
-      "v2rayn vpn",
-      "nekoBox vpn",
-      "shadowrocket vpn",
-      "vpn на роутере",
-    ],
+    title: `${seo.title} - ${siteName}`,
+    description: seo.description,
     openGraph: {
       type: "website",
-      locale: lang + "_" + lang.toUpperCase(),
-      url: siteUrl,
-      title: "Настройка клиентов - " + siteName,
-      description: "Скачайте VPN-клиенты для Windows, macOS, Linux, iOS, Android, роутеры. Подробные гайды по настройке.",
+      locale: getOpenGraphLocale(lang),
+      url: `${siteUrl}/client`,
+      siteName,
+      title: seo.title,
+      description: seo.description,
       images: ["/icon.jpg"],
     },
     twitter: {
       card: "summary",
-      title: "Клиенты VPN - " + siteName,
-      description: "VPN-клиенты для всех платформ",
+      title: seo.title,
+      description: seo.description,
       images: ["/icon.jpg"],
+      creator: siteName,
+      site: siteName,
     },
     robots: {
       index: true,
@@ -46,19 +41,6 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default async function ClientLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function ClientLayout({ children }: { children: React.ReactNode }) {
   return children;
 }
-
-
-
-
-
-
-
-
-

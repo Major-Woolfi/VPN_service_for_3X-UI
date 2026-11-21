@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-
-const SESSION_COOKIE_NAME = "vpn_token";
+import { SESSION_COOKIE_NAME } from "@/lib/constants";
 
 const PROTECTED_ROOTS = [
   "/profile",
@@ -8,6 +7,7 @@ const PROTECTED_ROOTS = [
   "/subscribe",
   "/client",
   "/referral",
+  "/co-owners",
   "/admin",
 ];
 
@@ -29,6 +29,19 @@ function buildLoginUrl(request: NextRequest): URL {
     url.searchParams.set("reason", reason);
   }
   return url;
+}
+
+function getSafeNextTarget(request: NextRequest): string {
+  const next = request.nextUrl.searchParams.get("next");
+  if (!next || !next.startsWith("/") || next.startsWith("//") || next.includes("\\")) {
+    return "/profile";
+  }
+  const origin = request.nextUrl.origin;
+  const target = new URL(next, origin);
+  if (target.origin !== origin) {
+    return "/profile";
+  }
+  return `${target.pathname}${target.search}${target.hash}`;
 }
 
 export function middleware(request: NextRequest): NextResponse {
@@ -55,12 +68,7 @@ export function middleware(request: NextRequest): NextResponse {
     if (reason === "session_expired" || reason === "banned") {
       return NextResponse.next({ request: { headers: requestHeaders } });
     }
-    const next = request.nextUrl.searchParams.get("next");
-    const target =
-      next && next.startsWith("/") && !next.startsWith("//")
-        ? next
-        : "/profile";
-    return NextResponse.redirect(new URL(target, request.url));
+    return NextResponse.redirect(new URL(getSafeNextTarget(request), request.url));
   }
 
   return NextResponse.next({ request: { headers: requestHeaders } });

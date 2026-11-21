@@ -1,12 +1,8 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
-import {
-  ApiError,
-  HEALTH_POLL_INTERVAL_MS,
-  getHealth,
-} from "@/lib/api";
+import { ApiError, HEALTH_POLL_INTERVAL_MS, getHealth } from "@/lib/api";
 
 type Health = { status: string; version: string } | null;
 
@@ -15,7 +11,6 @@ export default function LiveStatusBar() {
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [online, setOnline] = useState<boolean | null>(null);
   const { t, lang } = useLanguage();
-  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -34,7 +29,6 @@ export default function LiveStatusBar() {
         if (cancelled) return;
         if (err instanceof ApiError && err.status === 429) return;
         setOnline(false);
-        console.error("[LiveStatusBar] health check Error:", err);
       }
     };
 
@@ -59,7 +53,6 @@ export default function LiveStatusBar() {
 
   return (
     <div
-      ref={containerRef}
       style={{
         display: "inline-flex",
         alignItems: "center",
@@ -78,16 +71,12 @@ export default function LiveStatusBar() {
           height: "8px",
           borderRadius: "50%",
           background: online ? "var(--success)" : "var(--danger)",
-          boxShadow: online
-            ? "0 0 6px var(--success)"
-            : "0 0 6px var(--danger)",
+          boxShadow: online ? "0 0 6px var(--success)" : "0 0 6px var(--danger)",
           animation: online ? "pulse 2s infinite" : "none",
         }}
       />
       <span>{online ? t("texts.api_online") : t("texts.api_offline")}</span>
-      {health?.version && (
-        <span style={{ color: "var(--text-muted)" }}>v{health.version}</span>
-      )}
+      {health?.version && <span style={{ color: "var(--text-muted)" }}>v{health.version}</span>}
       {lastUpdate && (
         <span style={{ color: "var(--text-muted)" }}>
           ·{" "}
@@ -101,5 +90,3 @@ export default function LiveStatusBar() {
     </div>
   );
 }
-
-

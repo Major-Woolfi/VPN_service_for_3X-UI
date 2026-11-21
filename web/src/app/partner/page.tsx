@@ -13,6 +13,7 @@ import {
   partnerApply,
   partnerRenew,
 } from "@/lib/api";
+import { getErrorMessage } from "@/lib/error";
 import type {
   PartnerProfileResponse,
   PartnerStatsResponse,
@@ -39,23 +40,37 @@ export default function PartnerPage() {
   const [bonusValue, setBonusValue] = useState("");
 
   useEffect(() => {
-    if (!user?.is_partner) return;
     let cancelled = false;
     (async () => {
       try {
-        const [p, s, pi] = await Promise.all([
-          getPartnerProfile(),
-          getPartnerStats(),
-          getPartnerPublicInfo(),
-        ]);
+        const pi = await getPartnerPublicInfo();
+        if (!cancelled) setPublicInfo(pi);
+      } catch {}
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!user?.is_partner) {
+      setProfile(null);
+      setStats(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const [p, s] = await Promise.all([getPartnerProfile(), getPartnerStats()]);
         if (!cancelled) {
           setProfile(p);
           setStats(s);
-          setPublicInfo(pi);
         }
       } catch {}
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [user?.is_partner]);
 
   const isPartner = Boolean(user?.is_partner);
@@ -64,25 +79,60 @@ export default function PartnerPage() {
   const minPeriod = publicInfo?.min_period_months || 1;
   const maxPeriod = publicInfo?.max_period_months || 12;
   const minFollowers = publicInfo?.min_followers || 0;
-  const bmin = publicInfo?.bonus_days_min || 0;
-  const bmax = publicInfo?.bonus_days_max || 0;
+  const bonusMin =
+    bonusType === "trust" ? publicInfo?.trust_points_min || 0 : publicInfo?.bonus_days_min || 0;
+  const bonusMax =
+    bonusType === "trust" ? publicInfo?.trust_points_max || 0 : publicInfo?.bonus_days_max || 0;
+
+  const stepNumber = (value: string, delta: number, min: number, max: number) => {
+    const current = parseInt(value, 10);
+    const base = Number.isFinite(current) ? current : min;
+    return String(Math.min(max, Math.max(min, base + delta)));
+  };
 
   const handleApply = async () => {
+    if (!telegramLinked) {
+      setMessage(t("texts.partner_requires_telegram"));
+      setIsError(true);
+      return;
+    }
+    const followersValue = parseInt(followers, 10);
+    const periodValue = parseInt(periodMonths, 10);
+    const bonusValueNumber = parseInt(bonusValue, 10);
+    if (!Number.isFinite(followersValue) || followersValue < minFollowers) {
+      setMessage(t("texts.partner_req_followers", { count: minFollowers }));
+      setIsError(true);
+      return;
+    }
+    if (!Number.isFinite(periodValue) || periodValue < minPeriod || periodValue > maxPeriod) {
+      setMessage(t("texts.partner_period_label", { min: minPeriod, max: maxPeriod }));
+      setIsError(true);
+      return;
+    }
+    if (
+      !Number.isFinite(bonusValueNumber) ||
+      bonusValueNumber < bonusMin ||
+      bonusValueNumber > bonusMax
+    ) {
+      setMessage(t("texts.partner_trust_placeholder", { min: bonusMin, max: bonusMax }));
+      setIsError(true);
+      return;
+    }
     setSubmitting(true);
     setMessage("");
     try {
       await partnerApply({
-        followers: parseInt(followers, 10) || 0,
-        social_links: socials,
-        nickname,
-        period_months: parseInt(periodMonths, 10) || 0,
+        followers: followersValue,
+        social_links: socials.trim(),
+        nickname: nickname.trim(),
+        period_months: periodValue,
         bonus_type: bonusType,
-        bonus_value: parseInt(bonusValue, 10) || 0,
+        bonus_value: bonusValueNumber,
       });
       setMessage(t("texts.partner_apply_success"));
       setIsError(false);
     } catch (err) {
-      setMessage(String(err));
+      setMessage(getErrorMessage(err));
       setIsError(true);
     } finally {
       setSubmitting(false);
@@ -90,16 +140,32 @@ export default function PartnerPage() {
   };
 
   const handleRenew = async () => {
+    if (!telegramLinked) {
+      setMessage(t("texts.partner_requires_telegram"));
+      setIsError(true);
+      return;
+    }
+    const months = parseInt(periodMonths, 10);
+    const value = Number.isFinite(months) ? months : minPeriod;
+    setMessage("");
     try {
-      const months = parseInt(periodMonths, 10) || 1;
-      await partnerRenew({ months });
-      setMessage(t("texts.partner_renew_success", { months }));
+      await partnerRenew({ months: value });
+      setMessage(t("texts.partner_renew_success", { months: value }));
       setIsError(false);
     } catch (err) {
-      setMessage(String(err));
+      setMessage(getErrorMessage(err));
       setIsError(true);
     }
   };
+
+  const messageBlock = message ? (
+    <div
+      className={`${isError ? "error-message" : "success-message"} form-grid-wide`}
+      style={{ marginTop: "12px" }}
+    >
+      {message}
+    </div>
+  ) : null;
 
   if (authLoading || !user) {
     return (
@@ -113,15 +179,23 @@ export default function PartnerPage() {
                 <p className="profile-username">{t("texts.partner_program_text")}</p>
               </div>
             </div>
-            <div style={{ marginTop: "24px", textAlign: "center" }}>
-              <p style={{ marginBottom: "16px", color: "var(--text-secondary)" }}>{t("texts.login_required_partner")}</p>
-              <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
-                <button onClick={() => router.push("/login?next=/partner")} className="button" style={{ flex: 1 }}>
-                  {t("buttons.login")}
-                </button>
-                <button onClick={() => router.push("/register?next=/partner")} className="button" style={{ flex: 1, background: "var(--bg-tertiary)", color: "var(--text-primary)" }}>
-                  {t("buttons.register")}
-                </button>
+            <div className="pinned-section fade-in">
+              <div className="pinned-content">
+                <p className="text-secondary" style={{ marginTop: "16px" }}>
+                  {t("texts.login_required_partner")}
+                </p>
+                <div className="button-pair" style={{ marginTop: "16px" }}>
+                  <button onClick={() => router.push("/login?next=/partner")} className="button">
+                    {t("buttons.login")}
+                  </button>
+                  <button
+                    onClick={() => router.push("/register?next=/partner")}
+                    className="button"
+                    style={{ background: "var(--bg-tertiary)", color: "var(--text-primary)" }}
+                  >
+                    {t("buttons.register")}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -142,35 +216,227 @@ export default function PartnerPage() {
                 <p className="profile-username">{t("texts.partner_program_text")}</p>
               </div>
             </div>
-            <div style={{ marginTop: "24px" }}>
-              {isPending ? (
-                <p style={{ color: "var(--text-secondary)" }}>{t("texts.pending")}</p>
-              ) : (
-                <form onSubmit={(e) => { e.preventDefault(); handleApply(); }} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                    <button type="button" onClick={() => setFollowers(String(Math.max(minFollowers, (parseInt(followers, 10) || 0) - 1)))}>−</button>
-                    <input type="number" value={followers} onChange={(e) => setFollowers(e.target.value)} placeholder={t("texts.partner_followers")} className="form-input" required min={String(minFollowers)} />
-                    <button type="button" onClick={() => setFollowers(String((parseInt(followers, 10) || 0) + 1))}>+</button>
-                  </div>
-                  <input type="text" value={socials} onChange={(e) => setSocials(e.target.value)} placeholder={t("texts.partner_apply_socials_placeholder")} className="form-input" required />
-                  <input type="text" value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder={t("texts.partner_nickname")} className="form-input" required />
-                  <input type="number" value={periodMonths} onChange={(e) => setPeriodMonths(e.target.value)} placeholder={t("texts.partner_period_label", { min: minPeriod, max: maxPeriod })} className="form-input" required min={String(minPeriod)} max={String(maxPeriod)} />
-                  <select value={bonusType} onChange={(e) => { setBonusType(e.target.value); setBonusValue(""); }} className="form-input">
-                    <option value="days">{t("texts.partner_bonus_days", { min: publicInfo?.bonus_days_min || 0, max: publicInfo?.bonus_days_max || 0 })}</option>
-                    <option value="trust">{t("texts.partner_trust_points", { min: publicInfo?.trust_points_min || 0, max: publicInfo?.trust_points_max || 0 })}</option>
-                  </select>
-                  <input type="number" value={bonusValue} onChange={(e) => setBonusValue(e.target.value)} placeholder={t("texts.partner_trust_placeholder", { min: bmin, max: bmax })} className="form-input" />
-                  {message ? (
-                    <div style={{ padding: "12px", background: "var(--bg-tertiary)", borderRadius: "var(--radius-sm)", color: isError ? "var(--danger)" : "var(--success)", fontSize: "14px" }}>
-                      {message}
+
+            <div className="pinned-section fade-in">
+              <h2>{t("texts.partner_requirements")}</h2>
+              <div className="pinned-content">
+                <p className="text-secondary" style={{ marginTop: "16px" }}>
+                  {t("texts.partner_apply_text")}
+                </p>
+                <p className="text-secondary" style={{ fontSize: "14px" }}>
+                  {t("texts.partner_commission", {
+                    commission_percent: publicInfo?.commission_percent || 0,
+                  })}
+                </p>
+                <p className="text-secondary" style={{ fontSize: "14px" }}>
+                  {t("texts.partner_req_followers", { count: minFollowers })}
+                </p>
+              </div>
+            </div>
+
+            <div className="pinned-section fade-in delay-1">
+              <h2>{t("texts.partner_apply_submit")}</h2>
+              <div className="pinned-content">
+                {isPending ? (
+                  <p className="text-secondary" style={{ marginTop: "16px" }}>
+                    {t("texts.pending")}
+                  </p>
+                ) : (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      void handleApply();
+                    }}
+                    className="form-grid"
+                    style={{ marginTop: "16px" }}
+                  >
+                    <div className="field-label">
+                      <span>{t("texts.partner_followers")}</span>
+                      <span className="number-input-wrapper">
+                        <button
+                          type="button"
+                          className="number-btn"
+                          onClick={() =>
+                            setFollowers(stepNumber(followers, -1, minFollowers, 1000000))
+                          }
+                        >
+                          −
+                        </button>
+                        <input
+                          type="number"
+                          aria-label={t("texts.partner_followers")}
+                          value={followers}
+                          onChange={(e) => setFollowers(e.target.value)}
+                          placeholder={String(minFollowers)}
+                          required
+                          min={minFollowers}
+                        />
+                        <button
+                          type="button"
+                          className="number-btn"
+                          onClick={() =>
+                            setFollowers(stepNumber(followers, 1, minFollowers, 1000000))
+                          }
+                        >
+                          +
+                        </button>
+                      </span>
                     </div>
-                  ) : null}
-                  <button type="submit" className="button" style={{ width: "100%" }} disabled={submitting || !telegramLinked}>
-                    {submitting ? t("texts.waiting") : t("texts.partner_apply_submit")}
-                  </button>
-                </form>
-              )}
-              <p style={{ marginTop: "16px", color: "var(--text-secondary)" }}>{t("texts.partner_apply_text")}</p>
+                    <div className="field-label">
+                      <span>
+                        {t("texts.partner_period_label", { min: minPeriod, max: maxPeriod })}
+                      </span>
+                      <span className="number-input-wrapper">
+                        <button
+                          type="button"
+                          className="number-btn"
+                          onClick={() =>
+                            setPeriodMonths(stepNumber(periodMonths, -1, minPeriod, maxPeriod))
+                          }
+                        >
+                          −
+                        </button>
+                        <input
+                          type="number"
+                          aria-label={t("texts.partner_period_label", {
+                            min: minPeriod,
+                            max: maxPeriod,
+                          })}
+                          value={periodMonths}
+                          onChange={(e) => setPeriodMonths(e.target.value)}
+                          required
+                          min={minPeriod}
+                          max={maxPeriod}
+                        />
+                        <button
+                          type="button"
+                          className="number-btn"
+                          onClick={() =>
+                            setPeriodMonths(stepNumber(periodMonths, 1, minPeriod, maxPeriod))
+                          }
+                        >
+                          +
+                        </button>
+                      </span>
+                    </div>
+                    <div className="field-label">
+                      <span>
+                        {t("texts.partner_bonus_days", {
+                          min: publicInfo?.bonus_days_min || 0,
+                          max: publicInfo?.bonus_days_max || 0,
+                        })}
+                      </span>
+                      <select
+                        aria-label={t("texts.partner_bonus_days", {
+                          min: publicInfo?.bonus_days_min || 0,
+                          max: publicInfo?.bonus_days_max || 0,
+                        })}
+                        value={bonusType}
+                        onChange={(e) => {
+                          setBonusType(e.target.value);
+                          setBonusValue("");
+                        }}
+                        className="form-input"
+                      >
+                        <option value="days">
+                          {t("texts.partner_bonus_days", {
+                            min: publicInfo?.bonus_days_min || 0,
+                            max: publicInfo?.bonus_days_max || 0,
+                          })}
+                        </option>
+                        <option value="trust">
+                          {t("texts.partner_trust_points", {
+                            min: publicInfo?.trust_points_min || 0,
+                            max: publicInfo?.trust_points_max || 0,
+                          })}
+                        </option>
+                      </select>
+                    </div>
+                    <div className="field-label">
+                      <span>
+                        {t("texts.partner_trust_placeholder", { min: bonusMin, max: bonusMax })}
+                      </span>
+                      <span className="number-input-wrapper">
+                        <button
+                          type="button"
+                          className="number-btn"
+                          onClick={() =>
+                            setBonusValue(stepNumber(bonusValue, -1, bonusMin, bonusMax))
+                          }
+                        >
+                          −
+                        </button>
+                        <input
+                          type="number"
+                          aria-label={t("texts.partner_trust_placeholder", {
+                            min: bonusMin,
+                            max: bonusMax,
+                          })}
+                          value={bonusValue}
+                          onChange={(e) => setBonusValue(e.target.value)}
+                          required
+                          min={bonusMin}
+                          max={bonusMax}
+                        />
+                        <button
+                          type="button"
+                          className="number-btn"
+                          onClick={() =>
+                            setBonusValue(stepNumber(bonusValue, 1, bonusMin, bonusMax))
+                          }
+                        >
+                          +
+                        </button>
+                      </span>
+                    </div>
+                    <div className="field-label form-grid-wide">
+                      <span>{t("texts.partner_apply_socials_placeholder")}</span>
+                      <input
+                        type="text"
+                        aria-label={t("texts.partner_apply_socials_placeholder")}
+                        value={socials}
+                        onChange={(e) => setSocials(e.target.value)}
+                        placeholder={t("texts.partner_apply_socials_placeholder")}
+                        className="form-input"
+                        required
+                      />
+                    </div>
+                    <div className="field-label form-grid-wide">
+                      <span>{t("texts.partner_nickname")}</span>
+                      <input
+                        type="text"
+                        aria-label={t("texts.partner_nickname")}
+                        value={nickname}
+                        onChange={(e) => setNickname(e.target.value)}
+                        placeholder={t("texts.partner_nickname")}
+                        className="form-input"
+                        required
+                        pattern="[a-zA-Z0-9_]+"
+                      />
+                    </div>
+                    {!telegramLinked && (
+                      <div className="error-message form-grid-wide" style={{ margin: 0 }}>
+                        {t("texts.partner_requires_telegram")}{" "}
+                        <button
+                          type="button"
+                          className="link-button"
+                          onClick={() => router.push("/settings")}
+                        >
+                          {t("buttons.link_telegram")}
+                        </button>
+                      </div>
+                    )}
+                    {messageBlock}
+                    <button
+                      type="submit"
+                      className="button form-grid-wide"
+                      disabled={submitting || !telegramLinked}
+                    >
+                      {submitting ? t("texts.waiting") : t("texts.partner_apply_submit")}
+                    </button>
+                  </form>
+                )}
+              </div>
             </div>
           </div>
         </main>
@@ -191,44 +457,133 @@ export default function PartnerPage() {
           </div>
 
           {profile ? (
-            <div style={{ marginTop: "16px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid var(--border-color)" }}>
-                <span style={{ color: "var(--text-secondary)" }}>{t("texts.web_login")}</span>
-                <span>{profile.ref_link_code}</span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid var(--border-color)" }}>
-                <span style={{ color: "var(--text-secondary)" }}>{t("texts.status")}</span>
-                <span style={{ color: profile.status === "active" ? "var(--success)" : "var(--warning)" }}>{profile.status === "active" ? t("texts.status_active") : t("texts.pending")}</span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ color: "var(--text-secondary)" }}>{t("texts.referral_link")}</span>
-                {profile.ref_link ? (
-                  <a href={profile.ref_link} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", wordBreak: "break-all" }}>{profile.ref_link}</a>
-                ) : (
-                  <span style={{ color: "var(--text-secondary)" }}>{profile.ref_link_code || t("texts.not_specified")}</span>
-                )}
+            <div className="pinned-section fade-in">
+              <h2>{t("texts.partner_program")}</h2>
+              <div className="pinned-content">
+                <div style={{ marginTop: "16px" }}>
+                  <div className="dashboard-row">
+                    <span className="text-secondary">{t("texts.web_login")}</span>
+                    <span>{profile.ref_link_code}</span>
+                  </div>
+                  <div className="dashboard-row">
+                    <span className="text-secondary">{t("texts.status")}</span>
+                    <span
+                      style={{
+                        color: profile.status === "active" ? "var(--success)" : "var(--warning)",
+                      }}
+                    >
+                      {profile.status === "active" ? t("texts.status_active") : t("texts.pending")}
+                    </span>
+                  </div>
+                  <div className="dashboard-row">
+                    <span className="text-secondary">{t("texts.referral_link")}</span>
+                    {profile.ref_link ? (
+                      <a
+                        className="referral-link"
+                        href={profile.ref_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {profile.ref_link}
+                      </a>
+                    ) : (
+                      <span style={{ color: "var(--text-secondary)" }}>
+                        {profile.ref_link_code || t("texts.not_specified")}
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           ) : null}
 
           {stats ? (
-            <StatGrid cards={[
-              { label: t("texts.total_refs"), value: stats.total_refs, color: "var(--accent)" },
-              { label: t("texts.paid_refs"), value: stats.paid_refs, color: "var(--success)" },
-              { label: t("texts.total_earned"), value: stats.commission_total ? String(stats.commission_total) + " " + t("texts.currency_rub") : "", color: "var(--warning)" },
-            ]} />
+            <div className="pinned-section fade-in delay-1">
+              <h2>{t("texts.stats")}</h2>
+              <div className="pinned-content">
+                <StatGrid
+                  cards={[
+                    {
+                      label: t("texts.total_refs"),
+                      value: stats.total_refs,
+                      color: "var(--accent)",
+                    },
+                    {
+                      label: t("texts.paid_refs"),
+                      value: stats.paid_refs,
+                      color: "var(--success)",
+                    },
+                    {
+                      label: t("texts.total_earned"),
+                      value: stats.commission_total
+                        ? String(stats.commission_total) + " " + t("texts.currency_rub")
+                        : "",
+                      color: "var(--warning)",
+                    },
+                  ]}
+                />
+              </div>
+            </div>
           ) : null}
 
-          <div style={{ marginTop: "24px" }}>
-            <h2 style={{ marginBottom: "16px", color: "var(--text-secondary)" }}>{t("texts.actions")}</h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              <button className="button" style={{ width: "100%" }} onClick={() => {}}>{t("buttons.withdraw")}</button>
-              <button className="button" style={{ width: "100%" }} disabled={!telegramLinked} onClick={handleRenew}>{t("buttons.renew_partner")}</button>
-              {message ? (
-                <div style={{ padding: "12px", background: "var(--bg-tertiary)", borderRadius: "var(--radius-sm)", color: isError ? "var(--danger)" : "var(--success)", fontSize: "14px" }}>
-                  {message}
+          <div className="pinned-section fade-in delay-2">
+            <h2>{t("texts.actions")}</h2>
+            <div className="pinned-content">
+              <p className="text-secondary" style={{ marginTop: "16px", fontSize: "14px" }}>
+                {t("texts.partner_renew_free_info")}
+              </p>
+              <div className="form-actions">
+                <div className="field-label">
+                  <span>{t("texts.partner_period_label", { min: minPeriod, max: maxPeriod })}</span>
+                  <span className="number-input-wrapper">
+                    <button
+                      type="button"
+                      className="number-btn"
+                      onClick={() =>
+                        setPeriodMonths(stepNumber(periodMonths, -1, minPeriod, maxPeriod))
+                      }
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      aria-label={t("texts.partner_period_label", {
+                        min: minPeriod,
+                        max: maxPeriod,
+                      })}
+                      value={periodMonths}
+                      onChange={(e) => setPeriodMonths(e.target.value)}
+                      min={minPeriod}
+                      max={maxPeriod}
+                    />
+                    <button
+                      type="button"
+                      className="number-btn"
+                      onClick={() =>
+                        setPeriodMonths(stepNumber(periodMonths, 1, minPeriod, maxPeriod))
+                      }
+                    >
+                      +
+                    </button>
+                  </span>
                 </div>
-              ) : null}
+                <button className="button" disabled={!telegramLinked} onClick={handleRenew}>
+                  {t("buttons.renew_partner")}
+                </button>
+                {!telegramLinked && (
+                  <div className="error-message" style={{ margin: 0 }}>
+                    {t("texts.partner_requires_telegram")}{" "}
+                    <button
+                      type="button"
+                      className="link-button"
+                      onClick={() => router.push("/settings")}
+                    >
+                      {t("buttons.link_telegram")}
+                    </button>
+                  </div>
+                )}
+                {messageBlock}
+              </div>
             </div>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
-import { resolvelanguage } from "@/lib/i18n-server";
+import { getServerPageSeo, resolvelanguage } from "@/lib/i18n-server";
+import { getOpenGraphLocale } from "@/lib/locale";
 
 export async function generateMetadata(): Promise<Metadata> {
   const cookieStore = await cookies();
@@ -9,28 +10,29 @@ export async function generateMetadata(): Promise<Metadata> {
     cookieStore.get("vpn_language")?.value,
     headerStore.get("accept-language") || undefined,
   );
-
   const siteName = process.env.NEXT_PUBLIC_VPN_NAME || "VPN Service";
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local";
+  const seo = getServerPageSeo(lang, "register");
 
   return {
-    title: "Регистрация - " + siteName,
-    description: "Создайте аккаунт в " + siteName + ". Быстрая регистрация по email или через Telegram. Доступ к VPN, реферальная программа, партнёрская программа.",
-    keywords: ["регистрация vpn", "создать аккаунт vpn", "зарегистрироваться в vpn", "vpn регистрация"],
+    title: `${seo.title} - ${siteName}`,
+    description: seo.description,
     openGraph: {
       type: "website",
-      locale: lang + "_" + lang.toUpperCase(),
-      url: siteUrl,
+      locale: getOpenGraphLocale(lang),
+      url: `${siteUrl}/register`,
       siteName,
-      title: "Регистрация - " + siteName,
-      description: "Создайте аккаунт в " + siteName + " за минуту. Доступ к VPN, реферальная программа, партнёрство.",
+      title: seo.title,
+      description: seo.description,
       images: ["/icon.jpg"],
     },
     twitter: {
       card: "summary",
-      title: "Регистрация - " + siteName,
-      description: "Регистрация нового аккаунта в " + siteName,
+      title: seo.title,
+      description: seo.description,
       images: ["/icon.jpg"],
+      creator: siteName,
+      site: siteName,
     },
     robots: {
       index: false,
@@ -39,19 +41,6 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default async function RegisterLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function RegisterLayout({ children }: { children: React.ReactNode }) {
   return children;
 }
-
-
-
-
-
-
-
-
-

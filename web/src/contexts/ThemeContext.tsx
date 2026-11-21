@@ -2,7 +2,9 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
+  useMemo,
   useState,
   useEffect,
   type ReactNode,
@@ -27,8 +29,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         const stored = localStorage.getItem(THEME_KEY) as Theme | null;
         if (stored === "light" || stored === "dark") return stored;
       } catch {}
-      if (window.matchMedia("(prefers-color-scheme: light)").matches)
-        return "light";
+      if (window.matchMedia("(prefers-color-scheme: light)").matches) return "light";
     }
     return "dark";
   });
@@ -41,15 +42,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     } catch {}
   }, [theme]);
 
-  const toggleTheme = () => {
+  const toggleTheme = useCallback(() => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
-  };
+  }, []);
 
-  return (
-    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme }}>
-      {children}
-    </ThemeContext.Provider>
-  );
+  const value = useMemo(() => ({ theme, setTheme, toggleTheme }), [theme, toggleTheme]);
+
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme() {

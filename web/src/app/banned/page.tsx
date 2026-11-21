@@ -5,7 +5,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useFeatures } from "@/contexts/FeaturesContext";
 import { getPublicLinksFromFeatures } from "@/lib/api";
 
-export default function BbannedPage() {
+export default function BannedPage() {
   const { t } = useLanguage();
   const { features } = useFeatures();
   const publiclinks = getPublicLinksFromFeatures(features);
@@ -19,9 +19,7 @@ export default function BbannedPage() {
         <div className="profile">
           <div className="profile-header no-avatar">
             <div className="profile-info">
-              <h1 className="profile-name">
-                {t("texts.account_banned_title")}
-              </h1>
+              <h1 className="profile-name">{t("texts.account_banned_title")}</h1>
             </div>
           </div>
           <div className="pinned-section fade-in">
@@ -31,11 +29,7 @@ export default function BbannedPage() {
               </p>
               <div style={{ marginTop: "24px", textAlign: "center" }}>
                 {supportHref ? (
-                  <a
-                    href={supportHref}
-                    className="button"
-                    style={{ textDecoration: "none" }}
-                  >
+                  <a href={supportHref} className="button" style={{ textDecoration: "none" }}>
                     {t("buttons.contact_support")}
                   </a>
                 ) : (
@@ -51,10 +45,3 @@ export default function BbannedPage() {
     </>
   );
 }
-
-
-
-
-
-
-

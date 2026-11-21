@@ -1,14 +1,18 @@
 import { SERVER_languages } from "./i18n-generated";
-import { normalizeServerlanguage, getServerSiteCopy } from "./i18n-server";
+import { getServerPageSeo, normalizeServerlanguage, getServerSiteCopy } from "./i18n-server";
 
 const siteName = process.env.NEXT_PUBLIC_VPN_NAME || "VPN";
-const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "";
+const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local";
+const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim();
 const languages = ["ru", "en", "de", "be", "pl", "ja", "zh"];
 
-function replacePlaceholders(
-  text: string,
-  params?: Record<string, string | number>,
-): string {
+interface PriceRange {
+  low: number;
+  high: number;
+  currency: string;
+}
+
+function replacePlaceholders(text: string, params?: Record<string, string | number>): string {
   const VPN_NAME = process.env.NEXT_PUBLIC_VPN_NAME || "VPN";
   let result = text.replace(/\{vpnName\}/g, VPN_NAME);
   result = result.replace(/\{siteName\}/g, VPN_NAME);
@@ -26,9 +30,12 @@ function getFAQFromTranslations(lang: string) {
   if (!data?.qa?.category) return [];
 
   const sections = [];
-  const qaCategory = data.qa.category as Record<string, { title?: string; content?: Record<string, { question: string; answer: string }> }>;
+  const qaCategory = data.qa.category as Record<
+    string,
+    { title?: string; content?: Record<string, { question: string; answer: string }> }
+  >;
 
-  for (const [ccategoryKey, categoryData] of Object.entries(qaCategory)) {
+  for (const [categoryKey, categoryData] of Object.entries(qaCategory)) {
     if (!categoryData?.content) continue;
 
     const questions = [];
@@ -43,7 +50,7 @@ function getFAQFromTranslations(lang: string) {
 
     if (questions.length > 0) {
       sections.push({
-        title: categoryData.title || ccategoryKey,
+        title: categoryData.title || categoryKey,
         questions,
       });
     }
@@ -54,13 +61,38 @@ function getFAQFromTranslations(lang: string) {
 
 export function generateJsonLd(
   language?: string,
-  pageType: "home" | "qa" | "partner" | "client" | "tos" | "privacy" | "offer" | "login" | "register" | "profile" | "settings" | "payment" | "subscription" | "referral" | "subscribe" = "home",
-  path?: string
+  pageType:
+    | "home"
+    | "qa"
+    | "partner"
+    | "client"
+    | "tos"
+    | "privacy"
+    | "offer"
+    | "login"
+    | "register"
+    | "profile"
+    | "settings"
+    | "payment"
+    | "subscription"
+    | "referral"
+    | "co-owners"
+    | "subscribe"
+    | "banned"
+    | "admin" = "home",
+  path?: string,
+  priceRange?: PriceRange,
 ) {
   const normalizedlanguage = normalizeServerlanguage(language);
   const copy = getServerSiteCopy(normalizedlanguage);
   const faqsections = getFAQFromTranslations(normalizedlanguage);
   const pageUrl = path ? `${baseUrl}${path}` : baseUrl;
+  const seoKey =
+    pageType === "co-owners" ? "coOwners" : pageType === "subscribe" ? "subscription" : pageType;
+  const pageSeo = getServerPageSeo(normalizedlanguage, seoKey);
+  const lowPrice = priceRange ? String(priceRange.low) : "200";
+  const highPrice = priceRange ? String(priceRange.high) : "5000";
+  const priceCurrency = priceRange?.currency || "RUB";
 
   const faqItems = faqsections.flatMap((section) =>
     section.questions.map((q) => ({
@@ -70,7 +102,7 @@ export function generateJsonLd(
         "@type": "Answer",
         text: q.answer,
       },
-    }))
+    })),
   );
 
   const baseGraph = [
@@ -81,15 +113,12 @@ export function generateJsonLd(
       url: baseUrl,
       logo: `${baseUrl}/icon.jpg`,
       foundingDate: "2026-07-07",
-      sameAs: [
-        "https://t.me/Phantom_OFFNET",
-      ],
+      sameAs: ["https://t.me/Phantom_OFFNET"],
       contactPoint: {
         "@type": "ContactPoint",
-        telephone: "",
         contactType: "customer support",
-        availablelanguage: languages,
-        email: "support@phantomvpn.local",
+        availableLanguage: languages,
+        ...(supportEmail ? { email: supportEmail } : {}),
       },
     },
     {
@@ -97,9 +126,9 @@ export function generateJsonLd(
       "@id": `${baseUrl}/#website`,
       url: baseUrl,
       name: siteName,
-      description: copy.siteDescription || "VPN-сервис на базе XRay с поддержкой VLESS, Shadowsocks, REALITY, ML-KEM-768",
+      description: copy.siteDescription,
       publisher: { "@id": `${baseUrl}/#organization` },
-      inlanguage: languages,
+      inLanguage: languages,
       potentialAction: {
         "@type": "SearchAction",
         target: {
@@ -113,10 +142,10 @@ export function generateJsonLd(
       "@type": "WebPage",
       "@id": `${pageUrl}#webpage`,
       url: pageUrl,
-      name: pageType === "home" ? siteName : `${copy.siteTitle || siteName}`,
+      name: pageType === "home" ? siteName : pageSeo.title || copy.siteTitle || siteName,
       isPartOf: { "@id": `${baseUrl}/#website` },
       about: { "@id": `${baseUrl}/#organization` },
-      inlanguage: normalizedlanguage,
+      inLanguage: normalizedlanguage,
       ...(pageType === "qa" && {
         mainEntity: { "@id": `${baseUrl}/qa#faqpage` },
       }),
@@ -144,7 +173,7 @@ export function generateJsonLd(
               position: i + 1,
               name: replacePlaceholders(v as string),
             })),
-        }
+        },
       );
       break;
 
@@ -160,8 +189,12 @@ export function generateJsonLd(
       pageSpecificGraph.push({
         "@type": "Service",
         "@id": `${baseUrl}/partner#service`,
-        name: "Партнёрская программа",
-        description: SERVER_languages[normalizedlanguage]?.texts?.partner_program_text || "Партнёрская программа с гибкими бонусами",
+        name:
+          pageSeo.title || SERVER_languages[normalizedlanguage]?.texts?.partner_program || siteName,
+        description:
+          pageSeo.description ||
+          SERVER_languages[normalizedlanguage]?.texts?.partner_program_text ||
+          copy.siteDescription,
         provider: { "@id": `${baseUrl}/#organization` },
         serviceType: "Affiliate Program",
         areaServed: "Worldwide",
@@ -179,10 +212,8 @@ export function generateJsonLd(
       pageSpecificGraph.push({
         "@type": ["WebPage", "ActionAccessSpecification"],
         "@id": `${baseUrl}/${pageType}#action`,
-        name: pageType === "login" ? "Вход в аккаунт" : "Регистрация",
-        description: pageType === "login" 
-          ? "Вход по логину/паролю или через Telegram" 
-          : "Регистрация по логину и паролю с подтверждением",
+        name: pageSeo.title,
+        description: pageSeo.description,
       });
       break;
 
@@ -200,15 +231,15 @@ export function generateJsonLd(
       pageSpecificGraph.push({
         "@type": "Product",
         "@id": `${baseUrl}/subscription#product`,
-        name: "VPN подписка",
-        description: "VPN-сервис на базе XRay с поддержкой VLESS, Shadowsocks, REALITY, ML-KEM-768, XHTTP",
+        name: pageSeo.title || copy.siteTitle || siteName,
+        description: pageSeo.description || copy.siteDescription,
         brand: { "@type": "Brand", name: siteName },
         category: "VPN Service",
         offers: {
           "@type": "AggregateOffer",
-          priceCurrency: "RUB",
-          lowPrice: "200",
-          highPrice: "5000",
+          priceCurrency,
+          lowPrice,
+          highPrice,
           availability: "https://schema.org/InStock",
           seller: { "@id": `${baseUrl}/#organization` },
         },
@@ -219,15 +250,15 @@ export function generateJsonLd(
   pageSpecificGraph.push({
     "@type": "Product",
     "@id": `${baseUrl}/#product`,
-    name: "VPN подписка",
-    description: "VPN-сервис на базе XRay с поддержкой VLESS, Shadowsocks, REALITY, ML-KEM-768, XHTTP",
+    name: copy.siteTitle || siteName,
+    description: copy.siteDescription,
     brand: { "@type": "Brand", name: siteName },
     category: "VPN Service",
     offers: {
       "@type": "AggregateOffer",
-      priceCurrency: "RUB",
-      lowPrice: "200",
-      highPrice: "5000",
+      priceCurrency,
+      lowPrice,
+      highPrice,
       availability: "https://schema.org/InStock",
       seller: { "@id": `${baseUrl}/#organization` },
     },
@@ -237,16 +268,15 @@ export function generateJsonLd(
     "@type": "Service",
     "@id": `${baseUrl}/#service`,
     name: siteName,
-    description: "VPN-сервис с поддержкой VLESS, Shadowsocks, REALITY, ML-KEM-768, XHTTP. Обход белых списков, No-Logs, постквантовое шифрование.",
+    description: copy.siteDescription,
     provider: { "@id": `${baseUrl}/#organization` },
     serviceType: "VPN",
     areaServed: "Worldwide",
     availableChannel: {
       "@type": "ServiceChannel",
       serviceUrl: baseUrl,
-      servicePhone: "",
-      serviceEmail: "support@phantomvpn.local",
-      availablelanguage: languages,
+      ...(supportEmail ? { serviceEmail: supportEmail } : {}),
+      availableLanguage: languages,
     },
   });
 
@@ -273,22 +303,17 @@ export function generateJsonLdScript(
     | "payment"
     | "subscription"
     | "referral"
+    | "co-owners"
     | "subscribe"
+    | "banned"
+    | "admin"
     | undefined,
   path?: string,
+  priceRange?: PriceRange,
 ) {
-  return { __html: JSON.stringify(generateJsonLd(language, pageType, path)) };
+  const json = JSON.stringify(generateJsonLd(language, pageType, path, priceRange)).replace(
+    /</g,
+    "\\u003c",
+  );
+  return { __html: json };
 }
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   detectlanguage,
   getServerLegalDocument,
+  getServerPageSeo,
   getServerSiteCopy,
   normalizeServerlanguage,
   LEGAL_DOCUMENT_keyS,
@@ -52,10 +53,7 @@ test("getServerSiteCopy resolves SEO texts for every language", () => {
     assert.ok(copy.siteDescription.length > 0, language);
     assert.ok(copy.siteTitle.length > 0, language);
     assert.ok(copy.twitterDescription.length > 0, language);
-    assert.ok(
-      !copy.siteDescription.includes("{vpnName}"),
-      `siteDescription ${language}`,
-    );
+    assert.ok(!copy.siteDescription.includes("{vpnName}"), `siteDescription ${language}`);
     assert.ok(!copy.siteTitle.includes("{siteName}"), `siteTitle ${language}`);
   }
 });
@@ -63,6 +61,40 @@ test("getServerSiteCopy resolves SEO texts for every language", () => {
 test("getServerSiteCopy falls back for unsupported languages", () => {
   const copy = getServerSiteCopy("fr");
   assert.deepEqual(copy, getServerSiteCopy(detectlanguage()));
+});
+
+const seoPages = [
+  "client",
+  "coOwners",
+  "login",
+  "offer",
+  "partner",
+  "payment",
+  "privacy",
+  "profile",
+  "referral",
+  "register",
+  "settings",
+  "subscription",
+  "tos",
+];
+
+test("getServerPageSeo resolves localized metadata for every page", () => {
+  for (const language of getServerLanguages()) {
+    for (const page of seoPages) {
+      const seo = getServerPageSeo(language, page);
+      assert.ok(seo.title.length > 0, `${language}/${page} title`);
+      assert.ok(seo.description.length > 0, `${language}/${page} description`);
+      assert.ok(!seo.title.includes("{"), `${language}/${page} title placeholder`);
+      assert.ok(!seo.description.includes("{"), `${language}/${page} description placeholder`);
+    }
+  }
+});
+
+test("getServerPageSeo falls back for unsupported languages", () => {
+  const fallback = detectlanguage();
+  assert.deepEqual(getServerPageSeo("fr", "profile"), getServerPageSeo(fallback, "profile"));
+  assert.deepEqual(getServerPageSeo("en", "unknown"), getServerPageSeo(fallback, "unknown"));
 });
 
 test("getServerLegalDocument returns complete documents with formatted sections", () => {
@@ -76,18 +108,9 @@ test("getServerLegalDocument returns complete documents with formatted sections"
 
       for (const section of doc.sections) {
         assert.ok(section.title.length > 0, `${language}/${key} section title`);
-        assert.ok(
-          section.content.length > 0,
-          `${language}/${key} section body`,
-        );
-        assert.ok(
-          !section.content.includes("{vpnName}"),
-          `${language}/${key} placeholder`,
-        );
-        assert.ok(
-          !section.content.includes("{siteName}"),
-          `${language}/${key} siteName`,
-        );
+        assert.ok(section.content.length > 0, `${language}/${key} section body`);
+        assert.ok(!section.content.includes("{vpnName}"), `${language}/${key} placeholder`);
+        assert.ok(!section.content.includes("{siteName}"), `${language}/${key} siteName`);
       }
     }
   }
@@ -98,13 +121,3 @@ test("getServerLegalDocument uses the fallback language when a document is missi
   const unsupported = getServerLegalDocument("fr", "tos");
   assert.deepEqual(unsupported, getServerLegalDocument(fallback, "tos"));
 });
-
-
-
-
-
-
-
-
-
-

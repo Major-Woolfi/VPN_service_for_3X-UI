@@ -20,24 +20,19 @@ export default function SubscriptionRedirectPage() {
     router.replace("/subscribe");
   }, [authLoading, user, router]);
 
-  if (authLoading || !user) return null;
-
   return (
     <>
       <Header currentPage="/subscription" />
       <main>
         <div className="profile">
           <div className="pinned-section">
-            <p>{t("texts.loading")}</p>
+            <div className="waiting-indicator" role="status">
+              <span className="spinner" aria-hidden="true" />
+              {t("texts.loading")}
+            </div>
           </div>
         </div>
       </main>
     </>
   );
 }
-
-
-
-
-
-

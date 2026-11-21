@@ -6,27 +6,15 @@ interface SafeHTMLProps {
   html: string;
 }
 
-const ALLOWED_TAGS = new Set([
-  "br",
-  "strong",
-  "b",
-  "em",
-  "i",
-  "a",
-  "p",
-  "ul",
-  "ol",
-  "li",
-]);
-
+const ALLOWED_TAGS = new Set(["br", "strong", "b", "em", "i", "a", "p", "ul", "ol", "li"]);
 
 const VOID_TAGS = new Set(["br"]);
-
 
 const SAFE_HREF = /^(https?:|mailto:|tel:|\/|#)/i;
 
 function isSafeHref(href: string): boolean {
-  return SAFE_HREF.test(href.trim());
+  const value = href.trim();
+  return SAFE_HREF.test(value) && !value.startsWith("//") && !value.includes("\\");
 }
 
 function parseHTML(html: string): ReactNode[] {
@@ -55,8 +43,6 @@ function parseHTML(html: string): ReactNode[] {
         tagContent = tagContent.slice(1);
       }
 
-      
-      
       const selfClosing = tagContent.endsWith("/");
       if (selfClosing) {
         tagContent = tagContent.slice(0, -1);
@@ -67,7 +53,6 @@ function parseHTML(html: string): ReactNode[] {
       if (ALLOWED_TAGS.has(tagName)) {
         flushText();
 
-        
         if (VOID_TAGS.has(tagName)) {
           result.push(createElement(tagName, { key: result.length }));
           i = closeIdx + 1;
@@ -108,9 +93,7 @@ function parseHTML(html: string): ReactNode[] {
                 result.push(...children);
               }
             } else {
-              result.push(
-                createElement(tagName, { key: result.length }, ...children),
-              );
+              result.push(createElement(tagName, { key: result.length }, ...children));
             }
             i = contentEnd.next;
             continue;
@@ -135,11 +118,7 @@ interface ElementEnd {
   next: number;
 }
 
-function findElementEnd(
-  html: string,
-  tagName: string,
-  from: number,
-): ElementEnd | -1 {
+function findElementEnd(html: string, tagName: string, from: number): ElementEnd | -1 {
   const openRe = new RegExp(`<${tagName}(?=[\\s/>])`, "gi");
   const closeRe = new RegExp(`</${tagName}\\s*>`, "gi");
 
@@ -171,6 +150,3 @@ function findElementEnd(
 export function SafeHTML({ html }: SafeHTMLProps) {
   return <>{parseHTML(html)}</>;
 }
-
-
-

@@ -4,18 +4,20 @@ import Header from "@/components/Header";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { getUsers } from "@/lib/api";
+import { getErrorMessage } from "@/lib/error";
 import type { UserListResponse } from "@/lib/types";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAdminAuth } from "@/app/hooks/useAdminAuth";
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<UserListResponse["users"]>([]);
+  const [coOwners, setCoOwners] = useState<UserListResponse["users"]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [Error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const { authLoading, authUser, isAuthed } = useAdminAuth("users");
   const router = useRouter();
   const { t } = useLanguage();
@@ -27,16 +29,17 @@ export default function AdminUsersPage() {
   const loadUsers = useCallback(async () => {
     if (!isAuthed) return;
     setLoading(true);
+    setError("");
     try {
-      const data = await getUsers(pageRef.current, limit, searchTerm);
+      const data = await getUsers(pageRef.current, limit, debouncedSearch);
       setUsers(data.users);
       setTotal(data.total);
     } catch (err) {
-      setError(String(err));
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
-  }, [isAuthed, limit, searchTerm]);
+  }, [isAuthed, limit, debouncedSearch]);
 
   useEffect(() => {
     if (authLoading || !isAuthed) return;
@@ -44,14 +47,28 @@ export default function AdminUsersPage() {
   }, [authLoading, router, loadUsers, authUser, isAuthed, page]);
 
   useEffect(() => {
-    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     const id = setTimeout(() => {
       setPage(1);
-      void loadUsers();
+      setDebouncedSearch(searchTerm.trim());
     }, 300);
-    searchTimeoutRef.current = id;
     return () => clearTimeout(id);
-  }, [searchTerm, loadUsers]);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    if (authLoading || !isAuthed) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await getUsers(1, 200, "", true);
+        if (!cancelled) setCoOwners(data.users);
+      } catch {
+        if (!cancelled) setCoOwners([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, isAuthed]);
 
   const totalPages = Math.ceil(total / limit);
 
@@ -74,12 +91,14 @@ export default function AdminUsersPage() {
               <div style={{ marginTop: "16px", marginBottom: "16px" }}>
                 <input
                   type="text"
+                  aria-label={t("texts.search_placeholder")}
                   placeholder={t("texts.search_placeholder")}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="faq-search-input"
                 />
               </div>
+              {loading && <p className="text-center text-secondary">{t("texts.loading")}</p>}
               {Error && (
                 <div style={{ marginBottom: "16px" }}>
                   <p style={{ color: "var(--danger)", margin: 0 }}>{Error}</p>
@@ -104,9 +123,7 @@ export default function AdminUsersPage() {
                         <td className="data-num" data-label={t("texts.user_id")}>
                           {u.user_id}
                         </td>
-                        <td data-label={t("texts.telegram_username_label")}>
-                          {u.username || "-"}
-                        </td>
+                        <td data-label={t("texts.telegram_username_label")}>{u.username || "-"}</td>
                         <td className="data-num" data-label={t("texts.telegram_id_label")}>
                           {u.telegram_id || "-"}
                         </td>
@@ -115,31 +132,23 @@ export default function AdminUsersPage() {
                             style={{
                               padding: "4px 8px",
                               background: u.has_subscription
-                                ? "var(--success)"
+                                ? "var(--success-solid)"
                                 : "var(--bg-tertiary)",
                               borderRadius: "var(--radius-sm)",
-                              color: u.has_subscription
-                                ? "#fff"
-                                : "var(--text-secondary)",
+                              color: u.has_subscription ? "#fff" : "var(--text-secondary)",
                               fontSize: "12px",
                             }}
                           >
-                            {u.has_subscription
-                              ? t("texts.status_active")
-                              : t("texts.no")}
+                            {u.has_subscription ? t("texts.status_active") : t("texts.no")}
                           </span>
                         </td>
                         <td data-label={t("buttons.partner")}>
                           <span
                             style={{
                               padding: "4px 8px",
-                              background: u.is_mate
-                                ? "var(--accent)"
-                                : "var(--bg-tertiary)",
+                              background: u.is_mate ? "var(--accent-solid)" : "var(--bg-tertiary)",
                               borderRadius: "var(--radius-sm)",
-                              color: u.is_mate
-                                ? "#fff"
-                                : "var(--text-secondary)",
+                              color: u.is_mate ? "#fff" : "var(--text-secondary)",
                               fontSize: "12px",
                             }}
                           >
@@ -170,8 +179,79 @@ export default function AdminUsersPage() {
                     ))}
                     {users.length === 0 && (
                       <tr>
-                        <td colSpan={7} style={{ textAlign: "center", color: "var(--text-secondary)", padding: "24px" }}>
+                        <td
+                          colSpan={7}
+                          style={{
+                            textAlign: "center",
+                            color: "var(--text-secondary)",
+                            padding: "24px",
+                          }}
+                        >
                           {searchTerm ? t("texts.search_no_results") : t("texts.no_data")}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div className="pinned-section fade-in delay-1">
+            <h2>{t("texts.co_owner_title")}</h2>
+            <div className="pinned-content">
+              <div className="data-table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>{t("texts.user_id")}</th>
+                      <th>{t("texts.telegram_id_label")}</th>
+                      <th>{t("texts.co_owner_date")}</th>
+                      <th>{t("texts.telegram_username_label")}</th>
+                      <th>{t("texts.co_owner_subscription")}</th>
+                      <th>{t("texts.co_owner_subscription_id")}</th>
+                      <th>{t("texts.co_owner_vpn_url")}</th>
+                      <th>{t("texts.co_owner_expiry")}</th>
+                      <th>{t("texts.co_owner_parent")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {coOwners.map((u) => (
+                      <tr key={u.user_id}>
+                        <td className="data-num" data-label={t("texts.user_id")}>
+                          {u.user_id}
+                        </td>
+                        <td className="data-num" data-label={t("texts.telegram_id_label")}>
+                          {u.telegram_id || "-"}
+                        </td>
+                        <td data-label={t("texts.co_owner_date")}>{u.join_date || "-"}</td>
+                        <td data-label={t("texts.telegram_username_label")}>{u.username || "-"}</td>
+                        <td data-label={t("texts.co_owner_subscription")}>
+                          {u.has_subscription ? t("texts.yes") : t("texts.no")}
+                        </td>
+                        <td data-label={t("texts.co_owner_subscription_id")}>
+                          {u.subscription_id || "-"}
+                        </td>
+                        <td data-label={t("texts.co_owner_vpn_url")}>{u.vpn_url || "-"}</td>
+                        <td data-label={t("texts.co_owner_expiry")}>
+                          {u.expiry_sub_datatime || "-"}
+                        </td>
+                        <td className="data-num" data-label={t("texts.co_owner_parent")}>
+                          {u.ref_by || "-"}
+                        </td>
+                      </tr>
+                    ))}
+                    {coOwners.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={9}
+                          style={{
+                            textAlign: "center",
+                            color: "var(--text-secondary)",
+                            padding: "24px",
+                          }}
+                        >
+                          {t("texts.no_data")}
                         </td>
                       </tr>
                     )}
@@ -183,10 +263,9 @@ export default function AdminUsersPage() {
 
           {totalPages > 1 && (
             <div
+              className="dashboard-actions"
               style={{
-                display: "flex",
                 justifyContent: "center",
-                gap: "8px",
                 marginTop: "24px",
               }}
             >
@@ -216,22 +295,3 @@ export default function AdminUsersPage() {
     </>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

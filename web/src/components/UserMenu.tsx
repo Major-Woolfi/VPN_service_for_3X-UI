@@ -7,11 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useNavigation } from "@/lib/navigation";
-import {
-  getAvailableLanguages,
-  getLanguageDisplayName,
-  setCurrentLang,
-} from "@/lib/i18n";
+import { getAvailableLanguages, getLanguageDisplayName, setCurrentLang } from "@/lib/i18n";
 import { changeLanguage } from "@/lib/api";
 
 function LanguageSwitcher() {
@@ -41,6 +37,7 @@ function LanguageSwitcher() {
       <button
         type="button"
         className="user-menu-link user-menu-lang-trigger"
+        role="menuitem"
         aria-expanded={langOpen}
         onClick={() => setLangOpen((v) => !v)}
       >
@@ -53,6 +50,7 @@ function LanguageSwitcher() {
               <button
                 type="button"
                 key={code}
+                role="menuitem"
                 className={`user-menu-link user-menu-lang-btn ${lang === code ? "nav-lang-active" : ""}`}
                 onClick={() => handleSelect(code)}
               >
@@ -81,8 +79,15 @@ export default function UserMenu() {
         setOpen(false);
       }
     };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
     document.addEventListener("mousedown", handleOutsideClick);
-    return () => document.removeEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -149,6 +154,7 @@ export default function UserMenu() {
                   key={link.href}
                   href={link.href}
                   className="user-menu-link"
+                  role="menuitem"
                   onClick={() => setOpen(false)}
                 >
                   {link.label}
@@ -158,21 +164,19 @@ export default function UserMenu() {
               <button
                 type="button"
                 className="user-menu-link user-menu-action"
+                role="menuitem"
                 onClick={toggleTheme}
               >
-                {theme === "dark"
-                  ? t("buttons.light_theme")
-                  : t("buttons.dark_theme")}
+                {theme === "dark" ? t("buttons.light_theme") : t("buttons.dark_theme")}
               </button>
               {isPartner && (
                 <>
                   <div className="user-menu-divider" />
-                  <div className="user-menu-section-header">
-                    {t("texts.partners")}
-                  </div>
+                  <div className="user-menu-section-header">{t("texts.partners")}</div>
                   <Link
                     href="/partner"
                     className="user-menu-link"
+                    role="menuitem"
                     onClick={() => setOpen(false)}
                   >
                     {t("buttons.partner")}
@@ -184,6 +188,7 @@ export default function UserMenu() {
                   key={link.href}
                   href={link.href}
                   className="user-menu-link"
+                  role="menuitem"
                   onClick={() => setOpen(false)}
                 >
                   {link.label}
@@ -192,6 +197,7 @@ export default function UserMenu() {
               <button
                 type="button"
                 className="user-menu-link user-menu-danger"
+                role="menuitem"
                 onClick={handleLogout}
               >
                 {t("buttons.logout")}
@@ -202,6 +208,7 @@ export default function UserMenu() {
               <Link
                 href="/login"
                 className="user-menu-link"
+                role="menuitem"
                 onClick={() => setOpen(false)}
               >
                 {t("buttons.login")}
@@ -209,6 +216,7 @@ export default function UserMenu() {
               <Link
                 href="/register"
                 className="user-menu-link"
+                role="menuitem"
                 onClick={() => setOpen(false)}
               >
                 {t("buttons.register")}
@@ -217,11 +225,10 @@ export default function UserMenu() {
               <button
                 type="button"
                 className="user-menu-link user-menu-action"
+                role="menuitem"
                 onClick={toggleTheme}
               >
-                {theme === "dark"
-                  ? t("buttons.light_theme")
-                  : t("buttons.dark_theme")}
+                {theme === "dark" ? t("buttons.light_theme") : t("buttons.dark_theme")}
               </button>
             </>
           )}
@@ -230,20 +237,3 @@ export default function UserMenu() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

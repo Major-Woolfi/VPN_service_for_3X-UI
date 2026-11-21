@@ -35,14 +35,3 @@ export async function GET() {
     },
   });
 }
-
-
-
-
-
-
-
-
-
-
-

@@ -1,61 +1,46 @@
 import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
-import { resolvelanguage } from "@/lib/i18n-server";
+import { getServerPageSeo, resolvelanguage } from "@/lib/i18n-server";
+import { getOpenGraphLocale } from "@/lib/locale";
 
 export async function generateMetadata(): Promise<Metadata> {
   const cookieStore = await cookies();
   const headerStore = await headers();
-  const siteName = process.env.NEXT_PUBLIC_VPN_NAME || "VPN Service";
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local";
   const lang = resolvelanguage(
     cookieStore.get("vpn_language")?.value,
     headerStore.get("accept-language") || undefined,
   );
+  const siteName = process.env.NEXT_PUBLIC_VPN_NAME || "VPN Service";
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local";
+  const seo = getServerPageSeo(lang, "referral");
 
   return {
-    title: "Реферальная программа - " + siteName,
-    description: "Реферальная программа " + siteName + ". Приглашайте друзей и получайте бонусные дни подписки. Ваша реферальная ссылка, статистика приглашений, бонусы.",
-    keywords: [
-      "реферальная программа vpn",
-      "реферальная ссылка vpn",
-      "пригласить друга vpn",
-      "бонус за друга vpn",
-      "рефералка vpn",
-    ],
+    title: `${seo.title} - ${siteName}`,
+    description: seo.description,
     openGraph: {
       type: "website",
-      locale: lang + "_" + lang.toUpperCase(),
-      url: siteUrl,
-      title: "Реферальная программа - " + siteName,
-      description: "Реферальная программа " + siteName + ". Приглашайте друзей, получайте бонусные дни. Ваша уникальная реферальная ссылка.",
+      locale: getOpenGraphLocale(lang),
+      url: `${siteUrl}/referral`,
+      siteName,
+      title: seo.title,
+      description: seo.description,
       images: ["/icon.jpg"],
     },
     twitter: {
       card: "summary",
-      title: "Реферальная программа - " + siteName,
-      description: "Приглашайте друзей в " + siteName + " и получайте бонусы",
+      title: seo.title,
+      description: seo.description,
       images: ["/icon.jpg"],
+      creator: siteName,
+      site: siteName,
     },
     robots: {
-      index: true,
-      follow: true,
+      index: false,
+      follow: false,
     },
   };
 }
 
-export default async function ReferralLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function ReferralLayout({ children }: { children: React.ReactNode }) {
   return children;
 }
-
-
-
-
-
-
-
-
-

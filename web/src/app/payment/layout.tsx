@@ -1,42 +1,38 @@
 import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
-import { resolvelanguage } from "@/lib/i18n-server";
+import { getServerPageSeo, resolvelanguage } from "@/lib/i18n-server";
+import { getOpenGraphLocale } from "@/lib/locale";
 
 export async function generateMetadata(): Promise<Metadata> {
   const cookieStore = await cookies();
   const headerStore = await headers();
-  const siteName = process.env.NEXT_PUBLIC_VPN_NAME || "VPN Service";
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local";
   const lang = resolvelanguage(
     cookieStore.get("vpn_language")?.value,
     headerStore.get("accept-language") || undefined,
   );
+  const siteName = process.env.NEXT_PUBLIC_VPN_NAME || "VPN Service";
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local";
+  const seo = getServerPageSeo(lang, "payment");
 
   return {
-    title: "Выбор тарифа и оплата - " + siteName,
-    description: "Оформите подписку на " + siteName + ". Гибкие тарифы: кастомные и готовые. Оплата через ЮMonkey или P2P. Мгновенная активация после подтверждения.",
-    keywords: [
-      "оплата vpn",
-      "купить vpn",
-      "подписка vpn",
-      "тарифы vpn",
-      "оплата vpn картой",
-      "продлить vpn",
-      "продлить подписку vpn",
-    ],
+    title: `${seo.title} - ${siteName}`,
+    description: seo.description,
     openGraph: {
       type: "website",
-      locale: lang + "_" + lang.toUpperCase(),
-      url: siteUrl,
-      title: "Оплата подписки - " + siteName,
-      description: "Оплата и продление VPN подписки. ЮMonkey, P2P перевод. Мгновенная активация после подтверждения платежа.",
+      locale: getOpenGraphLocale(lang),
+      url: `${siteUrl}/payment`,
+      siteName,
+      title: seo.title,
+      description: seo.description,
       images: ["/icon.jpg"],
     },
     twitter: {
       card: "summary",
-      title: "Оплата VPN - " + siteName,
-      description: "Оплата и продление VPN подписки",
+      title: seo.title,
+      description: seo.description,
       images: ["/icon.jpg"],
+      creator: siteName,
+      site: siteName,
     },
     robots: {
       index: false,
@@ -45,19 +41,6 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default async function PaymentLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function PaymentLayout({ children }: { children: React.ReactNode }) {
   return children;
 }
-
-
-
-
-
-
-
-
-

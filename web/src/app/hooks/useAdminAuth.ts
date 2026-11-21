@@ -4,11 +4,6 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 
-/**
- * Hook that requires admin authentication.
- * Redirects to /login if not authenticated, to /profile if not admin.
- * Returns the authenticated user when authorized.
- */
 export function useAdminAuth(nextPage: string) {
   const { loading: authLoading, user: authUser } = useAuth();
   const router = useRouter();
@@ -16,7 +11,7 @@ export function useAdminAuth(nextPage: string) {
   useEffect(() => {
     if (authLoading) return;
     if (!authUser) {
-      router.replace(`/login?next=/admin/${nextPage}`);
+      router.replace(`/login?next=/admin/${encodeURIComponent(nextPage)}`);
       return;
     }
     if (!authUser.is_admin) {

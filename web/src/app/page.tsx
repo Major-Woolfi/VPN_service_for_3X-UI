@@ -2,11 +2,7 @@ import { cookies, headers } from "next/headers";
 import Image from "next/image";
 import Header from "@/components/Header";
 import { getPublicLinksFromFeatures } from "@/lib/api";
-import {
-  getFeaturesServer,
-  getStatsOverviewServer,
-  getTariffsServer,
-} from "@/lib/server/bot-data";
+import { getFeaturesServer, getStatsOverviewServer, getTariffsServer } from "@/lib/server/bot-data";
 import { tServer, resolvelanguage } from "@/lib/i18n-server";
 import LiveStatusBar from "@/components/LiveStatusBar";
 import NodeStatus from "@/components/NodeStatus";
@@ -21,11 +17,12 @@ const telegramIcon = (
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const [tariffs, stats, features] = await Promise.all([
+  const [tariffData, stats, features] = await Promise.all([
     getTariffsServer(),
     getStatsOverviewServer(),
     getFeaturesServer(),
   ]);
+  const tariffs = tariffData.tariffs;
 
   const cookieStore = await cookies();
   const headerStore = await headers();
@@ -33,16 +30,13 @@ export default async function Home() {
     cookieStore.get("vpn_language")?.value,
     headerStore.get("accept-language") || undefined,
   );
-  const t = (key: string, params?: Record<string, string | number>) =>
-    tServer(lang, key, params);
+  const t = (key: string, params?: Record<string, string | number>) => tServer(lang, key, params);
 
   const publiclinks = getPublicLinksFromFeatures(features);
   const tgBotUsername = publiclinks.telegram_bot_username;
   const tgChannelUsername = publiclinks.telegram_channel_username;
   const tgBot = tgBotUsername ? `https://t.me/${tgBotUsername}` : null;
-  const tgChannel = tgChannelUsername
-    ? `https://t.me/${tgChannelUsername}`
-    : null;
+  const tgChannel = tgChannelUsername ? `https://t.me/${tgChannelUsername}` : null;
   const vpnName = process.env.NEXT_PUBLIC_VPN_NAME || "vpn";
 
   const features_list: string[] = [];
@@ -59,7 +53,6 @@ export default async function Home() {
       <main>
         <div className="profile">
           <div className="profile-header">
-            {}
             <Image
               className="profile-avatar"
               src="/icon.jpg"
@@ -82,12 +75,7 @@ export default async function Home() {
                   </a>
                 )}
                 {tgBot && (
-                  <a
-                    href={tgBot}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="social-link"
-                  >
+                  <a href={tgBot} target="_blank" rel="noopener noreferrer" className="social-link">
                     {telegramIcon}@{tgBotUsername}
                   </a>
                 )}
@@ -124,20 +112,15 @@ export default async function Home() {
                     <div className="stat-label">{t("texts.all_users")}</div>
                   </div>
                   <div className="stat-card">
-                    <div className="stat-value">
-                      {stats.active_subscriptions ?? 0}
-                    </div>
+                    <div className="stat-value">{stats.active_subscriptions ?? 0}</div>
                     <div className="stat-label">{t("texts.active_subs")}</div>
                   </div>
-                  {stats.bbanned_users !== undefined &&
-                    stats.bbanned_users > 0 && (
-                      <div className="stat-card">
-                        <div className="stat-value">
-                          {stats.bbanned_users ?? 0}
-                        </div>
-                        <div className="stat-label">{t("texts.banned")}</div>
-                      </div>
-                    )}
+                  {stats.banned_users !== undefined && stats.banned_users > 0 && (
+                    <div className="stat-card">
+                      <div className="stat-value">{stats.banned_users ?? 0}</div>
+                      <div className="stat-label">{t("texts.banned")}</div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -154,7 +137,7 @@ export default async function Home() {
             <div className="pinned-section fade-in delay-2">
               <h2>{t("texts.tariffs")}</h2>
               <div className="pinned-content">
-                <TariffGridClient tariffs={tariffs} />
+                <TariffGridClient tariffs={tariffs} tariffMode={tariffData.tariff_mode} />
               </div>
             </div>
           )}
@@ -163,8 +146,8 @@ export default async function Home() {
             <h2>{t("texts.features")}</h2>
             <div className="contributions-content">
               <ul>
-                {features_list.map((feature, index) => (
-                  <li key={index}>{feature}</li>
+                {features_list.map((feature) => (
+                  <li key={feature}>{feature}</li>
                 ))}
               </ul>
             </div>
@@ -174,18 +157,3 @@ export default async function Home() {
     </>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

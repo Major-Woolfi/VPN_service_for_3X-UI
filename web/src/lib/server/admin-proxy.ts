@@ -2,14 +2,10 @@ import "server-only";
 
 import { NextRequest, NextResponse } from "next/server";
 
-import {
-  fetchServerProfileResult,
-  getBotApiBase,
-  readCappedResponseText,
-} from "./bot-proxy";
+import { fetchServerProfileResult, getBotApiBase, readCappedResponseText } from "./bot-proxy";
+import { SESSION_COOKIE_NAME } from "../constants";
 
 const REQUEST_TIMEOUT_MS = 10_000;
-const SESSION_COOKIE_NAME = "vpn_token";
 
 function sanitizePath(path: string): string {
   const cleaned = path
@@ -41,7 +37,7 @@ async function readUpstreamResponse(response: Response): Promise<unknown> {
       return null;
     }
   }
-  return text ? { Error: text } : { Error: response.statusText };
+  return { Error: "bot_response_invalid" };
 }
 
 interface VerifyAdminResult {
@@ -86,10 +82,6 @@ export async function proxyAdminRequest(
     const sanitized = sanitizePath(path);
     const headers = new Headers(init.headers);
     headers.set("Authorization", authorization);
-    const forwardedFor =
-      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      request.headers.get("x-real-ip")?.trim();
-    if (forwardedFor) headers.set("X-Forwarded-For", forwardedFor);
 
     const response = await fetch(`${getBotApiBase()}${sanitized}`, {
       ...init,
@@ -101,8 +93,7 @@ export async function proxyAdminRequest(
 
     return NextResponse.json(data, { status: response.status });
   } catch (Error) {
-    const isTimeout =
-      Error instanceof DOMException && Error.name === "TimeoutError";
+    const isTimeout = Error instanceof DOMException && Error.name === "TimeoutError";
 
     return NextResponse.json(
       {
@@ -112,13 +103,3 @@ export async function proxyAdminRequest(
     );
   }
 }
-
-
-
-
-
-
-
-
-
-

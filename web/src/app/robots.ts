@@ -18,6 +18,7 @@ export default function robots(): MetadataRoute.Robots {
           "/profile",
           "/payment",
           "/banned",
+          "/referral",
         ],
         crawlDelay: 1,
       },
@@ -26,10 +27,3 @@ export default function robots(): MetadataRoute.Robots {
     host: baseUrl,
   };
 }
-
-
-
-
-
-
-

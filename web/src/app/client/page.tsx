@@ -5,11 +5,7 @@ import { CopyableUrl } from "@/components/CopyableUrl";
 import { useCopyToClipboard } from "@/app/hooks/useCopyToClipboard";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  ApiError,
-  getPublicLinksFromFeatures,
-  getSubscriptionLink,
-} from "@/lib/api";
+import { ApiError, getPublicLinksFromFeatures, getSubscriptionLink } from "@/lib/api";
 import { useFeatures } from "@/contexts/FeaturesContext";
 import type { SubscriptionlinkResponse } from "@/lib/types";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -44,8 +40,7 @@ export default function ClientPage() {
   const router = useRouter();
   const { t } = useLanguage();
   const { features } = useFeatures();
-  const [fetchedlink, setFetchedlink] =
-    useState<SubscriptionlinkResponse | null>(null);
+  const [fetchedlink, setFetchedlink] = useState<SubscriptionlinkResponse | null>(null);
   const [linkFailed, setlinkFailed] = useState(false);
   const [requested, setRequested] = useState(false);
   const { copy, copied } = useCopyToClipboard();
@@ -127,12 +122,12 @@ export default function ClientPage() {
     <>
       <Header currentPage="/client" />
       <main>
-        {subscriptionlinkError && (
-          <div className="error-message" role="alert">
-            {t("texts.subscription_link_error")}
-          </div>
-        )}
         <div className="profile">
+          {subscriptionlinkError && (
+            <div className="error-message" role="alert">
+              {t("texts.subscription_link_error")}
+            </div>
+          )}
           <div className="profile-header no-avatar">
             <div className="profile-info">
               <h1 className="profile-name">{t("texts.client_setup")}</h1>
@@ -179,19 +174,21 @@ export default function ClientPage() {
                 <p>
                   <strong>{t("texts.main_client_text")}</strong>
                 </p>
-                <a
-                  href={clientApp}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="button"
-                  style={{
-                    display: "inline-block",
-                    marginTop: "8px",
-                    textDecoration: "none",
-                  }}
-                >
-                  {t("buttons.download_app")}
-                </a>
+                {clientApp && (
+                  <a
+                    href={clientApp}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="button"
+                    style={{
+                      display: "inline-block",
+                      marginTop: "8px",
+                      textDecoration: "none",
+                    }}
+                  >
+                    {t("buttons.download_app")}
+                  </a>
+                )}
 
                 <h3>{t("texts.alt_client")}</h3>
                 <p>{t("texts.alt_client_text")}</p>
@@ -208,22 +205,24 @@ export default function ClientPage() {
               <div style={{ marginTop: "16px" }}>
                 <ul>
                   <li>
-                    <strong>Android</strong> - {t("texts.platform_android")}
+                    <strong>{t("texts.platform_name_android")}</strong> -{" "}
+                    {t("texts.platform_android")}
                   </li>
                   <li>
-                    <strong>iOS</strong> - {t("texts.platform_ios")}
+                    <strong>{t("texts.platform_name_ios")}</strong> - {t("texts.platform_ios")}
                   </li>
                   <li>
-                    <strong>Windows</strong> - {t("texts.platform_windows")}
+                    <strong>{t("texts.platform_name_windows")}</strong> -{" "}
+                    {t("texts.platform_windows")}
                   </li>
                   <li>
-                    <strong>macOS</strong> - {t("texts.platform_macos")}
+                    <strong>{t("texts.platform_name_macos")}</strong> - {t("texts.platform_macos")}
                   </li>
                   <li>
-                    <strong>Linux</strong> - {t("texts.platform_linux")}
+                    <strong>{t("texts.platform_name_linux")}</strong> - {t("texts.platform_linux")}
                   </li>
                   <li>
-                    <strong>Android TV</strong> -{" "}
+                    <strong>{t("texts.platform_name_android_tv")}</strong> -{" "}
                     {t("texts.platform_android_tv")}
                   </li>
                   <li>
@@ -255,9 +254,7 @@ export default function ClientPage() {
                   ))}
                 </ol>
 
-                <h3 style={{ marginTop: "24px" }}>
-                  {t("texts.guide_v2raytun")}
-                </h3>
+                <h3 style={{ marginTop: "24px" }}>{t("texts.guide_v2raytun")}</h3>
                 <ol className="guide-steps">
                   {V2RAYTUN_GUIDE_STEPS.map((stepkey) => (
                     <li key={stepkey}>{t(stepkey)}</li>
@@ -277,11 +274,7 @@ export default function ClientPage() {
               <p>
                 {t("texts.need_help_text")}{" "}
                 {supportUrl ? (
-                  <a
-                    href={supportUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
+                  <a href={supportUrl} target="_blank" rel="noopener noreferrer">
                     {t("buttons.contact_support")}
                   </a>
                 ) : (
@@ -295,16 +288,3 @@ export default function ClientPage() {
     </>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-

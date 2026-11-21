@@ -7,18 +7,15 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { FeaturesProvider } from "@/contexts/FeaturesContext";
-import { getFeaturesServer } from "@/lib/server/bot-data";
+import { getFeaturesServer, getTariffsServer } from "@/lib/server/bot-data";
 import ScrollAnimations from "@/components/ScrollAnimations";
 import AuthCallback from "@/components/AuthCallback";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { generateJsonLdScript } from "@/lib/structured-data";
-import {
-  getServerSiteCopy,
-  normalizeServerlanguage,
-  type SiteCopy,
-} from "@/lib/i18n-server";
+import { getServerSiteCopy, normalizeServerlanguage, type SiteCopy } from "@/lib/i18n-server";
 import { resolveServerSession } from "@/lib/server/session";
+import { getOpenGraphLocale } from "@/lib/locale";
 
 const inter = Inter({
   subsets: ["cyrillic", "latin"],
@@ -27,7 +24,11 @@ const inter = Inter({
 
 const siteName = process.env.NEXT_PUBLIC_VPN_NAME || "vpn";
 
-function getPageType(pathname: string):
+const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem("vpn_theme");if(t!=="light"&&t!=="dark"){t=window.matchMedia&&window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark";}var r=document.documentElement;r.classList.remove("theme-dark","theme-light");r.classList.add("theme-"+t);r.style.colorScheme=t;}catch(e){document.documentElement.classList.add("theme-dark");}})();`;
+
+function getPageType(
+  pathname: string,
+):
   | "home"
   | "qa"
   | "partner"
@@ -40,10 +41,17 @@ function getPageType(pathname: string):
   | "subscription"
   | "subscribe"
   | "referral"
+  | "co-owners"
   | "tos"
   | "privacy"
-  | "offer" {
+  | "offer"
+  | "banned"
+  | "admin" {
   if (pathname === "/") return "home";
+  if (pathname === "/banned" || pathname.startsWith("/banned/")) {
+    return "banned";
+  }
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) return "admin";
   if (pathname === "/qa") return "qa";
   if (pathname === "/partner") return "partner";
   if (pathname === "/client") return "client";
@@ -55,9 +63,12 @@ function getPageType(pathname: string):
   if (pathname === "/subscription") return "subscription";
   if (pathname === "/subscribe") return "subscribe";
   if (pathname === "/referral") return "referral";
-  if (pathname.startsWith("/tos")) return "tos";
-  if (pathname.startsWith("/privacy")) return "privacy";
-  if (pathname.startsWith("/offer")) return "offer";
+  if (pathname === "/co-owners" || pathname.startsWith("/co-owners/")) return "co-owners";
+  if (pathname === "/tos" || pathname.startsWith("/tos/")) return "tos";
+  if (pathname === "/privacy" || pathname.startsWith("/privacy/")) {
+    return "privacy";
+  }
+  if (pathname === "/offer" || pathname.startsWith("/offer/")) return "offer";
   return "home";
 }
 
@@ -65,9 +76,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const cookieStore = await cookies();
   const headerStore = await headers();
   const lang = normalizeServerlanguage(
-    cookieStore.get("vpn_language")?.value ||
-      headerStore.get("accept-language") ||
-      undefined,
+    cookieStore.get("vpn_language")?.value || headerStore.get("accept-language") || undefined,
   );
   const emptyLegal = () => ({
     title: "",
@@ -91,6 +100,7 @@ export async function generateMetadata(): Promise<Metadata> {
     };
   }
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local";
+  const pathname = headerStore.get("x-pathname") || "";
 
   const dynamickeywords = [
     "vpn",
@@ -180,7 +190,7 @@ export async function generateMetadata(): Promise<Metadata> {
       template: `%s | ${siteName}`,
     },
     description: copy.siteDescription,
-    keywords: dynamickeywords,
+    keywords: [...new Set(dynamickeywords)],
     authors: [{ name: siteName }],
     creator: siteName,
     publisher: siteName,
@@ -197,8 +207,8 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     openGraph: {
       type: "website",
-      locale: lang,
-      url: siteUrl,
+      locale: getOpenGraphLocale(lang),
+      url: `${siteUrl}${pathname}`,
       siteName,
       title: `${siteName} - ${copy.siteTitle}`,
       description: copy.twitterDescription,
@@ -212,15 +222,15 @@ export async function generateMetadata(): Promise<Metadata> {
       ],
     },
     alternates: {
-      canonical: siteUrl,
+      canonical: `${siteUrl}${pathname}`,
     },
     twitter: {
       card: "summary_large_image",
       title: siteName,
       description: copy.twitterDescription,
       images: ["/icon.jpg"],
-      creator: "@phantomvpn_off",
-      site: "@phantomvpn_off",
+      creator: siteName,
+      site: siteName,
     },
     icons: {
       icon: [{ url: "/icon.jpg", type: "image/jpeg" }],
@@ -235,17 +245,11 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default async function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
   const headerStore = await headers();
   const lang = normalizeServerlanguage(
-    cookieStore.get("vpn_language")?.value ||
-      headerStore.get("accept-language") ||
-      undefined,
+    cookieStore.get("vpn_language")?.value || headerStore.get("accept-language") || undefined,
   );
 
   const pathname = headerStore.get("x-pathname") || "";
@@ -258,7 +262,6 @@ export default async function RootLayout({
 
   const session = await resolveServerSession();
   if (session.kind === "expired" && !isGuestPage && !isBannedPage) {
-
     redirect("/api/session/expired");
   }
 
@@ -266,8 +269,31 @@ export default async function RootLayout({
     redirect("/banned");
   }
   const initialUser = session.kind === "authenticated" ? session.user : null;
+  if (
+    pathname.startsWith("/co-owners") &&
+    session.kind === "authenticated" &&
+    !session.user.is_coowner
+  ) {
+    redirect("/profile");
+  }
 
-  const initialFeatures = await getFeaturesServer();
+  const [initialFeatures, tariffData] = await Promise.all([
+    getFeaturesServer(),
+    getTariffsServer(),
+  ]);
+  const tariffs = tariffData.tariffs;
+  const catalogPrices = tariffs
+    .filter((tariff) => tariff.active && !tariff.is_trial && tariff.id !== "custom")
+    .map((tariff) => tariff.price_rub)
+    .filter((price) => Number.isFinite(price) && price > 0);
+  const priceRange =
+    catalogPrices.length > 0
+      ? {
+          low: Math.min(...catalogPrices),
+          high: Math.max(...catalogPrices),
+          currency: "RUB",
+        }
+      : undefined;
 
   return (
     <html
@@ -276,26 +302,27 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <meta name="robots" content="index, follow" />
         <meta name="theme-color" content="#0a0a0a" />
         <meta name="color-scheme" content="dark" />
-        <link
-          rel="canonical"
-          href={`${process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local"}${pathname}`}
-        />
         <link rel="preconnect" href={process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local"} />
         <link rel="dns-prefetch" href={process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local"} />
         <link rel="preload" as="image" href="/icon.jpg" type="image/jpeg" />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={generateJsonLdScript(lang, getPageType(pathname), pathname)}
+          dangerouslySetInnerHTML={generateJsonLdScript(
+            lang,
+            getPageType(pathname),
+            pathname,
+            priceRange,
+          )}
         />
       </head>
       <body className="min-h-full flex flex-col font-sans">
         <ThemeInit />
         <ThemeProvider>
-          <AuthProvider initialUser={initialUser}>
+          <AuthProvider key={initialUser?.user_id ?? "anon"} initialUser={initialUser}>
             <LanguageProvider initialLang={lang}>
               <FeaturesProvider initialFeatures={initialFeatures}>
                 <AuthCallback />
@@ -310,23 +337,3 @@ export default async function RootLayout({
     </html>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

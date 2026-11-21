@@ -2,6 +2,7 @@ import { cookies, headers } from "next/headers";
 import Header from "@/components/Header";
 import FaqList from "@/components/FaqList";
 import { tServer, resolvelanguage } from "@/lib/i18n-server";
+import { getOpenGraphLocale } from "@/lib/locale";
 
 export async function generateMetadata() {
   const cookieStore = await cookies();
@@ -10,8 +11,7 @@ export async function generateMetadata() {
     cookieStore.get("vpn_language")?.value,
     headerStore.get("accept-language") || undefined,
   );
-  const t = (key: string, params?: Record<string, string | number>) =>
-    tServer(lang, key, params);
+  const t = (key: string, params?: Record<string, string | number>) => tServer(lang, key, params);
 
   const siteName = process.env.NEXT_PUBLIC_VPN_NAME || "VPN Service";
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vpn.local";
@@ -19,24 +19,13 @@ export async function generateMetadata() {
   return {
     title: `${t("texts.qa")} - ${siteName}`,
     description: t("texts.qa_subtitle"),
-    keywords: [
-      "faq vpn",
-      "вопросы про vpn",
-      "настройка vpn",
-      "vpn не работает",
-      "vpn тарифы",
-      "реферальная программа vpn",
-      "партнёрская программа vpn",
-      "оплата vpn",
-      "пробный период vpn",
-      "vpn настройка",
-    ],
+    keywords: ["faq", t("texts.qa"), siteName, `${siteName} faq`],
     alternates: {
       canonical: `${siteUrl}/qa`,
     },
     openGraph: {
       type: "website",
-      locale: lang,
+      locale: getOpenGraphLocale(lang),
       url: `${siteUrl}/qa`,
       siteName,
       title: `${t("texts.qa")} - ${siteName}`,
@@ -70,8 +59,7 @@ export default async function QaPage() {
     cookieStore.get("vpn_language")?.value,
     headerStore.get("accept-language") || undefined,
   );
-  const t = (key: string, params?: Record<string, string | number>) =>
-    tServer(lang, key, params);
+  const t = (key: string, params?: Record<string, string | number>) => tServer(lang, key, params);
 
   return (
     <>
@@ -96,16 +84,3 @@ export default async function QaPage() {
     </>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-

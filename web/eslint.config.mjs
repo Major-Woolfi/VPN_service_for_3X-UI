@@ -8,13 +8,7 @@ const baseDirectory = dirname(fileURLToPath(import.meta.url));
 const compat = new FlatCompat({ baseDirectory });
 
 const eslintConfig = defineConfig([
-  globalIgnores([
-    ".next/**",
-    "out/**",
-    "build/**",
-    "next-env.d.ts",
-    "src/lib/i18n-generated.ts",
-  ]),
+  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "src/lib/i18n-generated.ts"]),
   ...compat.extends("next/core-web-vitals", "next/typescript"),
 ]);
 

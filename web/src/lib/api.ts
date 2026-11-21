@@ -1,12 +1,12 @@
 import type {
   UserSession,
-  WebRegisterequest,
+  WebRegisterRequest,
   WebLoginRequest,
   WebPasswordChangeRequest,
   SanitizedUser,
   SubscriptionlinkResponse,
-  Tariff,
   TariffsResponse,
+  FeaturesResponse,
   ReferralStatsResponse,
   PartnerStatsResponse,
   PartnerProfileResponse,
@@ -18,6 +18,11 @@ import type {
   PartnerChannelList,
   PartnerChannelAddRequest,
   PartnerChannelVerifyResult,
+  CoOwnerProfileResponse,
+  CoOwnerLinkResponse,
+  CoOwnerUsersResponse,
+  CoOwnerPaymentsResponse,
+  CoOwnerStatsResponse,
   AutopostRequest,
   AutopostResult,
   Location,
@@ -39,9 +44,10 @@ import type {
 import { t } from "./i18n";
 
 export const API_BASE_URL = "/api/bot";
-export const SERVER_API_BASE = (
-  process.env.BOT_API_URL || "http://localhost:2005/api/v1"
-).replace(/\/$/, "");
+export const SERVER_API_BASE = (process.env.BOT_API_URL || "http://localhost:2005/api/v1").replace(
+  /\/$/,
+  "",
+);
 export const REQUEST_TIMEOUT_MS = 15_000;
 export const HEALTH_POLL_INTERVAL_MS = 10_000;
 export const PANEL_STATUS_POLL_INTERVAL_MS = 5_000;
@@ -57,7 +63,17 @@ function readRateLimits(): Record<string, number> {
   try {
     const raw = localStorage.getItem(RATE_LIMIT_STORAGE_KEY);
     if (!raw) return {};
-    return JSON.parse(raw) as Record<string, number>;
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {};
+    }
+    const result: Record<string, number> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (typeof value === "number" && Number.isFinite(value)) {
+        result[key] = value;
+      }
+    }
+    return result;
   } catch {
     return {};
   }
@@ -100,10 +116,7 @@ function readEndpointCooldown(path: string): number {
 function setEndpointCooldown(path: string, ms: number): void {
   if (typeof localStorage === "undefined") return;
   try {
-    localStorage.setItem(
-      COOLDOWN_STORAGE_PREFIX + path,
-      String(Date.now() + ms),
-    );
+    localStorage.setItem(COOLDOWN_STORAGE_PREFIX + path, String(Date.now() + ms));
   } catch {}
 }
 
@@ -125,10 +138,7 @@ function endpointPath(path: string): string {
   return path.split("?")[0];
 }
 
-function extractErrorMessage(
-  payload: Record<string, unknown>,
-  status: number,
-): string {
+function extractErrorMessage(payload: Record<string, unknown>, status: number): string {
   const detail = payload.detail as unknown;
   const messages: string[] = Array.isArray(detail)
     ? detail
@@ -142,11 +152,18 @@ function extractErrorMessage(
     : typeof detail === "string"
       ? [detail]
       : [];
-  const technical = typeof payload.Error === "string" ? payload.Error : "";
+  const technical =
+    typeof payload.Error === "string"
+      ? payload.Error
+      : typeof payload.error === "string"
+        ? payload.error
+        : "";
   const localizedTechnical =
     technical === "bot_api_timeout"
       ? t("texts.api_timeout")
-      : technical === "bot_api_unavailable" || technical === "bot_response_too_large"
+      : technical === "bot_api_unavailable" ||
+          technical === "bot_response_too_large" ||
+          technical === "bot_response_invalid"
         ? t("texts.api_unavailable")
         : "";
   return messages.join(", ") || localizedTechnical || technical || `HTTP ${status}`;
@@ -157,12 +174,7 @@ export class ApiError extends Error {
   readonly code: string;
   readonly authExpired: boolean;
 
-  constructor(
-    message: string,
-    status: number,
-    code = "Error",
-    authExpired = false,
-  ) {
+  constructor(message: string, status: number, code = "Error", authExpired = false) {
     super(message);
     this.name = "ApiError";
     this.status = status;
@@ -171,12 +183,12 @@ export class ApiError extends Error {
   }
 }
 
-export async function fetchJson<T>(
-  path: string,
-  options: RequestInit = {},
-): Promise<T> {
-  const url = path.startsWith("/") ? path : `${API_BASE_URL}/${path}`;
-  const target = url.startsWith("/api/") ? url : `${API_BASE_URL}${path}`;
+export async function fetchJson<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const target = path.startsWith("/")
+    ? path.startsWith("/api/")
+      ? path
+      : `${API_BASE_URL}${path}`
+    : `${API_BASE_URL}/${path}`;
 
   const blockedUntil = readEndpointCooldown(endpointPath(target));
   if (blockedUntil > 0) {
@@ -190,9 +202,7 @@ export async function fetchJson<T>(
   };
 
   const timeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
-  const signal = options.signal
-    ? AbortSignal.any([options.signal, timeoutSignal])
-    : timeoutSignal;
+  const signal = options.signal ? AbortSignal.any([options.signal, timeoutSignal]) : timeoutSignal;
 
   let res: Response;
   try {
@@ -205,8 +215,7 @@ export async function fetchJson<T>(
     });
   } catch (err) {
     const aborted =
-      err instanceof DOMException &&
-      (err.name === "TimeoutError" || err.name === "AbortError");
+      err instanceof DOMException && (err.name === "TimeoutError" || err.name === "AbortError");
     if (!options.signal) {
       setEndpointCooldown(endpointPath(target), 5_000);
     }
@@ -218,10 +227,7 @@ export async function fetchJson<T>(
     );
   }
 
-  const payload = (await res.json().catch(() => ({}))) as Record<
-    string,
-    unknown
-  >;
+  const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
 
   if (!res.ok) {
     const authExpired = payload.auth_expired === true;
@@ -239,42 +245,33 @@ export async function fetchJson<T>(
       setEndpointCooldown(endpointPath(target), 3_000);
     }
 
-    throw new ApiError(
-      message,
-      res.status,
-      code,
-      authExpired,
-    );
+    throw new ApiError(message, res.status, code, authExpired);
   }
 
   clearEndpointCooldown(endpointPath(target));
 
   if (payload && typeof payload === "object" && !Array.isArray(payload)) {
-    delete payload.auth_expired;
+    const result = { ...payload };
+    delete result.auth_expired;
+    return result as T;
   }
 
   return payload as T;
 }
 
 export async function getPartnerPublicInfo(): Promise<PartnerPublicInfoResponse> {
-  return fetchJson<PartnerPublicInfoResponse>(
-    `${API_BASE_URL}/partner/public-info`,
-  );
+  return fetchJson<PartnerPublicInfoResponse>(`${API_BASE_URL}/partner/public-info`);
 }
 
 export async function getHealth() {
   if (!rateLimit("health", 2000)) {
     throw new ApiError(t("texts.rate_limited"), 429, "rate_limited");
   }
-  return fetchJson<{ status: string; version: string }>(
-    `${API_BASE_URL}/health`,
-  );
+  return fetchJson<{ status: string; version: string }>(`${API_BASE_URL}/health`);
 }
 
-export async function getFeatures() {
-  return fetchJson<import("./types").FeaturesResponse>(
-    `${API_BASE_URL}/config/features`,
-  );
+export async function getFeatures(): Promise<FeaturesResponse> {
+  return fetchJson<FeaturesResponse>(`${API_BASE_URL}/config/features`);
 }
 
 export async function startTelegramAuth(): Promise<{
@@ -284,9 +281,7 @@ export async function startTelegramAuth(): Promise<{
   return fetchJson(`${API_BASE_URL}/auth/telegram/start`, { method: "POST" });
 }
 
-export async function pollTelegramAuth(
-  state: string,
-): Promise<{ status: string }> {
+export async function pollTelegramAuth(state: string): Promise<{ status: string }> {
   return fetchJson<{ status: string }>(
     `${API_BASE_URL}/auth/telegram/status/${encodeURIComponent(state)}`,
   );
@@ -301,24 +296,14 @@ export async function startTelegramLink(): Promise<{
   });
 }
 
-export async function getTariffs(): Promise<Tariff[]> {
-  try {
-    const data = await fetchJson<TariffsResponse>(`${API_BASE_URL}/tariffs`);
-    return data.tariffs || [];
-  } catch {
-    return [];
-  }
+export async function getTariffs(): Promise<TariffsResponse> {
+  const data = await fetchJson<TariffsResponse>(`${API_BASE_URL}/tariffs`);
+  return { tariffs: data.tariffs || [], tariff_mode: data.tariff_mode };
 }
 
 export async function getLocations(): Promise<Location[]> {
-  try {
-    const data = await fetchJson<LocationsResponse>(
-      `${API_BASE_URL}/locations`,
-    );
-    return data.locations || [];
-  } catch {
-    return [];
-  }
+  const data = await fetchJson<LocationsResponse>(`${API_BASE_URL}/locations`);
+  return data.locations || [];
 }
 
 export async function verifySubscription(subId: string) {
@@ -340,9 +325,7 @@ export async function getPanelStatus(): Promise<PanelStatusResponse> {
   return fetchJson<PanelStatusResponse>(`${API_BASE_URL}/stats/panel-status`);
 }
 
-export async function registerUser(
-  req: WebRegisterequest,
-): Promise<UserSession> {
+export async function registerUser(req: WebRegisterRequest): Promise<UserSession> {
   return fetchJson<UserSession>(`${API_BASE_URL}/auth/register`, {
     method: "POST",
     body: JSON.stringify(req),
@@ -390,71 +373,45 @@ export async function changeLanguage(language: string) {
 export async function createSubscription(
   req: CreateSubscriptionRequest,
 ): Promise<SubscriptionPaymentRequest> {
-  return fetchJson<SubscriptionPaymentRequest>(
-    `${API_BASE_URL}/subscription/create`,
-    {
-      method: "POST",
-      body: JSON.stringify(req),
-    },
-  );
+  return fetchJson<SubscriptionPaymentRequest>(`${API_BASE_URL}/subscription/create`, {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
 }
 
 export async function renewSubscription(
   req: CreateSubscriptionRequest,
 ): Promise<SubscriptionPaymentRequest> {
-  return fetchJson<SubscriptionPaymentRequest>(
-    `${API_BASE_URL}/subscription/renew`,
-    {
-      method: "POST",
-      body: JSON.stringify(req),
-    },
-  );
+  return fetchJson<SubscriptionPaymentRequest>(`${API_BASE_URL}/subscription/renew`, {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
 }
 
 export async function trialSubscription() {
   return fetchJson(`${API_BASE_URL}/subscription/trial`, { method: "POST" });
 }
 
-export async function getSubscriptionLink(
-  signal?: AbortSignal,
-): Promise<SubscriptionlinkResponse> {
-  return fetchJson<SubscriptionlinkResponse>(
-    `${API_BASE_URL}/subscription/link`,
-    {
-      signal,
-    },
-  );
-}
-
-export async function addTraffic(gb: number) {
-  return fetchJson(`${API_BASE_URL}/subscription/add-traffic`, {
-    method: "POST",
-    body: JSON.stringify({ gb }),
+export async function getSubscriptionLink(signal?: AbortSignal): Promise<SubscriptionlinkResponse> {
+  return fetchJson<SubscriptionlinkResponse>(`${API_BASE_URL}/subscription/link`, {
+    signal,
   });
 }
 
-export async function createCheckout(
-  req: CreateCheckoutRequest,
-): Promise<CheckoutResponse> {
-  return fetchJson<CheckoutResponse>(
-    `${API_BASE_URL}/payments/create-checkout`,
-    {
-      method: "POST",
-      body: JSON.stringify(req),
-    },
-  );
+export async function createCheckout(req: CreateCheckoutRequest): Promise<CheckoutResponse> {
+  return fetchJson<CheckoutResponse>(`${API_BASE_URL}/payments/create-checkout`, {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
 }
 
 export async function createTestSubscription(
   req: CreateCheckoutRequest,
 ): Promise<TestSubscriptionResponse> {
-  return fetchJson<TestSubscriptionResponse>(
-    `${API_BASE_URL}/subscription/test`,
-    {
-      method: "POST",
-      body: JSON.stringify(req),
-    },
-  );
+  return fetchJson<TestSubscriptionResponse>(`${API_BASE_URL}/subscription/test`, {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
 }
 
 export async function getReferralStats(): Promise<ReferralStatsResponse> {
@@ -469,18 +426,37 @@ export async function getPartnerStats(): Promise<PartnerStatsResponse> {
   return fetchJson<PartnerStatsResponse>(`${API_BASE_URL}/partner/stats`);
 }
 
-export async function partnerApply(
-  req: PartnerApplyRequest,
-): Promise<PartnerApplyResponse> {
+export async function getCoOwnerProfile(): Promise<CoOwnerProfileResponse> {
+  return fetchJson<CoOwnerProfileResponse>(`${API_BASE_URL}/co-owners/profile`);
+}
+
+export async function getCoOwnerStats(): Promise<CoOwnerStatsResponse> {
+  return fetchJson<CoOwnerStatsResponse>(`${API_BASE_URL}/co-owners/stats`);
+}
+
+export async function getCoOwnerUsers(search = ""): Promise<CoOwnerUsersResponse> {
+  const suffix = search.trim() ? `?search=${encodeURIComponent(search.trim())}` : "";
+  return fetchJson<CoOwnerUsersResponse>(`${API_BASE_URL}/co-owners/users${suffix}`);
+}
+
+export async function getCoOwnerPayments(): Promise<CoOwnerPaymentsResponse> {
+  return fetchJson<CoOwnerPaymentsResponse>(`${API_BASE_URL}/co-owners/payments`);
+}
+
+export async function rotateCoOwnerLink(): Promise<CoOwnerLinkResponse> {
+  return fetchJson<CoOwnerLinkResponse>(`${API_BASE_URL}/co-owners/link/rotate`, {
+    method: "POST",
+  });
+}
+
+export async function partnerApply(req: PartnerApplyRequest): Promise<PartnerApplyResponse> {
   return fetchJson<PartnerApplyResponse>(`${API_BASE_URL}/partner/apply`, {
     method: "POST",
     body: JSON.stringify(req),
   });
 }
 
-export async function partnerRenew(
-  req: PartnerRenewRequest,
-): Promise<PartnerRenewResponse> {
+export async function partnerRenew(req: PartnerRenewRequest): Promise<PartnerRenewResponse> {
   return fetchJson<PartnerRenewResponse>(`${API_BASE_URL}/partner/renew`, {
     method: "POST",
     body: JSON.stringify(req),
@@ -493,10 +469,10 @@ export async function generateCustomTariff(req: {
   duration_days: number;
   servers?: string[];
 }): Promise<CustomTariffGenerateResponse> {
-  return fetchJson<CustomTariffGenerateResponse>(
-    `${API_BASE_URL}/tariffs/custom/generate`,
-    { method: "POST", body: JSON.stringify(req) },
-  );
+  return fetchJson<CustomTariffGenerateResponse>(`${API_BASE_URL}/tariffs/custom/generate`, {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
 }
 
 export async function getCustomTariffParams(): Promise<CustomTariffParams> {
@@ -527,17 +503,15 @@ export async function addPartnerChannel(req: PartnerChannelAddRequest) {
 }
 
 export async function removePartnerChannel(channel_id: number) {
-  return fetchJson(
-    `${API_BASE_URL}/partner/channels/${encodeURIComponent(String(channel_id))}`,
-    { method: "DELETE" },
-  );
+  return fetchJson(`${API_BASE_URL}/partner/channels/${encodeURIComponent(String(channel_id))}`, {
+    method: "DELETE",
+  });
 }
 
 export async function verifyPartnerChannels(): Promise<PartnerChannelVerifyResult> {
-  return fetchJson<PartnerChannelVerifyResult>(
-    `${API_BASE_URL}/partner/channels/verify`,
-    { method: "POST" },
-  );
+  return fetchJson<PartnerChannelVerifyResult>(`${API_BASE_URL}/partner/channels/verify`, {
+    method: "POST",
+  });
 }
 
 export async function partnerAutopost(req: AutopostRequest) {
@@ -555,7 +529,7 @@ export async function getAdminHealth(): Promise<AdminHealthResponse> {
 }
 
 export async function getAdminPanelStatus(): Promise<PanelStatusResponse> {
-  if (!rateLimit("panel-status", 2000)) {
+  if (!rateLimit("admin-panel-status", 2000)) {
     throw new ApiError(t("texts.rate_limited"), 429, "rate_limited");
   }
   return fetchJson<PanelStatusResponse>(`/api/admin/panel-status`);
@@ -565,10 +539,14 @@ export async function getUsers(
   page = 1,
   limit = 50,
   search = "",
+  coOwner = false,
 ): Promise<UserListResponse> {
   let url = `/api/admin/users?page=${page}&limit=${limit}`;
   if (search) {
     url += `&search=${encodeURIComponent(search)}`;
+  }
+  if (coOwner) {
+    url += "&co_owner=1";
   }
   return fetchJson<UserListResponse>(url);
 }
@@ -591,9 +569,7 @@ export interface PublicLinks {
   email_url?: string;
 }
 
-export function getPublicLinksFromFeatures(
-  features: import("./types").FeaturesResponse | null,
-): PublicLinks {
+export function getPublicLinksFromFeatures(features: FeaturesResponse | null): PublicLinks {
   const links: Record<string, string> = features?.public_links ?? {};
   const get = (key: string): string | undefined => {
     const v = links[key];
@@ -611,10 +587,8 @@ export function getPublicLinksFromFeatures(
     setup_guide_url: get("setup_guide_url"),
     client_app_url: get("client_app_url"),
     terms_of_service_url: get("terms_of_service_url") || "/tos",
-    telegram_bot_username:
-      process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || undefined,
-    telegram_channel_username:
-      process.env.NEXT_PUBLIC_TELEGRAM_CHANNEL_USERNAME || undefined,
+    telegram_bot_username: process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || undefined,
+    telegram_channel_username: process.env.NEXT_PUBLIC_TELEGRAM_CHANNEL_USERNAME || undefined,
     telegram_chat_url: process.env.NEXT_PUBLIC_TELEGRAM_CHAT || undefined,
     email_url: process.env.NEXT_PUBLIC_EMAIL_URL || undefined,
   };
@@ -657,5 +631,3 @@ export function clearStoredUser(): void {
     localStorage.removeItem(RATE_LIMIT_STORAGE_KEY);
   } catch {}
 }
-
-
